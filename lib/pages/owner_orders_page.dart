@@ -16,14 +16,6 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
   bool isLoading = true;
   String? errorMessage;
 
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const fieldColor = AppColors.field;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const deepAccent = AppColors.deepAccent;
-
   @override
   void initState() {
     super.initState();
@@ -134,8 +126,8 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
         textColor = const Color(0xFF9B4A4A);
         break;
       default:
-        background = fieldColor;
-        textColor = secondaryText;
+        background = AppColors.field;
+        textColor = AppColors.secondaryText;
     }
 
     return Container(
@@ -170,9 +162,9 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: fieldColor,
+        color: AppColors.field,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -192,7 +184,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                   color: AppColors.card,
                   child: const Icon(
                     Icons.image_not_supported_outlined,
-                    color: deepAccent,
+                    color: AppColors.deepAccent,
                   ),
                 );
               },
@@ -203,7 +195,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
               color: AppColors.card,
               child: const Icon(
                 Icons.image_not_supported_outlined,
-                color: deepAccent,
+                color: AppColors.deepAccent,
               ),
             ),
           ),
@@ -217,24 +209,32 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: primaryText,
+                    color: AppColors.primaryText,
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text('Size: $size',
-                    style:
-                    const TextStyle(fontSize: 12, color: secondaryText)),
+                Text(
+                  'Size: $size',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.secondaryText,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text('Quantity: $quantity',
-                    style:
-                    const TextStyle(fontSize: 12, color: secondaryText)),
+                Text(
+                  'Quantity: $quantity',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.secondaryText,
+                  ),
+                ),
                 const SizedBox(height: 6),
                 Text(
                   '${price.toStringAsFixed(0)} KWD',
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: primaryText,
+                    color: AppColors.primaryText,
                   ),
                 ),
               ],
@@ -279,9 +279,9 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,7 +294,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w700,
-                    color: primaryText,
+                    color: AppColors.primaryText,
                   ),
                 ),
               ),
@@ -302,56 +302,101 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
             ],
           ),
           const SizedBox(height: 8),
-          Text('Date: $date',
-              style: const TextStyle(fontSize: 13, color: secondaryText)),
+          Text(
+            'Date: $date',
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.secondaryText,
+            ),
+          ),
           const SizedBox(height: 14),
-          const Text('Customer',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: primaryText)),
+          const Text(
+            'Customer',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primaryText,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text(customerName,
-              style: const TextStyle(fontSize: 14, color: primaryText)),
+          Text(
+            customerName,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.primaryText,
+            ),
+          ),
           if (customerEmail.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(customerEmail,
-                style: const TextStyle(fontSize: 13, color: secondaryText)),
+            Text(
+              customerEmail,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.secondaryText,
+              ),
+            ),
           ],
           const SizedBox(height: 14),
-          const Text('Delivery',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: primaryText)),
+          const Text(
+            'Delivery',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primaryText,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text(deliveryMethod,
-              style: const TextStyle(fontSize: 14, color: primaryText)),
+          Text(
+            deliveryMethod,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.primaryText,
+            ),
+          ),
           const SizedBox(height: 14),
-          const Text('Payment',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: primaryText)),
+          const Text(
+            'Payment',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primaryText,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text(paymentMethod,
-              style: const TextStyle(fontSize: 14, color: primaryText)),
+          Text(
+            paymentMethod,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.primaryText,
+            ),
+          ),
           const SizedBox(height: 14),
-          const Text('Address',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: primaryText)),
+          const Text(
+            'Address',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primaryText,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text(addressText,
-              style: const TextStyle(
-                  fontSize: 13, color: secondaryText, height: 1.4)),
+          Text(
+            addressText,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.secondaryText,
+              height: 1.4,
+            ),
+          ),
           const SizedBox(height: 16),
-          const Text('Items',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: primaryText)),
+          const Text(
+            'Items',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primaryText,
+            ),
+          ),
           const SizedBox(height: 10),
           ...items.map((item) {
             return buildOrderItem(Map<String, dynamic>.from(item));
@@ -359,16 +404,20 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
           const SizedBox(height: 6),
           Row(
             children: [
-              Text('$itemCount item(s)',
-                  style:
-                  const TextStyle(fontSize: 13, color: secondaryText)),
+              Text(
+                '$itemCount item(s)',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.secondaryText,
+                ),
+              ),
               const Spacer(),
               Text(
                 'Total: ${total.toStringAsFixed(0)} KWD',
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: primaryText,
+                  color: AppColors.primaryText,
                 ),
               ),
             ],
@@ -387,34 +436,40 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                       final confirm = await showDialog<bool>(
                         context: context,
                         builder: (ctx) => AlertDialog(
-                          backgroundColor: backgroundColor,
+                          backgroundColor: AppColors.background,
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20)),
-                          title: const Text('Cancel Order',
-                              style:
-                              TextStyle(fontWeight: FontWeight.w700)),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          title: const Text(
+                            'Cancel Order',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
                           content: const Text(
                             'Are you sure you want to cancel this order? This cannot be undone.',
                             style: TextStyle(
-                                color: secondaryText, height: 1.4),
+                              color: AppColors.secondaryText,
+                              height: 1.4,
+                            ),
                           ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Back',
-                                  style:
-                                  TextStyle(color: secondaryText)),
+                              child: const Text(
+                                'Back',
+                                style: TextStyle(
+                                  color: AppColors.secondaryText,
+                                ),
+                              ),
                             ),
                             ElevatedButton(
                               onPressed: () => Navigator.pop(ctx, true),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                const Color(0xFF9B4A4A),
+                                backgroundColor: const Color(0xFF9B4A4A),
                                 foregroundColor: Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                    BorderRadius.circular(12)),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               child: const Text('Cancel Order'),
                             ),
@@ -435,12 +490,14 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                       foregroundColor: const Color(0xFF9B4A4A),
                       side: const BorderSide(color: Color(0xFF9B4A4A)),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding:
-                      const EdgeInsets.symmetric(vertical: 12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text('Cancel Order',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    child: const Text(
+                      'Cancel Order',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -459,12 +516,14 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding:
-                      const EdgeInsets.symmetric(vertical: 12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text('Confirm Order',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    child: const Text(
+                      'Confirm Order',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ),
               ],
@@ -481,14 +540,16 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(color: deepAccent),
+            child: CircularProgressIndicator(color: AppColors.deepAccent),
           );
         }
 
         if (snapshot.hasError) {
           return const Center(
-            child: Text('Failed to load orders',
-                style: TextStyle(color: secondaryText)),
+            child: Text(
+              'Failed to load orders',
+              style: TextStyle(color: AppColors.secondaryText),
+            ),
           );
         }
 
@@ -502,9 +563,13 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
               child: SizedBox(
                 height: 400,
                 child: Center(
-                  child: Text('No orders yet',
-                      style:
-                      TextStyle(fontSize: 16, color: secondaryText)),
+                  child: Text(
+                    'No orders yet',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -529,7 +594,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -537,7 +602,10 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
             Expanded(
               child: isLoading
                   ? const Center(
-                  child: CircularProgressIndicator(color: deepAccent))
+                child: CircularProgressIndicator(
+                  color: AppColors.deepAccent,
+                ),
+              )
                   : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -548,7 +616,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
-                        color: primaryText,
+                        color: AppColors.primaryText,
                         letterSpacing: 0.2,
                       ),
                     ),
@@ -564,8 +632,9 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                             child: Text(
                               errorMessage!,
                               style: const TextStyle(
-                                  fontSize: 15,
-                                  color: secondaryText),
+                                fontSize: 15,
+                                color: AppColors.secondaryText,
+                              ),
                               textAlign: TextAlign.center,
                             ),
                           ),

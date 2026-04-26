@@ -12,15 +12,6 @@ class BoutiqueOversightPage extends StatelessWidget {
     required this.boutiqueId,
   });
 
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const borderColor = AppColors.border;
-  static const fieldColor = AppColors.field;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const softAccent = AppColors.softAccent;
-  static const deepAccent = AppColors.deepAccent;
-
   double _sumSales(List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) {
     double total = 0;
 
@@ -37,6 +28,50 @@ class BoutiqueOversightPage extends StatelessWidget {
     return total;
   }
 
+  Future<Map<String, dynamic>> _loadBoutiqueOverview() async {
+    final firestore = FirebaseFirestore.instance;
+    final boutiqueRef = firestore.collection('boutiques').doc(boutiqueId);
+
+    final boutiqueSnapshot = await boutiqueRef.get();
+
+    if (!boutiqueSnapshot.exists) {
+      throw Exception('Boutique not found');
+    }
+
+    final boutiqueData = boutiqueSnapshot.data() ?? {};
+    final ownerUid = boutiqueData['ownerUid']?.toString() ?? '';
+
+    final productsFuture = boutiqueRef.collection('products').get();
+    final ordersFuture = boutiqueRef.collection('orders').get();
+
+    Future<DocumentSnapshot<Map<String, dynamic>>?> ownerFuture;
+
+    if (ownerUid.isEmpty) {
+      ownerFuture = Future.value(null);
+    } else {
+      ownerFuture = firestore.collection('boutique_owners').doc(ownerUid).get();
+    }
+
+    final results = await Future.wait([
+      productsFuture,
+      ordersFuture,
+      ownerFuture,
+    ]);
+
+    final productsSnapshot =
+    results[0] as QuerySnapshot<Map<String, dynamic>>;
+    final ordersSnapshot = results[1] as QuerySnapshot<Map<String, dynamic>>;
+    final ownerSnapshot =
+    results[2] as DocumentSnapshot<Map<String, dynamic>>?;
+
+    return {
+      'boutiqueData': boutiqueData,
+      'productDocs': productsSnapshot.docs,
+      'orderDocs': ordersSnapshot.docs,
+      'ownerData': ownerSnapshot?.data(),
+    };
+  }
+
   Widget buildStatCard({
     required String title,
     required String value,
@@ -46,19 +81,19 @@ class BoutiqueOversightPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 18,
-            backgroundColor: softAccent.withOpacity(0.22),
+            backgroundColor: AppColors.softAccent.withValues(alpha: 0.22),
             child: Icon(
               icon,
-              color: deepAccent,
+              color: AppColors.deepAccent,
               size: 20,
             ),
           ),
@@ -67,7 +102,7 @@ class BoutiqueOversightPage extends StatelessWidget {
             title,
             style: const TextStyle(
               fontSize: 13,
-              color: secondaryText,
+              color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 6),
@@ -76,7 +111,7 @@ class BoutiqueOversightPage extends StatelessWidget {
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w700,
-              color: primaryText,
+              color: AppColors.primaryText,
             ),
           ),
           const SizedBox(height: 4),
@@ -84,7 +119,7 @@ class BoutiqueOversightPage extends StatelessWidget {
             subtitle,
             style: const TextStyle(
               fontSize: 12,
-              color: secondaryText,
+              color: AppColors.secondaryText,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -102,9 +137,9 @@ class BoutiqueOversightPage extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -114,7 +149,7 @@ class BoutiqueOversightPage extends StatelessWidget {
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: secondaryText,
+              color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 6),
@@ -122,7 +157,7 @@ class BoutiqueOversightPage extends StatelessWidget {
             value.isEmpty ? '-' : value,
             style: const TextStyle(
               fontSize: 15,
-              color: primaryText,
+              color: AppColors.primaryText,
               height: 1.4,
             ),
           ),
@@ -137,50 +172,76 @@ class BoutiqueOversightPage extends StatelessWidget {
       style: const TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w700,
-        color: primaryText,
+        color: AppColors.primaryText,
       ),
     );
   }
 
+  String _getOwnerName(Map<String, dynamic>? ownerData) {
+    if (ownerData == null) return 'Unknown Owner';
+
+    final name = ownerData['Name']?.toString().trim() ?? '';
+    final lowercaseName = ownerData['name']?.toString().trim() ?? '';
+    final fullName = ownerData['fullName']?.toString().trim() ?? '';
+
+    if (name.isNotEmpty) return name;
+    if (lowercaseName.isNotEmpty) return lowercaseName;
+    if (fullName.isNotEmpty) return fullName;
+
+    return 'Unknown Owner';
+  }
+
+  String _getOwnerEmail(Map<String, dynamic>? ownerData) {
+    if (ownerData == null) return 'No email';
+
+    final emailUpper = ownerData['Email']?.toString().trim() ?? '';
+    final emailLower = ownerData['email']?.toString().trim() ?? '';
+
+    if (emailUpper.isNotEmpty) return emailUpper;
+    if (emailLower.isNotEmpty) return emailLower;
+
+    return 'No email';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final boutiqueRef =
-    FirebaseFirestore.instance.collection('boutiques').doc(boutiqueId);
-
-    final productsStream = boutiqueRef.collection('products').snapshots();
-    final ordersStream = boutiqueRef.collection('orders').snapshots();
-
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
-        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: boutiqueRef.snapshots(),
-          builder: (context, boutiqueSnapshot) {
-            if (boutiqueSnapshot.connectionState == ConnectionState.waiting) {
+        child: FutureBuilder<Map<String, dynamic>>(
+          future: _loadBoutiqueOverview(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
-                child: CircularProgressIndicator(color: deepAccent),
-              );
-            }
-
-            if (boutiqueSnapshot.hasError) {
-              return const Center(
-                child: Text(
-                  'Failed to load boutique',
-                  style: TextStyle(color: secondaryText),
+                child: CircularProgressIndicator(
+                  color: AppColors.deepAccent,
                 ),
               );
             }
 
-            if (!boutiqueSnapshot.hasData || !boutiqueSnapshot.data!.exists) {
+            if (snapshot.hasError) {
               return const Center(
                 child: Text(
-                  'Boutique not found',
-                  style: TextStyle(color: secondaryText),
+                  'Failed to load boutique overview',
+                  style: TextStyle(color: AppColors.secondaryText),
                 ),
               );
             }
 
-            final boutiqueData = boutiqueSnapshot.data!.data() ?? {};
+            final overviewData = snapshot.data ?? {};
+            final boutiqueData =
+                overviewData['boutiqueData'] as Map<String, dynamic>? ?? {};
+            final productDocs =
+                overviewData['productDocs']
+                as List<QueryDocumentSnapshot<Map<String, dynamic>>>? ??
+                    [];
+            final orderDocs =
+                overviewData['orderDocs']
+                as List<QueryDocumentSnapshot<Map<String, dynamic>>>? ??
+                    [];
+            final ownerData =
+            overviewData['ownerData'] as Map<String, dynamic>?;
+
             final boutiqueName =
                 boutiqueData['name']?.toString() ?? 'Boutique';
             final boutiqueDescription =
@@ -188,223 +249,140 @@ class BoutiqueOversightPage extends StatelessWidget {
             final ownerUid = boutiqueData['ownerUid']?.toString() ?? '';
             final logoPath = boutiqueData['logoPath']?.toString() ?? '';
 
-            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: productsStream,
-              builder: (context, productsSnapshot) {
-                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: ordersStream,
-                  builder: (context, ordersSnapshot) {
-                    if (productsSnapshot.connectionState ==
-                        ConnectionState.waiting ||
-                        ordersSnapshot.connectionState ==
-                            ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: deepAccent),
-                      );
-                    }
+            final totalSales = _sumSales(orderDocs);
+            final ownerName = _getOwnerName(ownerData);
+            final ownerEmail = _getOwnerEmail(ownerData);
 
-                    if (productsSnapshot.hasError || ordersSnapshot.hasError) {
-                      return const Center(
-                        child: Text(
-                          'Failed to load boutique overview',
-                          style: TextStyle(color: secondaryText),
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const AppHeader(showBackButton: true),
+                  const SizedBox(height: 12),
+                  Text(
+                    boutiqueName,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryText,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    boutiqueDescription,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.secondaryText,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  if (logoPath.isNotEmpty)
+                    Center(
+                      child: Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.border,
+                          ),
+                          color: AppColors.field,
                         ),
-                      );
-                    }
-
-                    final productDocs = productsSnapshot.data?.docs ?? [];
-                    final orderDocs = ordersSnapshot.data?.docs ?? [];
-                    final totalSales = _sumSales(orderDocs);
-
-                    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                      stream: ownerUid.isEmpty
-                          ? null
-                          : FirebaseFirestore.instance
-                          .collection('boutique_owners')
-                          .doc(ownerUid)
-                          .snapshots(),
-                      builder: (context, ownerSnapshot) {
-                        final ownerData = ownerSnapshot.data?.data();
-
-                        final ownerName =
-                        ownerData?['Name']?.toString().trim().isNotEmpty ==
-                            true
-                            ? ownerData!['Name'].toString().trim()
-                            : ownerData?['name']
-                            ?.toString()
-                            .trim()
-                            .isNotEmpty ==
-                            true
-                            ? ownerData!['name'].toString().trim()
-                            : ownerData?['fullName']
-                            ?.toString()
-                            .trim()
-                            .isNotEmpty ==
-                            true
-                            ? ownerData!['fullName']
-                            .toString()
-                            .trim()
-                            : 'Unknown Owner';
-
-                        final ownerEmail =
-                        ownerData?['Email']?.toString().trim().isNotEmpty ==
-                            true
-                            ? ownerData!['Email'].toString().trim()
-                            : ownerData?['email']
-                            ?.toString()
-                            .trim()
-                            .isNotEmpty ==
-                            true
-                            ? ownerData!['email'].toString().trim()
-                            : 'No email';
-
-                        return SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const AppHeader(showBackButton: true),
-                              const SizedBox(height: 12),
-                              Text(
-                                boutiqueName,
-                                style: const TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w700,
-                                  color: primaryText,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                boutiqueDescription,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: secondaryText,
-                                  height: 1.4,
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-
-                              if (logoPath.isNotEmpty)
-                                Center(
-                                  child: Container(
-                                    width: 90,
-                                    height: 90,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: borderColor),
-                                      color: fieldColor,
-                                    ),
-                                    child: ClipOval(
-                                      child: Image.network(
-                                        logoPath,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                          return const Icon(
-                                            Icons.storefront_outlined,
-                                            color: deepAccent,
-                                            size: 32,
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                              const SizedBox(height: 20),
-
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: buildStatCard(
-                                      title: 'Products',
-                                      value: productDocs.length.toString(),
-                                      subtitle: 'Total products',
-                                      icon: Icons.checkroom_outlined,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: buildStatCard(
-                                      title: 'Orders',
-                                      value: orderDocs.length.toString(),
-                                      subtitle: 'Boutique orders',
-                                      icon: Icons.receipt_long_outlined,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-
-                              buildStatCard(
-                                title: 'Sales',
-                                value:
-                                '${totalSales.toStringAsFixed(0)} KWD',
-                                subtitle: 'Total boutique sales',
-                                icon: Icons.trending_up_rounded,
-                              ),
-
-                              const SizedBox(height: 24),
-
-                              buildSectionTitle('Owner Details'),
-                              const SizedBox(height: 12),
-
-                              buildInfoBox(
-                                label: 'Owner Name',
-                                value: ownerName,
-                              ),
-                              buildInfoBox(
-                                label: 'Owner Email',
-                                value: ownerEmail,
-                              ),
-                              buildInfoBox(
-                                label: 'Owner UID',
-                                value: ownerUid,
-                              ),
-
-                              const SizedBox(height: 12),
-
-                              SizedBox(
-                                width: double.infinity,
-                                height: 54,
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            BoutiqueStorefrontPage(
-                                              boutiqueId: boutiqueId,
-                                            ),
-                                      ),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.black,
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                      BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Open Storefront',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                        child: ClipOval(
+                          child: Image.network(
+                            logoPath,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(
+                                Icons.storefront_outlined,
+                                color: AppColors.deepAccent,
+                                size: 32,
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: buildStatCard(
+                          title: 'Products',
+                          value: productDocs.length.toString(),
+                          subtitle: 'Total products',
+                          icon: Icons.checkroom_outlined,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: buildStatCard(
+                          title: 'Orders',
+                          value: orderDocs.length.toString(),
+                          subtitle: 'Boutique orders',
+                          icon: Icons.receipt_long_outlined,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  buildStatCard(
+                    title: 'Sales',
+                    value: '${totalSales.toStringAsFixed(0)} KWD',
+                    subtitle: 'Total boutique sales',
+                    icon: Icons.trending_up_rounded,
+                  ),
+                  const SizedBox(height: 24),
+                  buildSectionTitle('Owner Details'),
+                  const SizedBox(height: 12),
+                  buildInfoBox(
+                    label: 'Owner Name',
+                    value: ownerName,
+                  ),
+                  buildInfoBox(
+                    label: 'Owner Email',
+                    value: ownerEmail,
+                  ),
+                  buildInfoBox(
+                    label: 'Owner UID',
+                    value: ownerUid,
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => BoutiqueStorefrontPage(
+                              boutiqueId: boutiqueId,
+                            ),
                           ),
                         );
                       },
-                    );
-                  },
-                );
-              },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text(
+                        'Open Storefront',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             );
           },
         ),

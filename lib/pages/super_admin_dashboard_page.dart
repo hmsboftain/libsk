@@ -11,20 +11,26 @@ import 'boutique_sales_page.dart';
 import '../widgets/theme.dart';
 import 'disputes_page.dart';
 import 'send_notification_page.dart';
+import 'admin_analytics_page.dart';
 
 class SuperAdminDashboardPage extends StatelessWidget {
   const SuperAdminDashboardPage({super.key});
 
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const softAccent = AppColors.softAccent;
-  static const deepAccent = AppColors.deepAccent;
+  int _countRecentlyActiveUsers(
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+      ) {
+    final now = DateTime.now();
 
-  int _countOnlineUsers(List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) {
-    return docs.where((doc) => doc.data()['isOnline'] == true).length;
+    return docs.where((doc) {
+      final lastSeenValue = doc.data()['lastSeenAt'];
+
+      if (lastSeenValue is! Timestamp) return false;
+
+      final lastSeen = lastSeenValue.toDate();
+      final difference = now.difference(lastSeen);
+
+      return difference.inMinutes <= 5;
+    }).length;
   }
 
   double _sumSales(List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) {
@@ -62,19 +68,19 @@ class SuperAdminDashboardPage extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 18,
-            backgroundColor: softAccent.withOpacity(0.22),
+            backgroundColor: AppColors.softAccent.withValues(alpha:0.22),
             child: Icon(
               icon,
-              color: deepAccent,
+              color: AppColors.deepAccent,
               size: 20,
             ),
           ),
@@ -85,7 +91,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontSize: 13,
-              color: secondaryText,
+              color: AppColors.secondaryText,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -97,7 +103,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
             style: TextStyle(
               fontSize: compactValue ? 18 : 24,
               fontWeight: FontWeight.w700,
-              color: primaryText,
+              color: AppColors.primaryText,
             ),
           ),
           const SizedBox(height: 4),
@@ -107,7 +113,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontSize: 11,
-              color: secondaryText,
+              color: AppColors.secondaryText,
               fontWeight: FontWeight.w400,
             ),
           ),
@@ -127,7 +133,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -150,7 +156,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                   ConnectionState.waiting) {
                             return const Center(
                               child: CircularProgressIndicator(
-                                color: deepAccent,
+                                color: AppColors.deepAccent,
                               ),
                             );
                           }
@@ -161,7 +167,9 @@ class SuperAdminDashboardPage extends StatelessWidget {
                             return const Center(
                               child: Text(
                                 'Failed to load admin dashboard',
-                                style: TextStyle(color: secondaryText),
+                                style: TextStyle(
+                                  color: AppColors.secondaryText,
+                                ),
                               ),
                             );
                           }
@@ -177,15 +185,18 @@ class SuperAdminDashboardPage extends StatelessWidget {
                           }).toList();
 
                           final totalUsers = userDocs.length;
-                          final onlineUsers = _countOnlineUsers(userDocs);
+                          final recentlyActiveUsers =
+                          _countRecentlyActiveUsers(userDocs);
                           final totalBoutiques = boutiqueDocs.length;
                           final totalOrders = boutiqueOrderDocs.length;
                           final totalSales = _sumSales(boutiqueOrderDocs);
 
                           final regularUsers = _countRole(userDocs, 'user');
-                          final boutiqueOwners = _countRole(userDocs, 'boutique_owner');
+                          final boutiqueOwners =
+                          _countRole(userDocs, 'boutique_owner');
                           final admins = _countRole(userDocs, 'admin');
-                          final superAdmins = _countRole(userDocs, 'super_admin');
+                          final superAdmins =
+                          _countRole(userDocs, 'super_admin');
 
                           return SingleChildScrollView(
                             padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
@@ -197,7 +208,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 28,
                                     fontWeight: FontWeight.w700,
-                                    color: primaryText,
+                                    color: AppColors.primaryText,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -205,7 +216,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                   'Overview of your marketplace activity.',
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: secondaryText,
+                                    color: AppColors.secondaryText,
                                     height: 1.4,
                                   ),
                                 ),
@@ -232,9 +243,9 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                     const SizedBox(width: 14),
                                     Expanded(
                                       child: buildStatCard(
-                                        title: 'Online Users',
-                                        value: onlineUsers.toString(),
-                                        subtitle: 'Tracking not added yet',
+                                        title: 'Recently Active',
+                                        value: recentlyActiveUsers.toString(),
+                                        subtitle: 'Seen in last 5 min',
                                         icon: Icons.wifi_tethering_outlined,
                                       ),
                                     ),
@@ -271,7 +282,8 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => GlobalOrdersPage(),
+                                              builder: (context) =>
+                                              const GlobalOrdersPage(),
                                             ),
                                           );
                                         },
@@ -286,13 +298,15 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => const BoutiqueSalesPage(),
+                                        builder: (context) =>
+                                        const BoutiqueSalesPage(),
                                       ),
                                     );
                                   },
                                   child: buildStatCard(
                                     title: 'Total Sales',
-                                    value: '${totalSales.toStringAsFixed(0)} KWD',
+                                    value:
+                                    '${totalSales.toStringAsFixed(0)} KWD',
                                     subtitle: 'Tap to view boutique sales',
                                     icon: Icons.trending_up_rounded,
                                   ),
@@ -303,7 +317,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
-                                    color: primaryText,
+                                    color: AppColors.primaryText,
                                   ),
                                 ),
                                 const SizedBox(height: 10),
@@ -319,7 +333,8 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => const FilteredUsersPage(
+                                              builder: (context) =>
+                                              const FilteredUsersPage(
                                                 title: 'Regular Users',
                                                 roles: ['user'],
                                               ),
@@ -334,12 +349,14 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                         title: 'Boutique Owners',
                                         value: boutiqueOwners.toString(),
                                         subtitle: 'Owner accounts',
-                                        icon: Icons.store_mall_directory_outlined,
+                                        icon: Icons
+                                            .store_mall_directory_outlined,
                                         onTap: () {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => const FilteredUsersPage(
+                                              builder: (context) =>
+                                              const FilteredUsersPage(
                                                 title: 'Boutique Owners',
                                                 roles: ['boutique_owner'],
                                               ),
@@ -358,12 +375,14 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                         title: 'Admins',
                                         value: admins.toString(),
                                         subtitle: 'Admin accounts',
-                                        icon: Icons.admin_panel_settings_outlined,
+                                        icon:
+                                        Icons.admin_panel_settings_outlined,
                                         onTap: () {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => const FilteredUsersPage(
+                                              builder: (context) =>
+                                              const FilteredUsersPage(
                                                 title: 'Admins',
                                                 roles: ['admin'],
                                               ),
@@ -383,7 +402,8 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => const FilteredUsersPage(
+                                              builder: (context) =>
+                                              const FilteredUsersPage(
                                                 title: 'Super Admin',
                                                 roles: ['super_admin'],
                                               ),
@@ -400,7 +420,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
-                                    color: primaryText,
+                                    color: AppColors.primaryText,
                                   ),
                                 ),
                                 const SizedBox(height: 10),
@@ -412,12 +432,13 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                         value: 'Featured',
                                         subtitle: 'Boutiques & products',
                                         icon: Icons.home_outlined,
-                                    compactValue: true,
+                                        compactValue: true,
                                         onTap: () {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => const AdminHomepagePage(),
+                                              builder: (context) =>
+                                              const AdminHomepagePage(),
                                             ),
                                           );
                                         },
@@ -435,7 +456,8 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => const DisputesPage(),
+                                              builder: (context) =>
+                                              const DisputesPage(),
                                             ),
                                           );
                                         },
@@ -452,12 +474,14 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                         value: 'Send',
                                         compactValue: true,
                                         subtitle: 'Message users',
-                                        icon: Icons.notifications_active_outlined,
+                                        icon: Icons
+                                            .notifications_active_outlined,
                                         onTap: () {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => const SendNotificationPage(),
+                                              builder: (context) =>
+                                              const SendNotificationPage(),
                                             ),
                                           );
                                         },
@@ -465,7 +489,22 @@ class SuperAdminDashboardPage extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 14),
                                     Expanded(
-                                      child: Container(),
+                                      child: buildStatCard(
+                                        title: 'Analytics',
+                                        value: 'Reports',
+                                        compactValue: true,
+                                        subtitle: 'View insights',
+                                        icon: Icons.analytics_outlined,
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                              const AdminAnalyticsPage(),
+                                            ),
+                                          );
+                                        },
+                                      ),
                                     ),
                                   ],
                                 ),

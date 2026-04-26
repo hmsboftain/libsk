@@ -14,14 +14,6 @@ class FilteredUsersPage extends StatelessWidget {
     required this.roles,
   });
 
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const softAccent = AppColors.softAccent;
-  static const deepAccent = AppColors.deepAccent;
-
   String _buildUserName(Map<String, dynamic> data) {
     final fullName = data['fullName']?.toString().trim() ?? '';
     if (fullName.isNotEmpty) return fullName;
@@ -73,19 +65,19 @@ class FilteredUsersPage extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 22,
-            backgroundColor: softAccent.withOpacity(0.22),
+            backgroundColor: AppColors.softAccent..withValues(alpha: 0.22),
             child: const Icon(
               Icons.person_outline,
-              color: deepAccent,
+              color: AppColors.deepAccent,
               size: 22,
             ),
           ),
@@ -99,7 +91,7 @@ class FilteredUsersPage extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: primaryText,
+                    color: AppColors.primaryText,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -107,7 +99,7 @@ class FilteredUsersPage extends StatelessWidget {
                   email,
                   style: const TextStyle(
                     fontSize: 13,
-                    color: secondaryText,
+                    color: AppColors.secondaryText,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -115,7 +107,7 @@ class FilteredUsersPage extends StatelessWidget {
                   phone,
                   style: const TextStyle(
                     fontSize: 13,
-                    color: secondaryText,
+                    color: AppColors.secondaryText,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -124,7 +116,7 @@ class FilteredUsersPage extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: deepAccent,
+                    color: AppColors.deepAccent,
                   ),
                 ),
               ],
@@ -142,7 +134,7 @@ class FilteredUsersPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -154,7 +146,7 @@ class FilteredUsersPage extends StatelessWidget {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
                       child: CircularProgressIndicator(
-                        color: deepAccent,
+                        color: AppColors.deepAccent,
                       ),
                     );
                   }
@@ -163,7 +155,7 @@ class FilteredUsersPage extends StatelessWidget {
                     return const Center(
                       child: Text(
                         'Failed to load users',
-                        style: TextStyle(color: secondaryText),
+                        style: TextStyle(color: AppColors.secondaryText),
                       ),
                     );
                   }
@@ -184,7 +176,7 @@ class FilteredUsersPage extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.w700,
-                            color: primaryText,
+                            color: AppColors.primaryText,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -192,7 +184,7 @@ class FilteredUsersPage extends StatelessWidget {
                           '${filteredDocs.length} accounts found',
                           style: const TextStyle(
                             fontSize: 14,
-                            color: secondaryText,
+                            color: AppColors.secondaryText,
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -201,15 +193,15 @@ class FilteredUsersPage extends StatelessWidget {
                             width: double.infinity,
                             padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
-                              color: cardColor,
+                              color: AppColors.card,
                               borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: borderColor),
+                              border: Border.all(color: AppColors.border),
                             ),
                             child: const Text(
                               'No users found.',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: secondaryText,
+                                color: AppColors.secondaryText,
                               ),
                             ),
                           )

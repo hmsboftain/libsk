@@ -8,6 +8,7 @@ class ProductPage extends StatefulWidget {
   final String productId;
   final String boutiqueId;
   final String imageUrl;
+  final List<String> imageUrls;
   final String title;
   final double price;
   final String description;
@@ -20,6 +21,7 @@ class ProductPage extends StatefulWidget {
     required this.productId,
     required this.boutiqueId,
     required this.imageUrl,
+    this.imageUrls = const [],
     required this.title,
     required this.price,
     required this.description,
@@ -33,6 +35,8 @@ class ProductPage extends StatefulWidget {
 }
 
 class _ProductPageState extends State<ProductPage> {
+  final PageController _pageController = PageController();
+
   int selectedImageIndex = 0;
   String selectedSize = "";
 
@@ -54,6 +58,24 @@ class _ProductPageState extends State<ProductPage> {
     loadSavedStatus();
   }
 
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  List<String> get galleryImages {
+    if (widget.imageUrls.isNotEmpty) {
+      return widget.imageUrls.where((image) => image.trim().isNotEmpty).toList();
+    }
+
+    if (widget.imageUrl.trim().isNotEmpty) {
+      return [widget.imageUrl];
+    }
+
+    return [];
+  }
+
   Future<void> loadSavedStatus() async {
     try {
       final result = await FirestoreService.isItemSaved(widget.productId);
@@ -72,6 +94,9 @@ class _ProductPageState extends State<ProductPage> {
   }
 
   Future<void> toggleLike() async {
+    final mainImageUrl =
+    galleryImages.isNotEmpty ? galleryImages.first : widget.imageUrl;
+
     try {
       if (liked) {
         await FirestoreService.removeSavedItem(widget.productId);
@@ -79,7 +104,8 @@ class _ProductPageState extends State<ProductPage> {
         await FirestoreService.saveItem(
           productId: widget.productId,
           boutiqueId: widget.boutiqueId,
-          imageUrl: widget.imageUrl,
+          imageUrl: mainImageUrl,
+          imageUrls: galleryImages,
           title: widget.title,
           boutiqueName: widget.boutiqueName,
           price: widget.price,
@@ -118,6 +144,9 @@ class _ProductPageState extends State<ProductPage> {
   }
 
   Future<void> addProductToCart() async {
+    final mainImageUrl =
+    galleryImages.isNotEmpty ? galleryImages.first : widget.imageUrl;
+
     if (widget.stock <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -142,7 +171,7 @@ class _ProductPageState extends State<ProductPage> {
       await FirestoreService.addToCart(
         productId: widget.productId,
         boutiqueId: widget.boutiqueId,
-        imageUrl: widget.imageUrl,
+        imageUrl: mainImageUrl,
         title: widget.title,
         description: widget.description,
         size: selectedSize,
@@ -169,9 +198,137 @@ class _ProductPageState extends State<ProductPage> {
     }
   }
 
+  Widget buildProductImageGallery() {
+    final images = galleryImages;
+
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: SizedBox(
+            height: 500,
+            width: double.infinity,
+            child: images.isEmpty
+                ? Container(
+              color: AppColors.field,
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.image_not_supported_outlined,
+                size: 40,
+                color: Colors.black54,
+              ),
+            )
+                : PageView.builder(
+              controller: _pageController,
+              itemCount: images.length,
+              onPageChanged: (index) {
+                setState(() {
+                  selectedImageIndex = index;
+                });
+              },
+              itemBuilder: (context, index) {
+                return Image.network(
+                  images[index],
+                  width: double.infinity,
+                  height: 500,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: AppColors.field,
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.image_not_supported_outlined,
+                        size: 40,
+                        color: Colors.black54,
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+        Positioned(
+          top: 16,
+          right: 16,
+          child: GestureDetector(
+            onTap: isLoadingLike ? null : toggleLike,
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: AppColors.card,
+              child: isLoadingLike
+                  ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.black,
+                ),
+              )
+                  : Icon(
+                liked ? Icons.favorite : Icons.favorite_border,
+                color: liked ? Colors.red : Colors.black,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildImageDots() {
+    final images = galleryImages;
+
+    if (images.length <= 1) {
+      return const SizedBox(height: 24);
+    }
+
+    return Column(
+      children: [
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(images.length, (index) {
+            return GestureDetector(
+              onTap: () {
+                _pageController.animateToPage(
+                  index,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                );
+
+                setState(() {
+                  selectedImageIndex = index;
+                });
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: selectedImageIndex == index ? 18 : 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  color: selectedImageIndex == index
+                      ? Colors.black
+                      : Colors.transparent,
+                  border: Border.all(color: Colors.black54),
+                ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool hasSizes = widget.sizes.isNotEmpty;
+
+    if (selectedImageIndex >= galleryImages.length && galleryImages.isNotEmpty) {
+      selectedImageIndex = 0;
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -182,98 +339,9 @@ class _ProductPageState extends State<ProductPage> {
               const AppHeader(showBackButton: true),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(28),
-                      child: widget.imageUrl.isNotEmpty
-                          ? Image.network(
-                        widget.imageUrl,
-                        width: double.infinity,
-                        height: 500,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            width: double.infinity,
-                            height: 500,
-                            color: AppColors.field,
-                            alignment: Alignment.center,
-                            child: const Icon(
-                              Icons.image_not_supported_outlined,
-                              size: 40,
-                              color: Colors.black54,
-                            ),
-                          );
-                        },
-                      )
-                          : Container(
-                        width: double.infinity,
-                        height: 500,
-                        color: AppColors.field,
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.image_not_supported_outlined,
-                          size: 40,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 16,
-                      right: 16,
-                      child: GestureDetector(
-                        onTap: isLoadingLike ? null : toggleLike,
-                        child: CircleAvatar(
-                          radius: 18,
-                          backgroundColor: AppColors.card,
-                          child: isLoadingLike
-                              ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.black,
-                            ),
-                          )
-                              : Icon(
-                            liked
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-                            color: liked ? Colors.red : Colors.black,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                child: buildProductImageGallery(),
               ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(4, (index) {
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        selectedImageIndex = index;
-                      });
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: selectedImageIndex == index
-                            ? Colors.black
-                            : Colors.transparent,
-                        border: Border.all(color: Colors.black54),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 24),
+              buildImageDots(),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: Column(
@@ -407,7 +475,8 @@ class _ProductPageState extends State<ProductPage> {
                       },
                       content: hasSizes
                           ? "${AppLocalizations.of(context)!.availableSizes} ${widget.sizes.join(', ')}"
-                          : AppLocalizations.of(context)!.noSizeInformationAvailable,
+                          : AppLocalizations.of(context)!
+                          .noSizeInformationAvailable,
                     ),
                     const SizedBox(height: 30),
                   ],

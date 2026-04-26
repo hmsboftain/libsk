@@ -18,13 +18,6 @@ class GlobalOrderDetailsPage extends StatefulWidget {
 }
 
 class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const deepAccent = AppColors.deepAccent;
-
   late String _currentStatus;
   bool _isUpdating = false;
 
@@ -54,7 +47,8 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
 
       // Update in user's orders collection
       final customerUid = widget.orderData['customerUid']?.toString() ?? '';
-      final sourceUserOrderId = widget.orderData['sourceUserOrderId']?.toString() ?? '';
+      final sourceUserOrderId =
+          widget.orderData['sourceUserOrderId']?.toString() ?? '';
 
       if (customerUid.isNotEmpty && sourceUserOrderId.isNotEmpty) {
         await FirebaseFirestore.instance
@@ -127,7 +121,7 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
   Color _statusBgColor(String status) {
     switch (status.toLowerCase()) {
       case 'placed':
-        return AppColors.softAccent.withOpacity(0.35);
+        return AppColors.softAccent.withValues(alpha:0.35);
       case 'confirmed':
         return const Color(0xFFE8F0F8);
       case 'on the way':
@@ -163,7 +157,7 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
       style: const TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w700,
-        color: primaryText,
+        color: AppColors.primaryText,
       ),
     );
   }
@@ -174,9 +168,9 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,7 +180,7 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: secondaryText,
+              color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 6),
@@ -194,7 +188,7 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
             value,
             style: const TextStyle(
               fontSize: 15,
-              color: primaryText,
+              color: AppColors.primaryText,
               height: 1.4,
             ),
           ),
@@ -226,9 +220,9 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,13 +242,13 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) => const Icon(
                   Icons.image_not_supported_outlined,
-                  color: deepAccent,
+                  color: AppColors.deepAccent,
                   size: 28,
                 ),
               )
                   : const Icon(
                 Icons.image_not_supported_outlined,
-                color: deepAccent,
+                color: AppColors.deepAccent,
                 size: 28,
               ),
             ),
@@ -264,27 +258,55 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: primaryText)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryText,
+                  ),
+                ),
                 const SizedBox(height: 6),
-                Text(description,
-                    style: const TextStyle(
-                        fontSize: 13, color: secondaryText, height: 1.35)),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.secondaryText,
+                    height: 1.35,
+                  ),
+                ),
                 const SizedBox(height: 8),
-                Text('Size: $size',
-                    style: const TextStyle(fontSize: 13, color: secondaryText)),
+                Text(
+                  'Size: $size',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.secondaryText,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text('Quantity: $quantity',
-                    style: const TextStyle(fontSize: 13, color: secondaryText)),
+                Text(
+                  'Quantity: $quantity',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.secondaryText,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text('Price: ${price.toStringAsFixed(0)} KWD',
-                    style: const TextStyle(fontSize: 13, color: secondaryText)),
+                Text(
+                  'Price: ${price.toStringAsFixed(0)} KWD',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.secondaryText,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text('Boutique ID: $boutiqueId',
-                    style: const TextStyle(fontSize: 13, color: secondaryText)),
+                Text(
+                  'Boutique ID: $boutiqueId',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.secondaryText,
+                  ),
+                ),
               ],
             ),
           ),
@@ -295,12 +317,21 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final orderNumber = _buildTextValue(widget.orderData['orderNumber'], 'Unknown Order');
-    final customerName = _buildTextValue(widget.orderData['customerName'], 'Unknown Customer');
-    final customerEmail = _buildTextValue(widget.orderData['customerEmail'], 'No email');
+    final orderNumber =
+    _buildTextValue(widget.orderData['orderNumber'], 'Unknown Order');
+    final customerName =
+    _buildTextValue(widget.orderData['customerName'], 'Unknown Customer');
+    final customerEmail =
+    _buildTextValue(widget.orderData['customerEmail'], 'No email');
     final date = _buildTextValue(widget.orderData['date'], 'No date');
-    final deliveryMethod = _buildTextValue(widget.orderData['deliveryMethod'], 'No delivery method');
-    final paymentMethod = _buildTextValue(widget.orderData['paymentMethod'], 'No payment method');
+    final deliveryMethod = _buildTextValue(
+      widget.orderData['deliveryMethod'],
+      'No delivery method',
+    );
+    final paymentMethod = _buildTextValue(
+      widget.orderData['paymentMethod'],
+      'No payment method',
+    );
     final itemCount = _buildItemCount(widget.orderData['itemCount']);
     final total = _buildTotal(widget.orderData['total']);
 
@@ -323,11 +354,14 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
 
     final rawItems = widget.orderData['items'];
     final List<Map<String, dynamic>> items = rawItems is List
-        ? rawItems.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+        ? rawItems
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList()
         : [];
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -343,7 +377,7 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
-                        color: primaryText,
+                        color: AppColors.primaryText,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -353,9 +387,9 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: cardColor,
+                        color: AppColors.card,
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: borderColor),
+                        border: Border.all(color: AppColors.border),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,14 +399,16 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: secondaryText,
+                              color: AppColors.secondaryText,
                             ),
                           ),
                           const SizedBox(height: 12),
                           // Current status badge
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: _statusBgColor(_currentStatus),
                               borderRadius: BorderRadius.circular(30),
@@ -391,15 +427,17 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                             'Update status:',
                             style: TextStyle(
                               fontSize: 13,
-                              color: secondaryText,
+                              color: AppColors.secondaryText,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                           const SizedBox(height: 10),
                           _isUpdating
                               ? const Center(
-                              child: CircularProgressIndicator(
-                                  color: deepAccent))
+                            child: CircularProgressIndicator(
+                              color: AppColors.deepAccent,
+                            ),
+                          )
                               : Wrap(
                             spacing: 8,
                             runSpacing: 8,
@@ -414,7 +452,9 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                                   duration:
                                   const Duration(milliseconds: 200),
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 8),
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: isSelected
                                         ? _statusBgColor(status)
@@ -458,7 +498,10 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                     const SizedBox(height: 12),
                     buildInfoBox(label: 'Customer Name', value: customerName),
                     buildInfoBox(label: 'Customer Email', value: customerEmail),
-                    buildInfoBox(label: 'Delivery Method', value: deliveryMethod),
+                    buildInfoBox(
+                      label: 'Delivery Method',
+                      value: deliveryMethod,
+                    ),
                     buildInfoBox(label: 'Payment Method', value: paymentMethod),
 
                     const SizedBox(height: 12),
@@ -466,7 +509,8 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                     const SizedBox(height: 12),
                     buildInfoBox(
                       label: 'Address',
-                      value: addressText.isEmpty ? 'No address saved' : addressText,
+                      value:
+                      addressText.isEmpty ? 'No address saved' : addressText,
                     ),
 
                     const SizedBox(height: 12),
@@ -478,13 +522,16 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: cardColor,
+                          color: AppColors.card,
                           borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: borderColor),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: const Text(
                           'No items found.',
-                          style: TextStyle(fontSize: 14, color: secondaryText),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.secondaryText,
+                          ),
                         ),
                       )
                     else

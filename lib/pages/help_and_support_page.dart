@@ -13,13 +13,6 @@ class HelpSupportPage extends StatefulWidget {
 }
 
 class _HelpSupportPageState extends State<HelpSupportPage> {
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const deepAccent = AppColors.deepAccent;
-
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
@@ -234,7 +227,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -251,7 +244,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w700,
-                        color: primaryText,
+                        color: AppColors.primaryText,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -259,11 +252,10 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       'How can we help you today?',
                       style: TextStyle(
                         fontSize: 14,
-                        color: secondaryText,
+                        color: AppColors.secondaryText,
                       ),
                     ),
                     const SizedBox(height: 24),
-
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -290,12 +282,12 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? AppColors.selectedSoft
-                                  : cardColor,
+                                  : AppColors.card,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                 color: isSelected
-                                    ? deepAccent
-                                    : borderColor,
+                                    ? AppColors.deepAccent
+                                    : AppColors.border,
                               ),
                             ),
                             child: Column(
@@ -303,7 +295,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                               children: [
                                 Icon(
                                   topic['icon'] as IconData,
-                                  color: deepAccent,
+                                  color: AppColors.deepAccent,
                                   size: 26,
                                 ),
                                 const SizedBox(height: 8),
@@ -314,7 +306,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                                     fontWeight: FontWeight.w600,
                                     color: isSelected
                                         ? AppColors.deepAccent
-                                        : primaryText,
+                                        : AppColors.primaryText,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -324,7 +316,6 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                         );
                       },
                     ),
-
                     if (_expandedTopic != null) ...[
                       const SizedBox(height: 20),
                       Text(
@@ -332,7 +323,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: primaryText,
+                          color: AppColors.primaryText,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -348,9 +339,9 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           decoration: BoxDecoration(
-                            color: cardColor,
+                            color: AppColors.card,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: borderColor),
+                            border: Border.all(color: AppColors.border),
                           ),
                           child: Column(
                             children: [
@@ -360,14 +351,14 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
-                                    color: primaryText,
+                                    color: AppColors.primaryText,
                                   ),
                                 ),
                                 trailing: Icon(
                                   isOpen
                                       ? Icons.keyboard_arrow_up
                                       : Icons.keyboard_arrow_down,
-                                  color: deepAccent,
+                                  color: AppColors.deepAccent,
                                 ),
                                 onTap: () {
                                   setState(() {
@@ -377,13 +368,13 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                               ),
                               if (isOpen)
                                 Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                      16, 0, 16, 14),
+                                  padding:
+                                  const EdgeInsets.fromLTRB(16, 0, 16, 14),
                                   child: Text(
                                     faq['a']!,
                                     style: const TextStyle(
                                       fontSize: 13,
-                                      color: secondaryText,
+                                      color: AppColors.secondaryText,
                                       height: 1.6,
                                     ),
                                   ),
@@ -393,18 +384,16 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                         );
                       }),
                     ],
-
                     const SizedBox(height: 30),
                     const Text(
                       'CONTACT US',
                       style: TextStyle(
                         fontSize: 13,
-                        color: secondaryText,
+                        color: AppColors.secondaryText,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 12),
-
                     _contactTile(
                       icon: Icons.email_outlined,
                       title: 'Email Support',
@@ -412,32 +401,28 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       onTap: () => _launchUrl('mailto:support@libsk.app'),
                     ),
                     const SizedBox(height: 10),
-
                     _contactTile(
                       icon: Icons.chat_outlined,
                       title: 'WhatsApp',
                       subtitle: '+965 123 456 789',
-                      onTap: () =>
-                          _launchUrl('https://wa.me/965123456789'),
+                      onTap: () => _launchUrl('https://wa.me/965123456789'),
                     ),
-
                     const SizedBox(height: 30),
                     const Text(
                       'SEND A MESSAGE',
                       style: TextStyle(
                         fontSize: 13,
-                        color: secondaryText,
+                        color: AppColors.secondaryText,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 12),
-
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: cardColor,
+                        color: AppColors.card,
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: borderColor),
+                        border: Border.all(color: AppColors.border),
                       ),
                       child: Column(
                         children: [
@@ -489,8 +474,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                               onPressed: _isSending ? null : _sendMessage,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 14),
+                                padding:
+                                const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -539,13 +524,13 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: cardColor,
+          color: AppColors.card,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
-            Icon(icon, color: deepAccent, size: 22),
+            Icon(icon, color: AppColors.deepAccent, size: 22),
             const SizedBox(width: 14),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -555,7 +540,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: primaryText,
+                    color: AppColors.primaryText,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -563,14 +548,17 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                   subtitle,
                   style: const TextStyle(
                     fontSize: 13,
-                    color: secondaryText,
+                    color: AppColors.secondaryText,
                   ),
                 ),
               ],
             ),
             const Spacer(),
-            const Icon(Icons.arrow_forward_ios,
-                size: 14, color: Colors.black38),
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: Colors.black38,
+            ),
           ],
         ),
       ),
@@ -593,7 +581,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
         prefixIcon: maxLines == 1
-            ? Icon(icon, color: deepAccent, size: 20)
+            ? Icon(icon, color: AppColors.deepAccent, size: 20)
             : null,
         filled: true,
         fillColor: AppColors.field,

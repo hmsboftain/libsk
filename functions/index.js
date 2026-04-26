@@ -184,7 +184,8 @@ exports.createPaymentIntent = onCall(async (request) => {
 
     const delivery = Number(deliveryCost) || 0;
     const total = subtotal + delivery;
-    const amount = Math.round(total * 100);
+    const multiplier = currency.toLowerCase() === "kwd" ? 1000 : 100;
+    const amount = Math.round(total * multiplier);
 
     logger.info("Creating payment intent", {
       subtotal,
@@ -196,7 +197,7 @@ exports.createPaymentIntent = onCall(async (request) => {
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
-      currency: "usd",
+      currency: currency.toLowerCase(),
     });
 
     return {
@@ -482,6 +483,120 @@ exports.notifyDisputeStatusChanged = onDocumentUpdated(
       },
     );
   },
+
+  exports.submitDispute = onCall(async (request) => {
+    try {
+      if (!request.auth) {
+        throw new HttpsError("unauthenticated", "You must be logged in.");
+      }
+
+      const uid = request.auth.uid;
+      const data = request.data || {};
+
+      const orderId = data.orderId;
+      const category = data.category;
+      const description = data.description || "";
+
+      if (!orderId || !category) {
+        throw new HttpsError(
+          "invalid-argument",
+          "orderId and category are required.",
+        );
+      }
+
+      const userOrderRef = db
+        .collection("users")
+        .doc(uid)
+        .collection("orders")
+        .doc(orderId);
+
+      const orderDoc = await userOrderRef.get();
+
+      if (!orderDoc.exists) {
+        throw new HttpsError("not-found", "Order not found.");
+      }
+
+      const orderData = orderDoc.data();
+
+      if (orderData.customerUid !== uid) {
+        throw new HttpsError(
+          "permission-denied",
+          "You can only dispute your own orders.",
+        );
+      }
+
+      if (String(orderData.status).toLowerCase() !== "delivered") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Only delivered orders can be disputed.",
+        );
+      }
+
+      const createdAt = orderData.createdAt;
+
+      if (!createdAt || !createdAt.toDate) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Order date is missing.",
+        );
+      }
+
+      const orderDate = createdAt.toDate();
+      const now = new Date();
+
+      const diffMs = now.getTime() - orderDate.getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+      if (diffDays > 7) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The 7-day dispute window has passed.",
+        );
+      }
+
+      const existingDisputes = await db
+        .collection("disputes")
+        .where("orderId", "==", orderId)
+        .where("customerUid", "==", uid)
+        .limit(1)
+        .get();
+
+      if (!existingDisputes.empty) {
+        throw new HttpsError(
+          "already-exists",
+          "A dispute has already been submitted for this order.",
+        );
+      }
+
+      const disputeRef = await db.collection("disputes").add({
+        orderId,
+        orderNumber: orderData.orderNumber || "",
+        customerUid: uid,
+        customerName: orderData.customerName || "User",
+        customerEmail: orderData.customerEmail || "",
+        category,
+        description,
+        status: "Open",
+        orderTotal: orderData.total || 0,
+        paymentIntentId: orderData.paymentIntentId || "",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return {
+        success: true,
+        disputeId: disputeRef.id,
+      };
+    } catch (error) {
+      logger.error("Submit dispute error", error);
+
+      if (error instanceof HttpsError) throw error;
+
+      throw new HttpsError(
+        "internal",
+        error.message || "Failed to submit dispute.",
+      );
+    }
+  });
 );
 
 // ================= LOW STOCK NOTIFICATIONS =================

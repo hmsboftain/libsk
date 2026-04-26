@@ -12,15 +12,14 @@ class DisputesPage extends StatefulWidget {
 }
 
 class _DisputesPageState extends State<DisputesPage> {
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const deepAccent = AppColors.deepAccent;
-
   String _filterStatus = 'All';
-  final List<String> _statusFilters = ['All', 'Open', 'Under Review', 'Resolved', 'Rejected'];
+  final List<String> _statusFilters = [
+    'All',
+    'Open',
+    'Under Review',
+    'Resolved',
+    'Rejected',
+  ];
 
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
@@ -63,19 +62,25 @@ class _DisputesPageState extends State<DisputesPage> {
       final confirm = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: backgroundColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Resolve Dispute',
-              style: TextStyle(fontWeight: FontWeight.w700)),
+          backgroundColor: AppColors.background,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Resolve Dispute',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
           content: const Text(
             'How would you like to resolve this dispute?',
-            style: TextStyle(color: secondaryText, height: 1.4),
+            style: TextStyle(color: AppColors.secondaryText, height: 1.4),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel',
-                  style: TextStyle(color: secondaryText)),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.secondaryText),
+              ),
             ),
             OutlinedButton(
               onPressed: () => Navigator.pop(ctx, 'resolve_no_refund'),
@@ -83,7 +88,8 @@ class _DisputesPageState extends State<DisputesPage> {
                 foregroundColor: const Color(0xFF3D6B45),
                 side: const BorderSide(color: Color(0xFF3D6B45)),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               child: const Text('Resolve — No Refund'),
             ),
@@ -94,7 +100,8 @@ class _DisputesPageState extends State<DisputesPage> {
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               child: const Text('Resolve + Refund'),
             ),
@@ -109,7 +116,8 @@ class _DisputesPageState extends State<DisputesPage> {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text('No payment intent found for this order')),
+              content: Text('No payment intent found for this order'),
+            ),
           );
           return;
         }
@@ -132,7 +140,10 @@ class _DisputesPageState extends State<DisputesPage> {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text('Dispute resolved and refund issued successfully')),
+              content: Text(
+                'Dispute resolved and refund issued successfully',
+              ),
+            ),
           );
         } catch (e) {
           if (!mounted) return;
@@ -195,15 +206,12 @@ class _DisputesPageState extends State<DisputesPage> {
             onTap: () => setState(() => _filterStatus = filter),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
                 color: isSelected ? AppColors.deepAccent : AppColors.field,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected
-                      ? AppColors.deepAccent
-                      : AppColors.border,
+                  color: isSelected ? AppColors.deepAccent : AppColors.border,
                 ),
               ),
               child: Text(
@@ -211,9 +219,7 @@ class _DisputesPageState extends State<DisputesPage> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: isSelected
-                      ? Colors.white
-                      : AppColors.secondaryText,
+                  color: isSelected ? Colors.white : AppColors.secondaryText,
                 ),
               ),
             ),
@@ -223,8 +229,7 @@ class _DisputesPageState extends State<DisputesPage> {
     );
   }
 
-  Widget _buildDisputeCard(
-      QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+  Widget _buildDisputeCard(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     final disputeId = doc.id;
 
@@ -249,17 +254,20 @@ class _DisputesPageState extends State<DisputesPage> {
       dateString = '${date.day}/${date.month}/${date.year}';
     }
 
-    final List<String> availableStatuses = ['Open', 'Under Review', 'Resolved', 'Rejected']
-        .where((s) => s != status)
-        .toList();
+    final List<String> availableStatuses = [
+      'Open',
+      'Under Review',
+      'Resolved',
+      'Rejected',
+    ].where((s) => s != status).toList();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,7 +281,7 @@ class _DisputesPageState extends State<DisputesPage> {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: primaryText,
+                    color: AppColors.primaryText,
                   ),
                 ),
               ),
@@ -298,15 +306,22 @@ class _DisputesPageState extends State<DisputesPage> {
           const SizedBox(height: 10),
 
           // Customer
-          Text(customerName,
-              style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: primaryText)),
+          Text(
+            customerName,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryText,
+            ),
+          ),
           if (customerEmail.isNotEmpty)
-            Text(customerEmail,
-                style:
-                const TextStyle(fontSize: 13, color: secondaryText)),
+            Text(
+              customerEmail,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.secondaryText,
+              ),
+            ),
           const SizedBox(height: 10),
 
           // Category chip
@@ -314,7 +329,7 @@ class _DisputesPageState extends State<DisputesPage> {
             padding:
             const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: AppColors.softAccent.withOpacity(0.3),
+              color: AppColors.softAccent.withValues(alpha:0.3),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
@@ -332,20 +347,31 @@ class _DisputesPageState extends State<DisputesPage> {
             Text(
               description,
               style: const TextStyle(
-                  fontSize: 13, color: secondaryText, height: 1.4),
+                fontSize: 13,
+                color: AppColors.secondaryText,
+                height: 1.4,
+              ),
             ),
           ],
 
           const SizedBox(height: 10),
           Row(
             children: [
-              Text('Order total: ${orderTotal.toStringAsFixed(0)} KWD',
-                  style: const TextStyle(
-                      fontSize: 13, color: secondaryText)),
+              Text(
+                'Order total: ${orderTotal.toStringAsFixed(0)} KWD',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.secondaryText,
+                ),
+              ),
               const Spacer(),
-              Text(dateString,
-                  style: const TextStyle(
-                      fontSize: 12, color: secondaryText)),
+              Text(
+                dateString,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.secondaryText,
+                ),
+              ),
             ],
           ),
 
@@ -361,8 +387,11 @@ class _DisputesPageState extends State<DisputesPage> {
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.check_circle_outline,
-                      color: Color(0xFF3D6B45), size: 14),
+                  Icon(
+                    Icons.check_circle_outline,
+                    color: Color(0xFF3D6B45),
+                    size: 14,
+                  ),
                   SizedBox(width: 6),
                   Text(
                     'Refund issued',
@@ -398,7 +427,9 @@ class _DisputesPageState extends State<DisputesPage> {
                   ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: isResolve
                           ? const Color(0xFFE8F2EA)
@@ -439,7 +470,7 @@ class _DisputesPageState extends State<DisputesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -453,14 +484,18 @@ class _DisputesPageState extends State<DisputesPage> {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
-                        child:
-                        CircularProgressIndicator(color: deepAccent));
+                      child: CircularProgressIndicator(
+                        color: AppColors.deepAccent,
+                      ),
+                    );
                   }
 
                   if (snapshot.hasError) {
                     return const Center(
-                      child: Text('Failed to load disputes',
-                          style: TextStyle(color: secondaryText)),
+                      child: Text(
+                        'Failed to load disputes',
+                        style: TextStyle(color: AppColors.secondaryText),
+                      ),
                     );
                   }
 
@@ -468,16 +503,16 @@ class _DisputesPageState extends State<DisputesPage> {
                   final filtered = _filterStatus == 'All'
                       ? allDocs
                       : allDocs
-                      .where((doc) =>
-                  doc.data()['status'] == _filterStatus)
+                      .where(
+                        (doc) => doc.data()['status'] == _filterStatus,
+                  )
                       .toList();
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Padding(
-                        padding:
-                        const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                         child: Row(
                           children: [
                             const Text(
@@ -485,14 +520,16 @@ class _DisputesPageState extends State<DisputesPage> {
                               style: TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.w700,
-                                color: primaryText,
+                                color: AppColors.primaryText,
                               ),
                             ),
                             const Spacer(),
                             Text(
                               '${filtered.length} ${filtered.length == 1 ? 'dispute' : 'disputes'}',
                               style: const TextStyle(
-                                  fontSize: 14, color: secondaryText),
+                                fontSize: 14,
+                                color: AppColors.secondaryText,
+                              ),
                             ),
                           ],
                         ),
@@ -502,13 +539,16 @@ class _DisputesPageState extends State<DisputesPage> {
                       Expanded(
                         child: filtered.isEmpty
                             ? const Center(
-                          child: Text('No disputes found',
-                              style:
-                              TextStyle(color: secondaryText)),
+                          child: Text(
+                            'No disputes found',
+                            style: TextStyle(
+                              color: AppColors.secondaryText,
+                            ),
+                          ),
                         )
                             : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(
-                              20, 8, 20, 30),
+                          padding:
+                          const EdgeInsets.fromLTRB(20, 8, 20, 30),
                           itemCount: filtered.length,
                           itemBuilder: (context, index) =>
                               _buildDisputeCard(filtered[index]),

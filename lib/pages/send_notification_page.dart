@@ -165,7 +165,7 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: targetType,
+                      initialValue: targetType,
                       decoration: inputDecoration('Select target'),
                       items: targets.map((target) {
                         return DropdownMenuItem<String>(

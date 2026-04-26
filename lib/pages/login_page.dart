@@ -24,7 +24,6 @@ class _LoginPageState extends State<LoginPage> {
   bool obscurePassword = true;
   bool isLoading = false;
   bool isGoogleLoading = false;
-  bool keepSignedIn = true;
 
   @override
   void dispose() {
@@ -48,6 +47,7 @@ class _LoginPageState extends State<LoginPage> {
 
       await FirestoreService.updateCurrentUserLastLogin();
       await FirestoreService.setCurrentUserOnline();
+      await FirestoreService.prepareGuestCartId();
 
       final isSuperAdmin = await FirestoreService.isCurrentUserSuperAdmin();
       final isAdmin = await FirestoreService.isCurrentUserAdmin();
@@ -290,44 +290,25 @@ class _LoginPageState extends State<LoginPage> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: keepSignedIn,
-                      activeColor: Colors.black,
-                      onChanged: (value) {
-                        setState(() {
-                          keepSignedIn = value ?? true;
-                        });
-                      },
-                    ),
-                    Text(
-                      AppLocalizations.of(context)!.keepMeSignedIn,
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ForgotPasswordPage(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      AppLocalizations.of(context)!.forgotPassword,
                       style: const TextStyle(
                         fontSize: 14,
-                        color: Colors.black87,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ForgotPasswordPage(),
-                          ),
-                        );
-                      },
-                      child: Text(
-                        AppLocalizations.of(context)!.forgotPassword,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
                 const SizedBox(height: 26),
                 SizedBox(

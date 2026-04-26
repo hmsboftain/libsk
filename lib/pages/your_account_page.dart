@@ -21,11 +21,12 @@ class _YourAccountPageState extends State<YourAccountPage> {
 
   Future<void> deleteAccount() async {
     final loc = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
 
-    // Step 1 — confirm dialog
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.background,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
@@ -40,14 +41,14 @@ class _YourAccountPageState extends State<YourAccountPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text(
               'Cancel',
               style: TextStyle(color: Colors.black54),
             ),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
@@ -62,36 +63,38 @@ class _YourAccountPageState extends State<YourAccountPage> {
       ),
     );
 
+    if (!mounted) return;
     if (confirm != true) return;
 
-    // Step 2 — ask for password to re-authenticate
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // Check if user signed in with Google or email
-    final isGoogleUser = user.providerData
-        .any((info) => info.providerId == 'google.com');
+    final isGoogleUser = user.providerData.any(
+          (info) => info.providerId == 'google.com',
+    );
 
     try {
       setState(() => isDeleting = true);
 
       if (isGoogleUser) {
-        // Re-authenticate with Google
         final googleUser = await GoogleSignIn().signIn();
+        if (!mounted) return;
         if (googleUser == null) return;
 
         final googleAuth = await googleUser.authentication;
+
         final credential = GoogleAuthProvider.credential(
           accessToken: googleAuth.accessToken,
           idToken: googleAuth.idToken,
         );
+
         await user.reauthenticateWithCredential(credential);
       } else {
-        // Re-authenticate with password
         final passwordController = TextEditingController();
+
         final confirmed = await showDialog<bool>(
           context: context,
-          builder: (context) => AlertDialog(
+          builder: (dialogContext) => AlertDialog(
             backgroundColor: AppColors.background,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
@@ -128,14 +131,14 @@ class _YourAccountPageState extends State<YourAccountPage> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text(
                   'Cancel',
                   style: TextStyle(color: Colors.black54),
                 ),
               ),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () => Navigator.pop(dialogContext, true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   foregroundColor: Colors.white,
@@ -150,23 +153,23 @@ class _YourAccountPageState extends State<YourAccountPage> {
           ),
         );
 
+        if (!mounted) return;
         if (confirmed != true) return;
 
         final credential = EmailAuthProvider.credential(
           email: user.email!,
           password: passwordController.text.trim(),
         );
+
         await user.reauthenticateWithCredential(credential);
       }
 
-      // Step 3 — delete Firestore data and Firebase Auth account
       await FirestoreService.setCurrentUserOffline();
       await FirebaseAuth.instance.currentUser?.delete();
 
       if (!mounted) return;
 
-      Navigator.pushAndRemoveUntil(
-        context,
+      navigator.pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (context) => MainNavigationPage(
             onLanguageChange: (_) {},
@@ -176,18 +179,22 @@ class _YourAccountPageState extends State<YourAccountPage> {
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+
+      messenger.showSnackBar(
         SnackBar(
           content: Text(e.message ?? loc.somethingWentWrong),
         ),
       );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+
+      messenger.showSnackBar(
         SnackBar(content: Text(loc.somethingWentWrong)),
       );
     } finally {
-      if (mounted) setState(() => isDeleting = false);
+      if (mounted) {
+        setState(() => isDeleting = false);
+      }
     }
   }
 
@@ -278,7 +285,6 @@ class _YourAccountPageState extends State<YourAccountPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 30),
                   ],
                 ),
               ),

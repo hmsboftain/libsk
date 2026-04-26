@@ -119,25 +119,21 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                                   ),
                                   IconButton(
                                     onPressed: () async {
-                                      await FirestoreService.deleteAddress(
-                                        doc.id,
-                                      );
+                                      final loc = AppLocalizations.of(context)!;
+                                      final messenger = ScaffoldMessenger.of(context);
+
+                                      await FirestoreService.deleteAddress(doc.id);
 
                                       if (!mounted) return;
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
+
+                                      messenger.showSnackBar(
                                         SnackBar(
-                                          content: Text(
-                                            AppLocalizations.of(context)!
-                                                .addressRemoved,
-                                          ),
-                                          duration:
-                                          const Duration(seconds: 1),
+                                          content: Text(loc.addressRemoved),
+                                          duration: const Duration(seconds: 1),
                                         ),
                                       );
                                     },
-                                    icon:
-                                    const Icon(Icons.delete_outline),
+                                    icon: const Icon(Icons.delete_outline),
                                   ),
                                 ],
                               ),

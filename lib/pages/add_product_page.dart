@@ -24,16 +24,7 @@ class _AddProductPageState extends State<AddProductPage> {
   final TextEditingController sizesController = TextEditingController();
 
   bool isLoading = false;
-  File? selectedImage;
-
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const fieldColor = AppColors.field;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const softAccent = AppColors.softAccent;
-  static const deepAccent = AppColors.deepAccent;
+  List<File> selectedImages = [];
 
   @override
   void dispose() {
@@ -45,26 +36,24 @@ class _AddProductPageState extends State<AddProductPage> {
     super.dispose();
   }
 
-  Future<void> pickImage() async {
+  Future<void> pickImages() async {
     try {
       final picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
+
+      final List<XFile> images = await picker.pickMultiImage(
         imageQuality: 85,
       );
 
-      if (image == null) return;
+      if (images.isEmpty) return;
 
       setState(() {
-        selectedImage = File(image.path);
+        selectedImages = images.map((image) => File(image.path)).toList();
       });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            AppLocalizations.of(context)!.failedToPickImage,
-          ),
+          content: Text(AppLocalizations.of(context)!.failedToPickImage),
         ),
       );
     }
@@ -81,10 +70,21 @@ class _AddProductPageState extends State<AddProductPage> {
     return await ref.getDownloadURL();
   }
 
+  Future<List<String>> uploadImagesToStorage(List<File> images) async {
+    final List<String> urls = [];
+
+    for (final image in images) {
+      final url = await uploadImageToStorage(image);
+      urls.add(url);
+    }
+
+    return urls;
+  }
+
   Future<void> saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (selectedImage == null) {
+    if (selectedImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -111,13 +111,15 @@ class _AddProductPageState extends State<AddProductPage> {
           .where((size) => size.isNotEmpty)
           .toList();
 
-      final imageUrl = await uploadImageToStorage(selectedImage!);
+      final imageUrls = await uploadImagesToStorage(selectedImages);
+      final imageUrl = imageUrls.first;
 
       await FirestoreService.addProductForCurrentOwner(
         title: title,
         description: description,
         price: price,
         imageUrl: imageUrl,
+        imageUrls: imageUrls,
         stock: stock,
         sizes: sizes,
       );
@@ -156,23 +158,23 @@ class _AddProductPageState extends State<AddProductPage> {
     return InputDecoration(
       hintText: hintText,
       hintStyle: const TextStyle(
-        color: secondaryText,
+        color: AppColors.secondaryText,
         fontSize: 14,
       ),
       filled: true,
-      fillColor: fieldColor,
+      fillColor: AppColors.field,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: borderColor),
+        borderSide: const BorderSide(color: AppColors.border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: const BorderSide(
-          color: deepAccent,
+          color: AppColors.deepAccent,
           width: 1.2,
         ),
       ),
@@ -188,7 +190,7 @@ class _AddProductPageState extends State<AddProductPage> {
         style: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: primaryText,
+          color: AppColors.primaryText,
         ),
       ),
     );
@@ -199,9 +201,9 @@ class _AddProductPageState extends State<AddProductPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: child,
     );
@@ -210,7 +212,7 @@ class _AddProductPageState extends State<AddProductPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -228,15 +230,16 @@ class _AddProductPageState extends State<AddProductPage> {
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
-                          color: primaryText,
+                          color: AppColors.primaryText,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        AppLocalizations.of(context)!.createNewProductForBoutique,
+                        AppLocalizations.of(context)!
+                            .createNewProductForBoutique,
                         style: const TextStyle(
                           fontSize: 14,
-                          color: secondaryText,
+                          color: AppColors.secondaryText,
                           height: 1.4,
                         ),
                       ),
@@ -245,40 +248,51 @@ class _AddProductPageState extends State<AddProductPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            buildLabel(AppLocalizations.of(context)!.productImage),
+                            buildLabel('Product Images'),
                             GestureDetector(
-                              onTap: pickImage,
+                              onTap: pickImages,
                               child: Container(
                                 width: double.infinity,
                                 height: 180,
                                 decoration: BoxDecoration(
-                                  color: fieldColor,
+                                  color: AppColors.field,
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: borderColor),
+                                  border: Border.all(color: AppColors.border),
                                 ),
-                                child: selectedImage != null
-                                    ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Image.file(
-                                    selectedImage!,
-                                    fit: BoxFit.cover,
-                                  ),
+                                child: selectedImages.isNotEmpty
+                                    ? ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  padding: const EdgeInsets.all(10),
+                                  itemCount: selectedImages.length,
+                                  separatorBuilder: (context, index) =>
+                                  const SizedBox(width: 10),
+                                  itemBuilder: (context, index) {
+                                    return ClipRRect(
+                                      borderRadius:
+                                      BorderRadius.circular(14),
+                                      child: Image.file(
+                                        selectedImages[index],
+                                        width: 120,
+                                        height: 160,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    );
+                                  },
                                 )
-                                    : Column(
+                                    : const Column(
                                   mainAxisAlignment:
                                   MainAxisAlignment.center,
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.add_photo_alternate_outlined,
                                       size: 34,
-                                      color: deepAccent,
+                                      color: AppColors.deepAccent,
                                     ),
-                                    const SizedBox(height: 10),
+                                    SizedBox(height: 10),
                                     Text(
-                                      AppLocalizations.of(context)!
-                                          .tapToUploadImage,
-                                      style: const TextStyle(
-                                        color: secondaryText,
+                                      'Tap to upload product images',
+                                      style: TextStyle(
+                                        color: AppColors.secondaryText,
                                         fontSize: 14,
                                       ),
                                     ),
@@ -287,11 +301,14 @@ class _AddProductPageState extends State<AddProductPage> {
                               ),
                             ),
                             const SizedBox(height: 18),
-                            buildLabel(AppLocalizations.of(context)!.productTitle),
+                            buildLabel(
+                              AppLocalizations.of(context)!.productTitle,
+                            ),
                             TextFormField(
                               controller: titleController,
                               decoration: buildInputDecoration(
-                                AppLocalizations.of(context)!.enterProductTitle,
+                                AppLocalizations.of(context)!
+                                    .enterProductTitle,
                               ),
                               validator: (value) {
                                 if (value == null || value.trim().isEmpty) {
@@ -302,7 +319,9 @@ class _AddProductPageState extends State<AddProductPage> {
                               },
                             ),
                             const SizedBox(height: 18),
-                            buildLabel(AppLocalizations.of(context)!.description),
+                            buildLabel(
+                              AppLocalizations.of(context)!.description,
+                            ),
                             TextFormField(
                               controller: descriptionController,
                               maxLines: 4,
@@ -388,7 +407,7 @@ class _AddProductPageState extends State<AddProductPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.black,
                             foregroundColor: Colors.white,
-                            disabledBackgroundColor: softAccent,
+                            disabledBackgroundColor: AppColors.softAccent,
                             disabledForegroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(

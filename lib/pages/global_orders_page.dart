@@ -13,13 +13,6 @@ class GlobalOrdersPage extends StatefulWidget {
 }
 
 class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const deepAccent = AppColors.deepAccent;
-
   final TextEditingController searchController = TextEditingController();
   bool showSearch = false;
   String searchQuery = '';
@@ -129,9 +122,9 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: cardColor,
+          color: AppColors.card,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: borderColor),
+          border: Border.all(color: AppColors.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,7 +133,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
               children: [
                 const Icon(
                   Icons.receipt_long_outlined,
-                  color: deepAccent,
+                  color: AppColors.deepAccent,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
@@ -150,7 +143,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: primaryText,
+                      color: AppColors.primaryText,
                     ),
                   ),
                 ),
@@ -159,7 +152,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: primaryText,
+                    color: AppColors.primaryText,
                   ),
                 ),
               ],
@@ -170,7 +163,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: primaryText,
+                color: AppColors.primaryText,
               ),
             ),
             const SizedBox(height: 4),
@@ -178,7 +171,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
               customerEmail,
               style: const TextStyle(
                 fontSize: 13,
-                color: secondaryText,
+                color: AppColors.secondaryText,
               ),
             ),
             const SizedBox(height: 10),
@@ -186,7 +179,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
               'Status: $status',
               style: const TextStyle(
                 fontSize: 13,
-                color: secondaryText,
+                color: AppColors.secondaryText,
               ),
             ),
             const SizedBox(height: 4),
@@ -194,7 +187,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
               'Date: $date',
               style: const TextStyle(
                 fontSize: 13,
-                color: secondaryText,
+                color: AppColors.secondaryText,
               ),
             ),
             const SizedBox(height: 4),
@@ -202,7 +195,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
               'Items: $itemCount',
               style: const TextStyle(
                 fontSize: 13,
-                color: secondaryText,
+                color: AppColors.secondaryText,
               ),
             ),
           ],
@@ -242,7 +235,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: borderColor),
+            borderSide: const BorderSide(color: AppColors.border),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
@@ -256,7 +249,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -268,7 +261,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
                       child: CircularProgressIndicator(
-                        color: deepAccent,
+                        color: AppColors.deepAccent,
                       ),
                     );
                   }
@@ -277,7 +270,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                     return const Center(
                       child: Text(
                         'Failed to load orders',
-                        style: TextStyle(color: secondaryText),
+                        style: TextStyle(color: AppColors.secondaryText),
                       ),
                     );
                   }
@@ -300,7 +293,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                                 style: TextStyle(
                                   fontSize: 28,
                                   fontWeight: FontWeight.w700,
-                                  color: primaryText,
+                                  color: AppColors.primaryText,
                                 ),
                               ),
                             ),
@@ -318,7 +311,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                           '${orderDocs.length} global orders',
                           style: const TextStyle(
                             fontSize: 14,
-                            color: secondaryText,
+                            color: AppColors.secondaryText,
                           ),
                         ),
                         if (showSearch) _buildSearchField(),
@@ -328,9 +321,9 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
-                              color: cardColor,
+                              color: AppColors.card,
                               borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: borderColor),
+                              border: Border.all(color: AppColors.border),
                             ),
                             child: Text(
                               searchQuery.isEmpty
@@ -338,7 +331,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                                   : 'No matching orders found.',
                               style: const TextStyle(
                                 fontSize: 14,
-                                color: secondaryText,
+                                color: AppColors.secondaryText,
                               ),
                             ),
                           )

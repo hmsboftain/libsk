@@ -23,7 +23,6 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   bool isOwner = false;
-  bool isAdmin = false;
   bool isSuperAdmin = false;
   bool isCheckingAccess = true;
 
@@ -34,27 +33,39 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> checkAccessStatus() async {
-    final ownerStatus = await FirestoreService.isCurrentUserApprovedOwner();
-    final adminStatus = await FirestoreService.isCurrentUserAdmin();
-    final superAdminStatus = await FirestoreService.isCurrentUserSuperAdmin();
+    try {
+      final results = await Future.wait([
+        FirestoreService.isCurrentUserApprovedOwner(),
+        FirestoreService.isCurrentUserSuperAdmin(),
+      ]);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      isOwner = ownerStatus;
-      isAdmin = adminStatus;
-      isSuperAdmin = superAdminStatus;
-      isCheckingAccess = false;
-    });
+      setState(() {
+        isOwner = results[0];
+        isSuperAdmin = results[1];
+        isCheckingAccess = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isOwner = false;
+        isSuperAdmin = false;
+        isCheckingAccess = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+
     final displayName =
     (user?.displayName != null && user!.displayName!.trim().isNotEmpty)
         ? user.displayName!
         : AppLocalizations.of(context)!.user;
+
     final email = user?.email ?? AppLocalizations.of(context)!.noEmail;
 
     return Scaffold(
@@ -70,6 +81,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 10),
+
                     Row(
                       children: [
                         const CircleAvatar(
@@ -82,29 +94,37 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              displayName,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              email,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.black54,
+                              const SizedBox(height: 4),
+                              Text(
+                                email,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black54,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 30),
+
                     Text(
                       AppLocalizations.of(context)!.accountSection,
                       style: const TextStyle(
@@ -114,6 +134,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 10),
+
                     _buildTile(
                       icon: Icons.person_outline,
                       title: AppLocalizations.of(context)!.yourAccount,
@@ -124,9 +145,10 @@ class _ProfilePageState extends State<ProfilePage> {
                             builder: (context) => const YourAccountPage(),
                           ),
                         );
-                        setState(() {});
+                        if (mounted) setState(() {});
                       },
                     ),
+
                     _buildTile(
                       icon: Icons.favorite,
                       title: AppLocalizations.of(context)!.savedItems,
@@ -139,6 +161,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         );
                       },
                     ),
+
                     _buildTile(
                       icon: Icons.store,
                       title: AppLocalizations.of(context)!.savedBoutiques,
@@ -151,6 +174,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         );
                       },
                     ),
+
                     _buildTile(
                       icon: Icons.location_on,
                       title: AppLocalizations.of(context)!.savedAddresses,
@@ -163,6 +187,21 @@ class _ProfilePageState extends State<ProfilePage> {
                         );
                       },
                     ),
+
+                    if (isCheckingAccess) ...[
+                      const SizedBox(height: 20),
+                      const Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ],
+
                     if (!isCheckingAccess && isSuperAdmin) ...[
                       const SizedBox(height: 30),
                       Text(
@@ -189,32 +228,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         },
                       ),
                     ],
-                    if (!isCheckingAccess && isAdmin && !isSuperAdmin) ...[
-                      const SizedBox(height: 30),
-                      Text(
-                        AppLocalizations.of(context)!.adminSection,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      _buildTile(
-                        icon: Icons.security_outlined,
-                        title: AppLocalizations.of(context)!.adminPanel,
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                AppLocalizations.of(context)!
-                                    .adminPanelComingNext,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+
                     if (!isCheckingAccess && isOwner) ...[
                       const SizedBox(height: 30),
                       Text(
@@ -241,6 +255,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
 
                     const SizedBox(height: 30),
+
                     Text(
                       AppLocalizations.of(context)!.languages,
                       style: const TextStyle(
@@ -250,17 +265,17 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 10),
+
                     _buildTile(
                       icon: Icons.language,
-                      title: Localizations
-                          .localeOf(context)
-                          .languageCode == 'ar'
+                      title:
+                      Localizations.localeOf(context).languageCode == 'ar'
                           ? '🇰🇼 العربية'
                           : '🇬🇧 English',
                       onTap: () {
-                        final currentLocale = Localizations
-                            .localeOf(context)
-                            .languageCode;
+                        final currentLocale =
+                            Localizations.localeOf(context).languageCode;
+
                         if (currentLocale == 'ar') {
                           LibskApp.setLocale(context, const Locale('en'));
                         } else {
@@ -268,7 +283,9 @@ class _ProfilePageState extends State<ProfilePage> {
                         }
                       },
                     ),
+
                     const SizedBox(height: 30),
+
                     Text(
                       AppLocalizations.of(context)!.supportSection,
                       style: const TextStyle(
@@ -278,6 +295,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 10),
+
                     _buildTile(
                       icon: Icons.help_outline,
                       title: AppLocalizations.of(context)!.helpSupport,
@@ -290,28 +308,31 @@ class _ProfilePageState extends State<ProfilePage> {
                         );
                       },
                     ),
+
                     const SizedBox(height: 30),
+
                     _buildTile(
                       icon: Icons.logout,
                       title: AppLocalizations.of(context)!.logout,
                       onTap: () async {
+                        final navigator = Navigator.of(context);
+
+                        await FirestoreService.deleteCurrentUserFcmToken();
                         await FirestoreService.setCurrentUserOffline();
                         await FirebaseAuth.instance.signOut();
 
                         if (!mounted) return;
-                        Navigator.pushAndRemoveUntil(
-                          context,
+
+                        navigator.pushAndRemoveUntil(
                           MaterialPageRoute(
-                            builder: (context) =>
-                                MainNavigationPage(
-                                  onLanguageChange: (_) {},
-                                ),
+                            builder: (context) => MainNavigationPage(
+                              onLanguageChange: (_) {},
+                            ),
                           ),
                               (route) => false,
                         );
                       },
                     ),
-                    const SizedBox(height: 30),
                   ],
                 ),
               ),
@@ -321,8 +342,6 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
-
-
 
   Widget _buildTile({
     required IconData icon,

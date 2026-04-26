@@ -8,13 +8,6 @@ import '../widgets/theme.dart';
 class BoutiqueSalesPage extends StatelessWidget {
   const BoutiqueSalesPage({super.key});
 
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const deepAccent = AppColors.deepAccent;
-
   String? _getBoutiqueIdFromReference(
       DocumentReference<Map<String, dynamic>> reference,
       ) {
@@ -37,18 +30,24 @@ class BoutiqueSalesPage extends StatelessWidget {
       List<QueryDocumentSnapshot<Map<String, dynamic>>> orderDocs,
       ) async {
     final firestore = FirebaseFirestore.instance;
+
     final boutiqueIds = orderDocs
         .map((doc) => _getBoutiqueIdFromReference(doc.reference))
         .whereType<String>()
         .toSet()
         .toList();
 
+    final snapshots = await Future.wait(
+      boutiqueIds.map((boutiqueId) {
+        return firestore.collection('boutiques').doc(boutiqueId).get();
+      }),
+    );
+
     final Map<String, String> names = {};
 
-    for (final boutiqueId in boutiqueIds) {
-      final doc = await firestore.collection('boutiques').doc(boutiqueId).get();
-      final data = doc.data();
-      names[boutiqueId] = data?['name']?.toString() ?? 'Boutique';
+    for (int i = 0; i < boutiqueIds.length; i++) {
+      final data = snapshots[i].data();
+      names[boutiqueIds[i]] = data?['name']?.toString() ?? 'Boutique';
     }
 
     return names;
@@ -86,9 +85,9 @@ class BoutiqueSalesPage extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: cardColor,
+          color: AppColors.card,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: borderColor, width: 0.5),
+          border: Border.all(color: AppColors.border, width: 0.5),
         ),
         child: Row(
           children: [
@@ -100,7 +99,7 @@ class BoutiqueSalesPage extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: deepAccent,
+                  color: AppColors.deepAccent,
                 ),
               ),
             ),
@@ -114,7 +113,7 @@ class BoutiqueSalesPage extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: primaryText,
+                      color: AppColors.primaryText,
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -122,7 +121,7 @@ class BoutiqueSalesPage extends StatelessWidget {
                     '$totalOrders orders',
                     style: const TextStyle(
                       fontSize: 13,
-                      color: secondaryText,
+                      color: AppColors.secondaryText,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -131,9 +130,10 @@ class BoutiqueSalesPage extends StatelessWidget {
                     child: LinearProgressIndicator(
                       value: barWidth.clamp(0.0, 1.0),
                       minHeight: 4,
-                      backgroundColor: borderColor,
-                      valueColor:
-                      const AlwaysStoppedAnimation<Color>(deepAccent),
+                      backgroundColor: AppColors.border,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        AppColors.deepAccent,
+                      ),
                     ),
                   ),
                 ],
@@ -145,7 +145,7 @@ class BoutiqueSalesPage extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: primaryText,
+                color: AppColors.primaryText,
               ),
             ),
           ],
@@ -157,7 +157,7 @@ class BoutiqueSalesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -168,7 +168,9 @@ class BoutiqueSalesPage extends StatelessWidget {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
-                      child: CircularProgressIndicator(color: deepAccent),
+                      child: CircularProgressIndicator(
+                        color: AppColors.deepAccent,
+                      ),
                     );
                   }
 
@@ -176,7 +178,7 @@ class BoutiqueSalesPage extends StatelessWidget {
                     return const Center(
                       child: Text(
                         'Failed to load boutique sales',
-                        style: TextStyle(color: secondaryText),
+                        style: TextStyle(color: AppColors.secondaryText),
                       ),
                     );
                   }
@@ -184,7 +186,8 @@ class BoutiqueSalesPage extends StatelessWidget {
                   final allOrderDocs = snapshot.data?.docs ?? [];
 
                   final orderDocs = allOrderDocs.where((doc) {
-                    final boutiqueId = _getBoutiqueIdFromReference(doc.reference);
+                    final boutiqueId =
+                    _getBoutiqueIdFromReference(doc.reference);
                     return boutiqueId != null;
                   }).toList();
 
@@ -192,16 +195,18 @@ class BoutiqueSalesPage extends StatelessWidget {
                     return const Center(
                       child: Text(
                         'No boutique sales found.',
-                        style: TextStyle(color: secondaryText),
+                        style: TextStyle(color: AppColors.secondaryText),
                       ),
                     );
                   }
 
-                  final Map<String, List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+                  final Map<String,
+                      List<QueryDocumentSnapshot<Map<String, dynamic>>>>
                   groupedOrders = {};
 
                   for (final doc in orderDocs) {
-                    final boutiqueId = _getBoutiqueIdFromReference(doc.reference);
+                    final boutiqueId =
+                    _getBoutiqueIdFromReference(doc.reference);
                     if (boutiqueId == null) continue;
 
                     groupedOrders.putIfAbsent(boutiqueId, () => []);
@@ -211,9 +216,12 @@ class BoutiqueSalesPage extends StatelessWidget {
                   return FutureBuilder<Map<String, String>>(
                     future: _loadBoutiqueNames(orderDocs),
                     builder: (context, namesSnapshot) {
-                      if (namesSnapshot.connectionState == ConnectionState.waiting) {
+                      if (namesSnapshot.connectionState ==
+                          ConnectionState.waiting) {
                         return const Center(
-                          child: CircularProgressIndicator(color: deepAccent),
+                          child: CircularProgressIndicator(
+                            color: AppColors.deepAccent,
+                          ),
                         );
                       }
 
@@ -223,7 +231,9 @@ class BoutiqueSalesPage extends StatelessWidget {
                       boutiqueIds.sort((a, b) {
                         final nameA = boutiqueNames[a] ?? a;
                         final nameB = boutiqueNames[b] ?? b;
-                        return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+                        return nameA
+                            .toLowerCase()
+                            .compareTo(nameB.toLowerCase());
                       });
 
                       double maxSales = 0;
@@ -251,7 +261,7 @@ class BoutiqueSalesPage extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.w700,
-                                color: primaryText,
+                                color: AppColors.primaryText,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -259,7 +269,7 @@ class BoutiqueSalesPage extends StatelessWidget {
                               '${boutiqueIds.length} boutiques with sales',
                               style: const TextStyle(
                                 fontSize: 14,
-                                color: secondaryText,
+                                color: AppColors.secondaryText,
                               ),
                             ),
                             const SizedBox(height: 20),

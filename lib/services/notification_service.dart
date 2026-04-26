@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../firebase_options.dart';
@@ -9,10 +10,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  print('Background message received: ${message.messageId}');
-  print('Background title: ${message.notification?.title}');
-  print('Background body: ${message.notification?.body}');
-  print('Background data: ${message.data}');
+  debugPrint('Background title: ${message.notification?.title}');
+  debugPrint('Background body: ${message.notification?.body}');
+  debugPrint('Background data: ${message.data}');
 }
 
 class NotificationService {
@@ -38,30 +38,30 @@ class NotificationService {
       provisional: false,
     );
 
-    print('Notification permission status: ${settings.authorizationStatus}');
+    debugPrint('Notification permission status: ${settings.authorizationStatus}');
 
     // Get device token
     final String? token = await _messaging.getToken();
-    print('FCM token: $token');
+    debugPrint('FCM token: $token');
 
     // Token refresh listener
     _messaging.onTokenRefresh.listen((newToken) async {
-      print('FCM token refreshed: $newToken');
+      debugPrint('FCM token refreshed: $newToken');
       await FirestoreService.saveCurrentUserFcmToken();
     });
 
     // Foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('Foreground message received: ${message.messageId}');
-      print('Foreground title: ${message.notification?.title}');
-      print('Foreground body: ${message.notification?.body}');
-      print('Foreground data: ${message.data}');
+      debugPrint('Foreground message received: ${message.messageId}');
+      debugPrint('Foreground title: ${message.notification?.title}');
+      debugPrint('Foreground body: ${message.notification?.body}');
+      debugPrint('Foreground data: ${message.data}');
     });
 
     // App opened by tapping notification from background
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('Notification tap opened app from background');
-      print('Tap data: ${message.data}');
+      debugPrint('Notification tap opened app from background');
+      debugPrint('Tap data: ${message.data}');
     });
 
     // App opened by tapping notification from terminated state
@@ -69,8 +69,8 @@ class NotificationService {
     await _messaging.getInitialMessage();
 
     if (initialMessage != null) {
-      print('Notification tap opened app from terminated state');
-      print('Initial data: ${initialMessage.data}');
+      debugPrint('Notification tap opened app from terminated state');
+      debugPrint('Initial data: ${initialMessage.data}');
     }
   }
 }

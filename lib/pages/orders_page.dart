@@ -189,7 +189,7 @@ class _OrdersPageState extends State<OrdersPage> {
                               children: orders.map((order) {
                                 return OrderItemWidget(
                                   orderNumber: order.orderNumber,
-                                  date: order.date,
+                                  date: order.displayDate,
                                   itemCount: order.itemCount,
                                   total: order.total,
                                   status: order.status,

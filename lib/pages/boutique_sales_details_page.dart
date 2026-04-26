@@ -13,14 +13,6 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
     required this.boutiqueName,
   });
 
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const softAccent = AppColors.softAccent;
-  static const deepAccent = AppColors.deepAccent;
-
   double _parseTotal(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value.toString()) ?? 0;
@@ -79,7 +71,9 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
     }
 
     final values = salesMap.values.toList();
-    values.sort((a, b) => (b['quantity'] as int).compareTo(a['quantity'] as int));
+    values.sort(
+          (a, b) => (b['quantity'] as int).compareTo(a['quantity'] as int),
+    );
     return values.first;
   }
 
@@ -147,19 +141,19 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 18,
-            backgroundColor: softAccent.withOpacity(0.22),
+            backgroundColor: AppColors.softAccent..withValues(alpha: 0.22),
             child: Icon(
               icon,
-              color: deepAccent,
+              color: AppColors.deepAccent,
               size: 20,
             ),
           ),
@@ -168,7 +162,7 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
             title,
             style: const TextStyle(
               fontSize: 13,
-              color: secondaryText,
+              color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 6),
@@ -177,7 +171,7 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w700,
-              color: primaryText,
+              color: AppColors.primaryText,
             ),
           ),
           const SizedBox(height: 4),
@@ -185,7 +179,7 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
             subtitle,
             style: const TextStyle(
               fontSize: 12,
-              color: secondaryText,
+              color: AppColors.secondaryText,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -200,7 +194,7 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
       style: const TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w700,
-        color: primaryText,
+        color: AppColors.primaryText,
       ),
     );
   }
@@ -216,9 +210,9 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,7 +222,7 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: primaryText,
+              color: AppColors.primaryText,
             ),
           ),
           const SizedBox(height: 6),
@@ -236,7 +230,7 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
             customerName,
             style: const TextStyle(
               fontSize: 13,
-              color: secondaryText,
+              color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 4),
@@ -244,7 +238,7 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
             date,
             style: const TextStyle(
               fontSize: 13,
-              color: secondaryText,
+              color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 4),
@@ -253,7 +247,7 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: primaryText,
+              color: AppColors.primaryText,
             ),
           ),
         ],
@@ -271,7 +265,7 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
         .snapshots();
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -282,7 +276,9 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
-                      child: CircularProgressIndicator(color: deepAccent),
+                      child: CircularProgressIndicator(
+                        color: AppColors.deepAccent,
+                      ),
                     );
                   }
 
@@ -290,7 +286,7 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
                     return const Center(
                       child: Text(
                         'Failed to load boutique details',
-                        style: TextStyle(color: secondaryText),
+                        style: TextStyle(color: AppColors.secondaryText),
                       ),
                     );
                   }
@@ -320,7 +316,7 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.w700,
-                            color: primaryText,
+                            color: AppColors.primaryText,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -328,11 +324,10 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
                           'Boutique sales overview',
                           style: TextStyle(
                             fontSize: 14,
-                            color: secondaryText,
+                            color: AppColors.secondaryText,
                           ),
                         ),
                         const SizedBox(height: 24),
-
                         Row(
                           children: [
                             Expanded(
@@ -369,15 +364,14 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
                             Expanded(
                               child: buildStatCard(
                                 title: 'Best Seller',
-                                value: bestSellingItem['title']?.toString() ?? '-',
-                                subtitle:
-                                '${bestSellingItem['quantity']} sold',
+                                value:
+                                bestSellingItem['title']?.toString() ?? '-',
+                                subtitle: '${bestSellingItem['quantity']} sold',
                                 icon: Icons.star_outline,
                               ),
                             ),
                           ],
                         ),
-
                         const SizedBox(height: 24),
                         buildSectionTitle('Monthly Sales'),
                         const SizedBox(height: 12),
@@ -385,9 +379,9 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
                           width: double.infinity,
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
-                            color: cardColor,
+                            color: AppColors.card,
                             borderRadius: BorderRadius.circular(22),
-                            border: Border.all(color: borderColor),
+                            border: Border.all(color: AppColors.border),
                           ),
                           child: Column(
                             children: [
@@ -402,14 +396,15 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
                               ),
                               const SizedBox(height: 10),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                MainAxisAlignment.spaceBetween,
                                 children: monthLabels
                                     .map(
                                       (label) => Text(
                                     label,
                                     style: const TextStyle(
                                       fontSize: 12,
-                                      color: secondaryText,
+                                      color: AppColors.secondaryText,
                                     ),
                                   ),
                                 )
@@ -418,7 +413,6 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
                             ],
                           ),
                         ),
-
                         const SizedBox(height: 24),
                         buildSectionTitle('Recent Sales'),
                         const SizedBox(height: 12),
@@ -427,15 +421,15 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
                             width: double.infinity,
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: cardColor,
+                              color: AppColors.card,
                               borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: borderColor),
+                              border: Border.all(color: AppColors.border),
                             ),
                             child: const Text(
                               'No sales found.',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: secondaryText,
+                                color: AppColors.secondaryText,
                               ),
                             ),
                           )

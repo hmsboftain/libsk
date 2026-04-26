@@ -6,14 +6,6 @@ import '../widgets/theme.dart';
 class AdminHomepagePage extends StatelessWidget {
   const AdminHomepagePage({super.key});
 
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const softAccent = AppColors.softAccent;
-  static const deepAccent = AppColors.deepAccent;
-
   Future<void> toggleBoutiqueVisibility({
     required String boutiqueId,
     required bool currentValue,
@@ -86,7 +78,7 @@ class AdminHomepagePage extends StatelessWidget {
       style: const TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w700,
-        color: primaryText,
+        color: AppColors.primaryText,
       ),
     );
   }
@@ -96,7 +88,7 @@ class AdminHomepagePage extends StatelessWidget {
       text,
       style: const TextStyle(
         fontSize: 13,
-        color: secondaryText,
+        color: AppColors.secondaryText,
         height: 1.4,
       ),
     );
@@ -111,16 +103,16 @@ class AdminHomepagePage extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: softAccent.withOpacity(0.25),
+            color: AppColors.softAccent.withValues(alpha: 0.25),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: borderColor),
+            border: Border.all(color: AppColors.border),
           ),
           child: Text(
             text,
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: deepAccent,
+              color: AppColors.deepAccent,
             ),
           ),
         ),
@@ -142,9 +134,9 @@ class AdminHomepagePage extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,10 +146,10 @@ class AdminHomepagePage extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: softAccent.withOpacity(0.22),
+                backgroundColor: AppColors.softAccent..withValues(alpha: 0.22),
                 child: const Icon(
                   Icons.tune_rounded,
-                  color: deepAccent,
+                  color: AppColors.deepAccent,
                   size: 20,
                 ),
               ),
@@ -171,7 +163,7 @@ class AdminHomepagePage extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: primaryText,
+                        color: AppColors.primaryText,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -179,7 +171,7 @@ class AdminHomepagePage extends StatelessWidget {
                       subtitle,
                       style: const TextStyle(
                         fontSize: 13,
-                        color: secondaryText,
+                        color: AppColors.secondaryText,
                         height: 1.4,
                       ),
                     ),
@@ -189,7 +181,7 @@ class AdminHomepagePage extends StatelessWidget {
               Switch(
                 value: value,
                 onChanged: onChanged,
-                activeColor: deepAccent,
+                activeThumbColor: AppColors.deepAccent,
               ),
             ],
           ),
@@ -219,7 +211,7 @@ class AdminHomepagePage extends StatelessWidget {
     FirebaseFirestore.instance.collectionGroup('products').snapshots();
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -235,7 +227,7 @@ class AdminHomepagePage extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
-                        color: primaryText,
+                        color: AppColors.primaryText,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -243,23 +235,22 @@ class AdminHomepagePage extends StatelessWidget {
                       'Choose which boutiques appear on the homepage and which products appear in featured pieces.',
                     ),
                     const SizedBox(height: 24),
-
                     buildSectionTitle('Homepage Boutiques'),
                     const SizedBox(height: 8),
                     buildInfoText(
                       'Turn boutiques on or off for the Explore Boutiques section on the home page.',
                     ),
                     const SizedBox(height: 12),
-
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                       stream: boutiquesStream,
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
                           return const Center(
                             child: Padding(
                               padding: EdgeInsets.symmetric(vertical: 24),
                               child: CircularProgressIndicator(
-                                color: deepAccent,
+                                color: AppColors.deepAccent,
                               ),
                             ),
                           );
@@ -268,7 +259,7 @@ class AdminHomepagePage extends StatelessWidget {
                         if (snapshot.hasError) {
                           return const Text(
                             'Failed to load boutiques',
-                            style: TextStyle(color: secondaryText),
+                            style: TextStyle(color: AppColors.secondaryText),
                           );
                         }
 
@@ -276,13 +267,15 @@ class AdminHomepagePage extends StatelessWidget {
                         docs.sort((a, b) {
                           final nameA = a.data()['name']?.toString() ?? '';
                           final nameB = b.data()['name']?.toString() ?? '';
-                          return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+                          return nameA
+                              .toLowerCase()
+                              .compareTo(nameB.toLowerCase());
                         });
 
                         if (docs.isEmpty) {
                           return const Text(
                             'No boutiques found.',
-                            style: TextStyle(color: secondaryText),
+                            style: TextStyle(color: AppColors.secondaryText),
                           );
                         }
 
@@ -330,25 +323,23 @@ class AdminHomepagePage extends StatelessWidget {
                         );
                       },
                     ),
-
                     const SizedBox(height: 24),
-
                     buildSectionTitle('Featured Products'),
                     const SizedBox(height: 8),
                     buildInfoText(
                       'Turn products on or off for the Featured Pieces section on the home page.',
                     ),
                     const SizedBox(height: 12),
-
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                       stream: featuredProductsStream,
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
                           return const Center(
                             child: Padding(
                               padding: EdgeInsets.symmetric(vertical: 24),
                               child: CircularProgressIndicator(
-                                color: deepAccent,
+                                color: AppColors.deepAccent,
                               ),
                             ),
                           );
@@ -357,7 +348,7 @@ class AdminHomepagePage extends StatelessWidget {
                         if (snapshot.hasError) {
                           return const Text(
                             'Failed to load products',
-                            style: TextStyle(color: secondaryText),
+                            style: TextStyle(color: AppColors.secondaryText),
                           );
                         }
 
@@ -365,13 +356,15 @@ class AdminHomepagePage extends StatelessWidget {
                         docs.sort((a, b) {
                           final titleA = a.data()['title']?.toString() ?? '';
                           final titleB = b.data()['title']?.toString() ?? '';
-                          return titleA.toLowerCase().compareTo(titleB.toLowerCase());
+                          return titleA
+                              .toLowerCase()
+                              .compareTo(titleB.toLowerCase());
                         });
 
                         if (docs.isEmpty) {
                           return const Text(
                             'No products found.',
-                            style: TextStyle(color: secondaryText),
+                            style: TextStyle(color: AppColors.secondaryText),
                           );
                         }
 

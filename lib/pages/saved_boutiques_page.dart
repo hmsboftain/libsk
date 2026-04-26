@@ -102,18 +102,13 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
                           boutiqueName: boutiqueName,
                           isLiked: true,
                           onLikeTap: () async {
-                            await FirestoreService.removeSavedBoutique(
-                              boutiqueId,
-                            );
-
+                            final loc = AppLocalizations.of(context)!;
+                            final messenger = ScaffoldMessenger.of(context);
+                            await FirestoreService.removeSavedBoutique(boutiqueId);
                             if (!mounted) return;
-
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(
-                                content: Text(
-                                  AppLocalizations.of(context)!
-                                      .boutiqueRemovedFromSaved,
-                                ),
+                                content: Text(loc.boutiqueRemovedFromSaved),
                                 duration: const Duration(seconds: 1),
                               ),
                             );

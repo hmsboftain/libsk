@@ -36,7 +36,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
           lockAspectRatio: true,
           initAspectRatio: CropAspectRatioPreset.square,
           hideBottomControls: false,
-          statusBarColor: Colors.black,
+          statusBarLight: false,
           backgroundColor: Colors.black,
         ),
         IOSUiSettings(
@@ -48,6 +48,16 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
 
     if (croppedFile == null) return null;
     return File(croppedFile.path);
+  }
+
+  Future<void> deleteOldImage(String? imageUrl) async {
+    if (imageUrl == null || imageUrl.isEmpty) return;
+
+    try {
+      await FirebaseStorage.instance.refFromURL(imageUrl).delete();
+    } catch (e) {
+      debugPrint('Failed to delete old image: $e');
+    }
   }
 
   Future<File?> cropBannerImage(String imagePath) async {
@@ -66,7 +76,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
           lockAspectRatio: true,
           initAspectRatio: CropAspectRatioPreset.ratio16x9,
           hideBottomControls: false,
-          statusBarColor: Colors.black,
+          statusBarLight: false,
           backgroundColor: Colors.black,
         ),
         IOSUiSettings(
@@ -92,15 +102,6 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
 
   String? currentLogoUrl;
   String? currentBannerUrl;
-
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const fieldColor = AppColors.field;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const softAccent = AppColors.softAccent;
-  static const deepAccent = AppColors.deepAccent;
 
   @override
   void initState() {
@@ -189,10 +190,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
   }) async {
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child(folderName)
-        .child(fileName);
+    final ref = FirebaseStorage.instance.ref().child(folderName).child(fileName);
 
     final metadata = SettableMetadata(
       contentType: 'image/jpeg',
@@ -212,6 +210,9 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
     try {
       String? logoUrl = currentLogoUrl;
       String? bannerUrl = currentBannerUrl;
+
+      final oldLogoUrl = currentLogoUrl;
+      final oldBannerUrl = currentBannerUrl;
 
       if (selectedLogoImage != null) {
         logoUrl = await uploadImageToStorage(
@@ -233,6 +234,14 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
         logoPath: logoUrl,
         bannerPath: bannerUrl,
       );
+
+      if (selectedLogoImage != null && oldLogoUrl != logoUrl) {
+        await deleteOldImage(oldLogoUrl);
+      }
+
+      if (selectedBannerImage != null && oldBannerUrl != bannerUrl) {
+        await deleteOldImage(oldBannerUrl);
+      }
 
       if (!mounted) return;
 
@@ -260,23 +269,23 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
     return InputDecoration(
       hintText: hintText,
       hintStyle: const TextStyle(
-        color: secondaryText,
+        color: AppColors.secondaryText,
         fontSize: 14,
       ),
       filled: true,
-      fillColor: fieldColor,
+      fillColor: AppColors.field,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: borderColor),
+        borderSide: const BorderSide(color: AppColors.border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: const BorderSide(
-          color: deepAccent,
+          color: AppColors.deepAccent,
           width: 1.2,
         ),
       ),
@@ -300,7 +309,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
         style: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: primaryText,
+          color: AppColors.primaryText,
         ),
       ),
     );
@@ -311,9 +320,9 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: child,
     );
@@ -341,7 +350,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
             child: Text(
               errorText,
               style: const TextStyle(
-                color: secondaryText,
+                color: AppColors.secondaryText,
                 fontSize: 14,
               ),
             ),
@@ -359,7 +368,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
             child: Text(
               errorText,
               style: const TextStyle(
-                color: secondaryText,
+                color: AppColors.secondaryText,
                 fontSize: 14,
               ),
             ),
@@ -372,7 +381,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
           emptyText,
           textAlign: TextAlign.center,
           style: const TextStyle(
-            color: secondaryText,
+            color: AppColors.secondaryText,
             fontSize: 14,
           ),
         ),
@@ -388,8 +397,8 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
             height: 140,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: fieldColor,
-              border: Border.all(color: borderColor),
+              color: AppColors.field,
+              border: Border.all(color: AppColors.border),
             ),
             child: ClipOval(
               child: imageContent,
@@ -405,9 +414,9 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
         width: double.infinity,
         height: height,
         decoration: BoxDecoration(
-          color: fieldColor,
+          color: AppColors.field,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
+          border: Border.all(color: AppColors.border),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
@@ -420,7 +429,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -438,7 +447,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
-                          color: primaryText,
+                          color: AppColors.primaryText,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -446,7 +455,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
                         'Update your boutique details and images.',
                         style: TextStyle(
                           fontSize: 14,
-                          color: secondaryText,
+                          color: AppColors.secondaryText,
                           height: 1.4,
                         ),
                       ),
@@ -517,7 +526,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.black,
                             foregroundColor: Colors.white,
-                            disabledBackgroundColor: softAccent,
+                            disabledBackgroundColor: AppColors.softAccent,
                             disabledForegroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(

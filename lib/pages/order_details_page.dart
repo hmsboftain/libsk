@@ -1,10 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../widgets/order_item.dart';
 import '../widgets/theme.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class OrderDetailsPage extends StatefulWidget {
   final OrderItem order;
@@ -100,7 +100,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                           horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? AppColors.softAccent.withOpacity(0.4)
+                            ? AppColors.softAccent.withValues(alpha:0.4)
                             : AppColors.field,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
@@ -205,35 +205,38 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     setState(() => _isSubmittingDispute = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
+          .httpsCallable('submitDispute');
 
-      await FirebaseFirestore.instance.collection('disputes').add({
+      await callable.call({
         'orderId': widget.order.id,
-        'orderNumber': widget.order.orderNumber,
-        'customerUid': user.uid,
-        'customerName': user.displayName ?? 'User',
-        'customerEmail': user.email ?? '',
         'category': category,
         'description': description,
-        'status': 'Open',
-        'orderTotal': widget.order.total,
-        'paymentIntentId': widget.order.paymentIntentId,
-        'createdAt': FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
+
       setState(() => _disputeAlreadySubmitted = true);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'Dispute submitted. Our team will review it within 24 hours.'),
+            'Dispute submitted. Our team will review it within 24 hours.',
+          ),
           duration: Duration(seconds: 3),
+        ),
+      );
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? 'Failed to submit dispute'),
         ),
       );
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to submit dispute')),
       );
@@ -273,7 +276,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                     const Divider(),
                     const SizedBox(height: 18),
                     Text(
-                      "${AppLocalizations.of(context)!.dateLabel} ${widget.order.date}",
+                      "${AppLocalizations.of(context)!.dateLabel} ${widget.order.displayDate}",
                       style: const TextStyle(
                         fontSize: 15,
                         color: Colors.black54,
@@ -456,7 +459,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
                                 color: const Color(0xFFB87D3B)
-                                    .withOpacity(0.4)),
+                            ),
                           ),
                           child: Row(
                             children: const [

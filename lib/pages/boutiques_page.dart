@@ -16,15 +16,12 @@ class BoutiquesPage extends StatefulWidget {
 class _BoutiquesPageState extends State<BoutiquesPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  final Map<String, bool> likedStatus = {};
-
   Future<void> toggleBoutiqueLike({
     required String boutiqueId,
     required String imageUrl,
     required String boutiqueName,
+    required bool isCurrentlyLiked,
   }) async {
-    final isCurrentlyLiked = likedStatus[boutiqueId] ?? false;
-
     try {
       if (isCurrentlyLiked) {
         await FirestoreService.removeSavedBoutique(boutiqueId);
@@ -37,10 +34,6 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
       }
 
       if (!mounted) return;
-
-      setState(() {
-        likedStatus[boutiqueId] = !isCurrentlyLiked;
-      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -75,12 +68,16 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
     );
   }
 
+  Set<String> _getSavedBoutiqueIds(
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+      ) {
+    return docs.map((doc) => doc.id).toSet();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final boutiquesStream = _firestore
-        .collection('boutiques')
-        .orderBy('name')
-        .snapshots();
+    final boutiquesStream =
+    _firestore.collection('boutiques').orderBy('name').snapshots();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -100,47 +97,47 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
             const Divider(height: 1, thickness: 1),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: boutiquesStream,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
-                  }
+                stream: FirestoreService.getSavedBoutiquesStream(),
+                builder: (context, savedSnapshot) {
+                  final savedDocs = savedSnapshot.data?.docs ?? [];
+                  final savedBoutiqueIds = _getSavedBoutiqueIds(savedDocs);
 
-                  if (snapshot.hasError) {
-                    return const Center(
-                      child: Text('Failed to load boutiques'),
-                    );
-                  }
+                  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: boutiquesStream,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(),
+                        );
+                      }
 
-                  final docs = snapshot.data?.docs ?? [];
+                      if (snapshot.hasError) {
+                        return const Center(
+                          child: Text('Failed to load boutiques'),
+                        );
+                      }
 
-                  if (docs.isEmpty) {
-                    return const Center(
-                      child: Text('No boutiques available'),
-                    );
-                  }
+                      final docs = snapshot.data?.docs ?? [];
 
-                  return ListView.builder(
-                    itemCount: docs.length,
-                    itemBuilder: (context, index) {
-                      final doc = docs[index];
-                      final data = doc.data();
+                      if (docs.isEmpty) {
+                        return const Center(
+                          child: Text('No boutiques available'),
+                        );
+                      }
 
-                      final String boutiqueId = doc.id;
-                      final String imageUrl =
-                          data['logoPath']?.toString() ?? '';
-                      final String boutiqueName =
-                          data['name']?.toString() ?? 'Boutique';
+                      return ListView.builder(
+                        itemCount: docs.length,
+                        itemBuilder: (context, index) {
+                          final doc = docs[index];
+                          final data = doc.data();
 
-                      return FutureBuilder<bool>(
-                        future: FirestoreService.isBoutiqueSaved(boutiqueId),
-                        builder: (context, likeSnapshot) {
-                          final bool isLiked =
-                              likedStatus[boutiqueId] ??
-                                  likeSnapshot.data ??
-                                  false;
+                          final boutiqueId = doc.id;
+                          final imageUrl = data['logoPath']?.toString() ?? '';
+                          final boutiqueName =
+                              data['name']?.toString() ?? 'Boutique';
+
+                          final isLiked =
+                          savedBoutiqueIds.contains(boutiqueId);
 
                           return BoutiquesCard(
                             imageUrl: imageUrl,
@@ -151,6 +148,7 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                                 boutiqueId: boutiqueId,
                                 imageUrl: imageUrl,
                                 boutiqueName: boutiqueName,
+                                isCurrentlyLiked: isLiked,
                               );
                             },
                             onTap: () {

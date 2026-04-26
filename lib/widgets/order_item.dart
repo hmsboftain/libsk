@@ -26,6 +26,14 @@ class OrderItem {
     this.paymentIntentId = '',
   });
 
+  String get displayDate {
+    if (createdAt == null) {
+      return date;
+    }
+
+    return '${createdAt!.day}/${createdAt!.month}/${createdAt!.year}';
+  }
+
   factory OrderItem.fromFirestore(String id, Map<String, dynamic> data) {
     final itemsData = (data['items'] as List<dynamic>? ?? []);
 
@@ -105,6 +113,8 @@ class OrderItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final safeDate = date.trim().isEmpty ? 'Date unavailable' : date;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -145,7 +155,7 @@ class OrderItemWidget extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    date,
+                    safeDate,
                     style: const TextStyle(
                       fontSize: 14,
                       color: Colors.black54,
@@ -171,8 +181,7 @@ class OrderItemWidget extends StatelessWidget {
               ),
             ),
             Container(
-              padding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: AppColors.card,
                 borderRadius: BorderRadius.circular(20),

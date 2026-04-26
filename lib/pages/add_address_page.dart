@@ -300,32 +300,36 @@ class _AddAddressPageState extends State<AddAddressPage> {
               height: 70,
               child: ElevatedButton(
                 onPressed: () async {
-                  if (_formKey.currentState!.validate()) {
-                    try {
-                      await FirestoreService.addAddress(
-                        firstName: firstNameController.text.trim(),
-                        lastName: lastNameController.text.trim(),
-                        governorate: governorateController.text.trim(),
-                        area: areaController.text.trim(),
-                        block: blockController.text.trim(),
-                        street: streetController.text.trim(),
-                        house: houseController.text.trim(),
-                        floor: floorController.text.trim(),
-                        apartment: apartmentController.text.trim(),
-                        phone: phoneController.text.trim(),
-                      );
+                  final loc = AppLocalizations.of(context)!;
+                  final messenger = ScaffoldMessenger.of(context);
+                  final navigator = Navigator.of(context);
 
-                      if (!mounted) return;
-                      Navigator.pop(context);
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            AppLocalizations.of(context)!.failedToSaveAddress,
-                          ),
-                        ),
-                      );
-                    }
+                  if (!_formKey.currentState!.validate()) return;
+
+                  try {
+                    await FirestoreService.addAddress(
+                      firstName: firstNameController.text.trim(),
+                      lastName: lastNameController.text.trim(),
+                      governorate: governorateController.text.trim(),
+                      area: areaController.text.trim(),
+                      block: blockController.text.trim(),
+                      street: streetController.text.trim(),
+                      house: houseController.text.trim(),
+                      floor: floorController.text.trim(),
+                      apartment: apartmentController.text.trim(),
+                      phone: phoneController.text.trim(),
+                    );
+
+                    if (!mounted) return;
+                    navigator.pop();
+                  } catch (e) {
+                    if (!mounted) return;
+
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(loc.failedToSaveAddress),
+                      ),
+                    );
                   }
                 },
                 style: ElevatedButton.styleFrom(

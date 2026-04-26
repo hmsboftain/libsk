@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
@@ -23,31 +22,6 @@ class EditProductPage extends StatefulWidget {
 }
 
 class _EditProductPageState extends State<EditProductPage> {
-  Future<File?> cropProductImage(String imagePath) async {
-    final croppedFile = await ImageCropper().cropImage(
-      sourcePath: imagePath,
-      compressFormat: ImageCompressFormat.jpg,
-      compressQuality: 90,
-      aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Crop Product Image',
-          toolbarColor: Colors.black,
-          toolbarWidgetColor: Colors.white,
-          lockAspectRatio: true,
-          initAspectRatio: CropAspectRatioPreset.square,
-        ),
-        IOSUiSettings(
-          title: 'Crop Product Image',
-          aspectRatioLockEnabled: true,
-        ),
-      ],
-    );
-
-    if (croppedFile == null) return null;
-    return File(croppedFile.path);
-  }
-
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController titleController;
@@ -57,24 +31,24 @@ class _EditProductPageState extends State<EditProductPage> {
   late final TextEditingController sizesController;
 
   bool isLoading = false;
-  File? selectedImage;
-  String? currentImageUrl;
 
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const fieldColor = AppColors.field;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const softAccent = AppColors.softAccent;
-  static const deepAccent = AppColors.deepAccent;
+  List<String> currentImageUrls = [];
+  List<File> selectedNewImages = [];
+  List<String> imagesToDelete = [];
 
   @override
   void initState() {
     super.initState();
 
     final sizes = widget.productData['sizes'];
-    currentImageUrl = widget.productData['imageUrl']?.toString();
+    final imageUrl = widget.productData['imageUrl']?.toString() ?? '';
+    final imageUrlsData = widget.productData['imageUrls'];
+
+    if (imageUrlsData is List && imageUrlsData.isNotEmpty) {
+      currentImageUrls = imageUrlsData.map((image) => image.toString()).toList();
+    } else if (imageUrl.isNotEmpty) {
+      currentImageUrls = [imageUrl];
+    }
 
     titleController = TextEditingController(
       text: widget.productData['title']?.toString() ?? '',
@@ -103,26 +77,24 @@ class _EditProductPageState extends State<EditProductPage> {
     super.dispose();
   }
 
-  Future<void> pickImage() async {
+  Future<void> pickNewImages() async {
     try {
       final picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
+
+      final images = await picker.pickMultiImage(
         imageQuality: 85,
       );
 
-      if (image == null) return;
-
-      final croppedImage = await cropProductImage(image.path);
-      if (croppedImage == null) return;
+      if (images.isEmpty) return;
 
       setState(() {
-        selectedImage = croppedImage;
+        selectedNewImages = images.map((image) => File(image.path)).toList();
       });
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to pick image')),
+        const SnackBar(content: Text('Failed to pick images')),
       );
     }
   }
@@ -138,8 +110,34 @@ class _EditProductPageState extends State<EditProductPage> {
     return await ref.getDownloadURL();
   }
 
+  Future<List<String>> uploadImagesToStorage(List<File> images) async {
+    final List<String> urls = [];
+
+    for (final image in images) {
+      final url = await uploadImageToStorage(image);
+      urls.add(url);
+    }
+
+    return urls;
+  }
+
+  Future<void> deleteImageFromStorage(String imageUrl) async {
+    try {
+      await FirebaseStorage.instance.refFromURL(imageUrl).delete();
+    } catch (e) {
+      debugPrint('Failed to delete old product image: $e');
+    }
+  }
+
   Future<void> updateProduct() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (currentImageUrls.isEmpty && selectedNewImages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one product image')),
+      );
+      return;
+    }
 
     setState(() {
       isLoading = true;
@@ -156,17 +154,21 @@ class _EditProductPageState extends State<EditProductPage> {
       final description = descriptionController.text.trim();
       final price = double.parse(priceController.text.trim());
       final stock = int.parse(stockController.text.trim());
+
       final sizes = sizesController.text
           .split(',')
           .map((size) => size.trim())
           .where((size) => size.isNotEmpty)
           .toList();
 
-      String imageUrl = currentImageUrl ?? '';
+      final uploadedNewUrls = await uploadImagesToStorage(selectedNewImages);
 
-      if (selectedImage != null) {
-        imageUrl = await uploadImageToStorage(selectedImage!);
-      }
+      final allImageUrls = [
+        ...currentImageUrls,
+        ...uploadedNewUrls,
+      ];
+
+      final mainImageUrl = allImageUrls.first;
 
       await FirebaseFirestore.instance
           .collection('boutiques')
@@ -177,10 +179,16 @@ class _EditProductPageState extends State<EditProductPage> {
         'title': title,
         'description': description,
         'price': price,
-        'imageUrl': imageUrl,
+        'imageUrl': mainImageUrl,
+        'imageUrls': allImageUrls,
         'stock': stock,
         'sizes': sizes,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      for (final imageUrl in imagesToDelete) {
+        await deleteImageFromStorage(imageUrl);
+      }
 
       if (!mounted) return;
 
@@ -204,27 +212,65 @@ class _EditProductPageState extends State<EditProductPage> {
     }
   }
 
+  void removeCurrentImage(int index) {
+    if (currentImageUrls.length + selectedNewImages.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Product must have at least one image')),
+      );
+      return;
+    }
+
+    final removedImage = currentImageUrls[index];
+
+    setState(() {
+      currentImageUrls.removeAt(index);
+      imagesToDelete.add(removedImage);
+    });
+  }
+
+  void makeCurrentImageMain(int index) {
+    if (index == 0) return;
+
+    setState(() {
+      final selectedImage = currentImageUrls.removeAt(index);
+      currentImageUrls.insert(0, selectedImage);
+    });
+  }
+
+  void removeNewImage(int index) {
+    if (currentImageUrls.length + selectedNewImages.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Product must have at least one image')),
+      );
+      return;
+    }
+
+    setState(() {
+      selectedNewImages.removeAt(index);
+    });
+  }
+
   InputDecoration buildInputDecoration(String hintText) {
     return InputDecoration(
       hintText: hintText,
       hintStyle: const TextStyle(
-        color: secondaryText,
+        color: AppColors.secondaryText,
         fontSize: 14,
       ),
       filled: true,
-      fillColor: fieldColor,
+      fillColor: AppColors.field,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: borderColor),
+        borderSide: const BorderSide(color: AppColors.border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: const BorderSide(
-          color: deepAccent,
+          color: AppColors.deepAccent,
           width: 1.2,
         ),
       ),
@@ -248,7 +294,7 @@ class _EditProductPageState extends State<EditProductPage> {
         style: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: primaryText,
+          color: AppColors.primaryText,
         ),
       ),
     );
@@ -259,97 +305,164 @@ class _EditProductPageState extends State<EditProductPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: child,
     );
   }
 
-  Widget buildImagePicker() {
-    Widget child;
-
-    if (selectedImage != null) {
-      child = ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Image.file(
-          selectedImage!,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: 180,
+  Widget buildImagePreview({
+    required Widget image,
+    required VoidCallback onRemove,
+  }) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: image,
         ),
-      );
-    } else if (currentImageUrl != null && currentImageUrl!.isNotEmpty) {
-      child = ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Image.network(
-          currentImageUrl!,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: 180,
-          errorBuilder: (context, error, stackTrace) {
-            return const Column(
+        Positioned(
+          top: 6,
+          right: 6,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close,
+                color: Colors.white,
+                size: 16,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildImagePicker() {
+    final totalImages = currentImageUrls.length + selectedNewImages.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: pickNewImages,
+          child: Container(
+            width: double.infinity,
+            height: 120,
+            decoration: BoxDecoration(
+              color: AppColors.field,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: const Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   Icons.add_photo_alternate_outlined,
-                  size: 34,
-                  color: deepAccent,
+                  size: 32,
+                  color: AppColors.deepAccent,
                 ),
-                SizedBox(height: 10),
+                SizedBox(height: 8),
                 Text(
-                  'Tap to change image',
+                  'Tap to add more images',
                   style: TextStyle(
-                    color: secondaryText,
+                    color: AppColors.secondaryText,
                     fontSize: 14,
                   ),
                 ),
               ],
-            );
-          },
-        ),
-      );
-    } else {
-      child = const Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.add_photo_alternate_outlined,
-            size: 34,
-            color: deepAccent,
-          ),
-          SizedBox(height: 10),
-          Text(
-            'Tap to upload image',
-            style: TextStyle(
-              color: secondaryText,
-              fontSize: 14,
             ),
           ),
-        ],
-      );
-    }
-
-    return GestureDetector(
-      onTap: pickImage,
-      child: Container(
-        width: double.infinity,
-        height: 180,
-        decoration: BoxDecoration(
-          color: fieldColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
         ),
-        child: child,
-      ),
+        const SizedBox(height: 12),
+        if (totalImages > 0)
+          SizedBox(
+            height: 150,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                ...currentImageUrls.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final imageUrl = entry.value;
+                  final isMain = index == 0;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: Stack(
+                      children: [
+                        buildImagePreview(
+                          image: Image.network(
+                            imageUrl,
+                            width: 110,
+                            height: 145,
+                            fit: BoxFit.cover,
+                          ),
+                          onRemove: () => removeCurrentImage(index),
+                        ),
+                        Positioned(
+                          bottom: 6,
+                          left: 6,
+                          right: 6,
+                          child: GestureDetector(
+                            onTap: () => makeCurrentImageMain(index),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 5),
+                              decoration: BoxDecoration(
+                                color: isMain ? Colors.black : Colors.black54,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                isMain ? 'Main' : 'Make main',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                ...selectedNewImages.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final imageFile = entry.value;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: buildImagePreview(
+                      image: Image.file(
+                        imageFile,
+                        width: 110,
+                        height: 145,
+                        fit: BoxFit.cover,
+                      ),
+                      onRemove: () => removeNewImage(index),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -367,16 +480,16 @@ class _EditProductPageState extends State<EditProductPage> {
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
-                          color: primaryText,
+                          color: AppColors.primaryText,
                           letterSpacing: 0.2,
                         ),
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Update your product details.',
+                        'Update your product details and images.',
                         style: TextStyle(
                           fontSize: 14,
-                          color: secondaryText,
+                          color: AppColors.secondaryText,
                           height: 1.4,
                         ),
                       ),
@@ -385,7 +498,7 @@ class _EditProductPageState extends State<EditProductPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            buildLabel('Product Image'),
+                            buildLabel('Product Images'),
                             buildImagePicker(),
                             const SizedBox(height: 18),
                             buildLabel('Product Title'),
@@ -477,7 +590,7 @@ class _EditProductPageState extends State<EditProductPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.black,
                             foregroundColor: Colors.white,
-                            disabledBackgroundColor: softAccent,
+                            disabledBackgroundColor: AppColors.softAccent,
                             disabledForegroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(

@@ -99,6 +99,13 @@ class _SavedItemsPageState extends State<SavedItemsPage> {
                           final String productId = item["productId"] ?? "";
                           final String boutiqueId = item["boutiqueId"] ?? "";
                           final String imageUrl = item["imageUrl"] ?? "";
+                          final imageUrlsData = item["imageUrls"];
+                          final List<String> imageUrls = imageUrlsData is List
+                              ? imageUrlsData.map((image) => image.toString()).toList()
+                              : imageUrl.isNotEmpty
+                              ? [imageUrl]
+                              : [];
+                          final displayImageUrl = imageUrls.isNotEmpty ? imageUrls.first : imageUrl;
                           final String title = item["title"] ?? "";
                           final String boutiqueName = item["boutiqueName"] ?? "";
                           final String description = item["description"] ?? "";
@@ -119,17 +126,16 @@ class _SavedItemsPageState extends State<SavedItemsPage> {
                               : [];
 
                           return buildProductCard(
-                            imageUrl: imageUrl,
+                            imageUrl: displayImageUrl,
                             title: title,
                             brand: boutiqueName,
                             price: "${price.toStringAsFixed(0)} KWD",
                             isLiked: true,
                             onLikeTap: () async {
+                              final messenger = ScaffoldMessenger.of(context);
                               await FirestoreService.removeSavedItem(productId);
-
                               if (!mounted) return;
-
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              messenger.showSnackBar(
                                 SnackBar(
                                   content: Text(loc.itemRemovedFromSaved),
                                   duration: const Duration(seconds: 1),
@@ -143,7 +149,8 @@ class _SavedItemsPageState extends State<SavedItemsPage> {
                                   builder: (context) => ProductPage(
                                     productId: productId,
                                     boutiqueId: boutiqueId,
-                                    imageUrl: imageUrl,
+                                    imageUrl: displayImageUrl,
+                                    imageUrls: imageUrls,
                                     title: title,
                                     price: price,
                                     description: description,

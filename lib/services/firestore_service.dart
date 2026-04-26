@@ -1,10 +1,14 @@
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FirestoreService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  static String? _guestCartId;
 
   static String get _uid {
     final user = _auth.currentUser;
@@ -14,7 +18,37 @@ class FirestoreService {
     return user.uid;
   }
 
+  static Future<void> prepareGuestCartId() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    String? savedGuestId = prefs.getString('guestCartId');
+
+    if (savedGuestId == null || savedGuestId.isEmpty) {
+      final randomNumber = Random().nextInt(999999999);
+      savedGuestId = 'guest_$randomNumber';
+
+      await prefs.setString('guestCartId', savedGuestId);
+    }
+
+    _guestCartId = savedGuestId;
+  }
+
+  static String get _cartOwnerId {
+    final user = _auth.currentUser;
+
+    if (user != null) {
+      return user.uid;
+    }
+
+    if (_guestCartId == null) {
+      throw Exception('Guest cart ID has not been prepared');
+    }
+
+    return _guestCartId!;
+  }
+
   // ---------- Saved Items ----------
+
   static CollectionReference<Map<String, dynamic>> get _savedItemsRef =>
       _firestore.collection('users').doc(_uid).collection('saved_items');
 
@@ -22,6 +56,7 @@ class FirestoreService {
     required String productId,
     required String boutiqueId,
     required String imageUrl,
+    required List<String> imageUrls,
     required String title,
     required String boutiqueName,
     required double price,
@@ -33,6 +68,7 @@ class FirestoreService {
       'productId': productId,
       'boutiqueId': boutiqueId,
       'imageUrl': imageUrl,
+      'imageUrls': imageUrls,
       'title': title,
       'boutiqueName': boutiqueName,
       'price': price,
@@ -57,6 +93,7 @@ class FirestoreService {
   }
 
   // ---------- Saved Boutiques ----------
+
   static CollectionReference<Map<String, dynamic>> get _savedBoutiquesRef =>
       _firestore.collection('users').doc(_uid).collection('saved_boutiques');
 
@@ -89,6 +126,7 @@ class FirestoreService {
   }
 
   // ---------- Saved Addresses ----------
+
   static CollectionReference<Map<String, dynamic>> get _savedAddressesRef =>
       _firestore.collection('users').doc(_uid).collection('saved_addresses');
 
@@ -130,10 +168,12 @@ class FirestoreService {
   }
 
   // ---------- Cart ----------
+
   static CollectionReference<Map<String, dynamic>> get _cartItemsRef {
-    final user = _auth.currentUser;
-    final uid = user?.uid ?? 'guest';
-    return _firestore.collection('users').doc(uid).collection('cart_items');
+    return _firestore
+        .collection('users')
+        .doc(_cartOwnerId)
+        .collection('cart_items');
   }
 
   static Future<void> addToCart({
@@ -145,13 +185,32 @@ class FirestoreService {
     required String size,
     required double price,
   }) async {
-    final user = _auth.currentUser;
-    // Use uid if logged in, otherwise use a guest placeholder
-    final uid = user?.uid ?? 'guest';
+    final productRef = _firestore
+        .collection('boutiques')
+        .doc(boutiqueId)
+        .collection('products')
+        .doc(productId);
+
+    final productDoc = await productRef.get();
+
+    if (!productDoc.exists) {
+      throw Exception('$title is no longer available');
+    }
+
+    final productData = productDoc.data();
+    final stockValue = productData?['stock'] ?? 0;
+
+    final int currentStock = stockValue is int
+        ? stockValue
+        : int.tryParse(stockValue.toString()) ?? 0;
+
+    if (currentStock <= 0) {
+      throw Exception('$title is out of stock');
+    }
 
     final cartRef = _firestore
         .collection('users')
-        .doc(uid)
+        .doc(_cartOwnerId)
         .collection('cart_items');
 
     final docId = '${productId}_$size';
@@ -159,9 +218,19 @@ class FirestoreService {
     final doc = await docRef.get();
 
     if (doc.exists) {
-      final currentQuantity = (doc.data()?['quantity'] ?? 1) as int;
+      final quantityValue = doc.data()?['quantity'] ?? 1;
+
+      final int currentQuantity = quantityValue is int
+          ? quantityValue
+          : int.tryParse(quantityValue.toString()) ?? 1;
+
+      if (currentQuantity + 1 > currentStock) {
+        throw Exception('Only $currentStock left in stock');
+      }
+
       await docRef.update({
         'quantity': currentQuantity + 1,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
     } else {
       await docRef.set({
@@ -186,21 +255,65 @@ class FirestoreService {
     required String docId,
     required int quantity,
   }) async {
+    if (quantity <= 0) {
+      await _cartItemsRef.doc(docId).delete();
+      return;
+    }
+
+    final cartItemDoc = await _cartItemsRef.doc(docId).get();
+
+    if (!cartItemDoc.exists) {
+      throw Exception('Cart item not found');
+    }
+
+    final cartItemData = cartItemDoc.data();
+
+    final productId = cartItemData?['productId']?.toString() ?? '';
+    final boutiqueId = cartItemData?['boutiqueId']?.toString() ?? '';
+    final title = cartItemData?['title']?.toString() ?? 'Product';
+
+    final productDoc = await _firestore
+        .collection('boutiques')
+        .doc(boutiqueId)
+        .collection('products')
+        .doc(productId)
+        .get();
+
+    if (!productDoc.exists) {
+      throw Exception('$title is no longer available');
+    }
+
+    final stockValue = productDoc.data()?['stock'] ?? 0;
+    final int currentStock = stockValue is int
+        ? stockValue
+        : int.tryParse(stockValue.toString()) ?? 0;
+
+    if (quantity > currentStock) {
+      throw Exception('Only $currentStock left in stock');
+    }
+
     await _cartItemsRef.doc(docId).update({
       'quantity': quantity,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
   static Future<void> deleteCartItem(String docId) async {
     await _cartItemsRef.doc(docId).delete();
   }
+
   static Future<void> mergeGuestCartToUser() async {
     final user = _auth.currentUser;
     if (user == null) return;
 
+    await prepareGuestCartId();
+
+    final guestId = _guestCartId;
+    if (guestId == null || guestId.isEmpty) return;
+
     final guestCartRef = _firestore
         .collection('users')
-        .doc('guest')
+        .doc(guestId)
         .collection('cart_items');
 
     final guestItems = await guestCartRef.get();
@@ -213,16 +326,67 @@ class FirestoreService {
 
     for (final doc in guestItems.docs) {
       final data = doc.data();
+
+      final productId = data['productId']?.toString() ?? '';
+      final boutiqueId = data['boutiqueId']?.toString() ?? '';
+
+      if (productId.isEmpty || boutiqueId.isEmpty) {
+        await guestCartRef.doc(doc.id).delete();
+        continue;
+      }
+
+      final productDoc = await _firestore
+          .collection('boutiques')
+          .doc(boutiqueId)
+          .collection('products')
+          .doc(productId)
+          .get();
+
+      if (!productDoc.exists) {
+        await guestCartRef.doc(doc.id).delete();
+        continue;
+      }
+
+      final stockValue = productDoc.data()?['stock'] ?? 0;
+      final int currentStock = stockValue is int
+          ? stockValue
+          : int.tryParse(stockValue.toString()) ?? 0;
+
+      if (currentStock <= 0) {
+        await guestCartRef.doc(doc.id).delete();
+        continue;
+      }
+
       final existingDoc = await userCartRef.doc(doc.id).get();
 
+      final guestQuantityValue = data['quantity'] ?? 1;
+      final int guestQuantity = guestQuantityValue is int
+          ? guestQuantityValue
+          : int.tryParse(guestQuantityValue.toString()) ?? 1;
+
       if (existingDoc.exists) {
-        final currentQuantity = (existingDoc.data()?['quantity'] ?? 1) as int;
-        final guestQuantity = (data['quantity'] ?? 1) as int;
+        final currentQuantityValue = existingDoc.data()?['quantity'] ?? 1;
+        final int currentQuantity = currentQuantityValue is int
+            ? currentQuantityValue
+            : int.tryParse(currentQuantityValue.toString()) ?? 1;
+
+        final mergedQuantity = currentQuantity + guestQuantity;
+        final safeQuantity =
+        mergedQuantity > currentStock ? currentStock : mergedQuantity;
+
         await userCartRef.doc(doc.id).update({
-          'quantity': currentQuantity + guestQuantity,
+          'quantity': safeQuantity,
+          'updatedAt': FieldValue.serverTimestamp(),
         });
       } else {
-        await userCartRef.doc(doc.id).set(data);
+        final safeQuantity =
+        guestQuantity > currentStock ? currentStock : guestQuantity;
+
+        await userCartRef.doc(doc.id).set({
+          ...data,
+          'quantity': safeQuantity,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
       }
 
       await guestCartRef.doc(doc.id).delete();
@@ -230,6 +394,7 @@ class FirestoreService {
   }
 
   // ---------- Orders ----------
+
   static CollectionReference<Map<String, dynamic>> get _ordersRef =>
       _firestore.collection('users').doc(_uid).collection('orders');
 
@@ -287,36 +452,9 @@ class FirestoreService {
       addressData = latestAddressSnapshot.docs.first.data();
     }
 
-    final batch = _firestore.batch();
-
     final userOrderRef = _ordersRef.doc();
     final globalOrderRef =
     _firestore.collection('global_orders').doc(userOrderRef.id);
-
-    final userOrderData = {
-      'orderNumber': orderNumber,
-      'date':
-      "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}",
-      'itemCount': itemCount,
-      'total': total,
-      'status': 'Placed',
-      'customerUid': user.uid,
-      'customerName': user.displayName ?? 'User',
-      'customerEmail': user.email ?? '',
-      'deliveryMethod': deliveryMethod ?? '',
-      'paymentMethod': paymentMethod ?? '',
-      'paymentIntentId': paymentIntentId ?? '',
-      'address': addressData,
-      'items': items,
-      'createdAt': FieldValue.serverTimestamp(),
-    };
-
-    batch.set(userOrderRef, userOrderData);
-
-    batch.set(globalOrderRef, {
-      ...userOrderData,
-      'sourceUserOrderId': userOrderRef.id,
-    });
 
     final Map<String, List<Map<String, dynamic>>> boutiqueItemsMap = {};
 
@@ -327,62 +465,153 @@ class FirestoreService {
         continue;
       }
 
-      if (!boutiqueItemsMap.containsKey(boutiqueId)) {
-        boutiqueItemsMap[boutiqueId] = [];
-      }
-
+      boutiqueItemsMap.putIfAbsent(boutiqueId, () => []);
       boutiqueItemsMap[boutiqueId]!.add(item);
     }
 
-    for (final entry in boutiqueItemsMap.entries) {
-      final boutiqueId = entry.key;
-      final boutiqueItems = entry.value;
+    await _firestore.runTransaction((transaction) async {
+      for (final item in items) {
+        final boutiqueId = item['boutiqueId']?.toString();
+        final productId = item['productId']?.toString();
 
-      int boutiqueItemCount = 0;
-      double boutiqueTotal = 0;
+        if (boutiqueId == null ||
+            boutiqueId.isEmpty ||
+            productId == null ||
+            productId.isEmpty) {
+          throw Exception('Invalid product information.');
+        }
 
-      for (final item in boutiqueItems) {
         final quantityValue = item['quantity'] ?? 0;
-        final priceValue = item['price'] ?? 0;
-
         final int quantity = quantityValue is int
             ? quantityValue
             : int.tryParse(quantityValue.toString()) ?? 0;
 
-        final double price = priceValue is num
-            ? priceValue.toDouble()
-            : double.tryParse(priceValue.toString()) ?? 0;
+        if (quantity <= 0) {
+          throw Exception('Invalid quantity for ${item['title'] ?? 'product'}.');
+        }
 
-        boutiqueItemCount += quantity;
-        boutiqueTotal += price * quantity;
+        final productRef = _firestore
+            .collection('boutiques')
+            .doc(boutiqueId)
+            .collection('products')
+            .doc(productId);
+
+        final productSnapshot = await transaction.get(productRef);
+
+        if (!productSnapshot.exists) {
+          throw Exception(
+            '${item['title'] ?? 'Product'} is no longer available.',
+          );
+        }
+
+        final productData = productSnapshot.data();
+        final stockValue = productData?['stock'] ?? 0;
+
+        final int currentStock = stockValue is int
+            ? stockValue
+            : int.tryParse(stockValue.toString()) ?? 0;
+
+        if (currentStock < quantity) {
+          throw Exception(
+            '${item['title'] ?? 'Product'} does not have enough stock.',
+          );
+        }
       }
 
-      final boutiqueOrderRef = _firestore
-          .collection('boutiques')
-          .doc(boutiqueId)
-          .collection('orders')
-          .doc();
-
-      batch.set(boutiqueOrderRef, {
+      final userOrderData = {
         'orderNumber': orderNumber,
-        'sourceUserOrderId': userOrderRef.id,
         'date':
         "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}",
-        'itemCount': boutiqueItemCount,
-        'total': boutiqueTotal,
+        'itemCount': itemCount,
+        'total': total,
         'status': 'Placed',
         'customerUid': user.uid,
         'customerName': user.displayName ?? 'User',
         'customerEmail': user.email ?? '',
         'deliveryMethod': deliveryMethod ?? '',
         'paymentMethod': paymentMethod ?? '',
+        'paymentIntentId': paymentIntentId ?? '',
         'address': addressData,
-        'items': boutiqueItems,
+        'items': items,
         'createdAt': FieldValue.serverTimestamp(),
-      });
-    }
+      };
 
-    await batch.commit();
+      transaction.set(userOrderRef, userOrderData);
+
+      transaction.set(globalOrderRef, {
+        ...userOrderData,
+        'sourceUserOrderId': userOrderRef.id,
+      });
+
+      for (final entry in boutiqueItemsMap.entries) {
+        final boutiqueId = entry.key;
+        final boutiqueItems = entry.value;
+
+        int boutiqueItemCount = 0;
+        double boutiqueTotal = 0;
+
+        for (final item in boutiqueItems) {
+          final quantityValue = item['quantity'] ?? 0;
+          final priceValue = item['price'] ?? 0;
+
+          final int quantity = quantityValue is int
+              ? quantityValue
+              : int.tryParse(quantityValue.toString()) ?? 0;
+
+          final double price = priceValue is num
+              ? priceValue.toDouble()
+              : double.tryParse(priceValue.toString()) ?? 0;
+
+          boutiqueItemCount += quantity;
+          boutiqueTotal += price * quantity;
+        }
+
+        final boutiqueOrderRef = _firestore
+            .collection('boutiques')
+            .doc(boutiqueId)
+            .collection('orders')
+            .doc();
+
+        transaction.set(boutiqueOrderRef, {
+          'orderNumber': orderNumber,
+          'sourceUserOrderId': userOrderRef.id,
+          'date':
+          "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}",
+          'itemCount': boutiqueItemCount,
+          'total': boutiqueTotal,
+          'status': 'Placed',
+          'customerUid': user.uid,
+          'customerName': user.displayName ?? 'User',
+          'customerEmail': user.email ?? '',
+          'deliveryMethod': deliveryMethod ?? '',
+          'paymentMethod': paymentMethod ?? '',
+          'address': addressData,
+          'items': boutiqueItems,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      for (final item in items) {
+        final boutiqueId = item['boutiqueId'].toString();
+        final productId = item['productId'].toString();
+
+        final quantityValue = item['quantity'] ?? 0;
+        final int quantity = quantityValue is int
+            ? quantityValue
+            : int.tryParse(quantityValue.toString()) ?? 0;
+
+        final productRef = _firestore
+            .collection('boutiques')
+            .doc(boutiqueId)
+            .collection('products')
+            .doc(productId);
+
+        transaction.update(productRef, {
+          'stock': FieldValue.increment(-quantity),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    });
 
     return orderNumber;
   }
@@ -515,6 +744,7 @@ class FirestoreService {
     required String description,
     required double price,
     required String imageUrl,
+    required List<String> imageUrls,
     required int stock,
     required List<String> sizes,
   }) async {
@@ -536,6 +766,7 @@ class FirestoreService {
       'description': description,
       'price': price,
       'imageUrl': imageUrl,
+      'imageUrls': imageUrls,
       'stock': stock,
       'sizes': sizes,
       'boutiqueName': boutiqueName,
@@ -831,5 +1062,4 @@ class FirestoreService {
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
-  
 }

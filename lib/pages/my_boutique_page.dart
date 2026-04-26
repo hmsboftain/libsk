@@ -15,14 +15,6 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
   Map<String, dynamic>? boutiqueData;
   bool isLoading = true;
 
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const fieldColor = AppColors.field;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const deepAccent = AppColors.deepAccent;
-
   @override
   void initState() {
     super.initState();
@@ -78,9 +70,9 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: AppColors.border),
       ),
       child: child,
     );
@@ -100,7 +92,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: secondaryText,
+              color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 6),
@@ -108,7 +100,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
             value.isEmpty ? '-' : value,
             style: const TextStyle(
               fontSize: 15,
-              color: primaryText,
+              color: AppColors.primaryText,
               height: 1.4,
             ),
           ),
@@ -130,7 +122,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: primaryText,
+            color: AppColors.primaryText,
           ),
         ),
         const SizedBox(height: 10),
@@ -138,9 +130,9 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
           width: double.infinity,
           height: height,
           decoration: BoxDecoration(
-            color: fieldColor,
+            color: AppColors.field,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: borderColor),
+            border: Border.all(color: AppColors.border),
           ),
           child: imageUrl != null && imageUrl.isNotEmpty
               ? ClipRRect(
@@ -153,7 +145,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                   child: Text(
                     'Image could not load',
                     style: TextStyle(
-                      color: secondaryText,
+                      color: AppColors.secondaryText,
                       fontSize: 14,
                     ),
                   ),
@@ -165,7 +157,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
             child: Text(
               'No image uploaded',
               style: TextStyle(
-                color: secondaryText,
+                color: AppColors.secondaryText,
                 fontSize: 14,
               ),
             ),
@@ -184,7 +176,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
     final bannerPath = boutiqueData?['bannerPath']?.toString();
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -193,7 +185,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
               child: isLoading
                   ? const Center(
                 child: CircularProgressIndicator(
-                  color: deepAccent,
+                  color: AppColors.deepAccent,
                 ),
               )
                   : RefreshIndicator(
@@ -209,7 +201,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
-                          color: primaryText,
+                          color: AppColors.primaryText,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -217,7 +209,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                         'View and manage your boutique details.',
                         style: TextStyle(
                           fontSize: 14,
-                          color: secondaryText,
+                          color: AppColors.secondaryText,
                           height: 1.4,
                         ),
                       ),

@@ -44,7 +44,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final result = await callable.call({
       'items': items,
       'deliveryCost': deliveryCost,
-      'currency': 'usd',
+      'currency': 'kwd',
     });
 
     final data = Map<String, dynamic>.from(result.data as Map);
@@ -85,6 +85,139 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return paymentIntentId;
   }
 
+  Future<void> _placeOrder({
+    required List<CartItem> cartItems,
+    required double total,
+  }) async {
+    final loc = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    if (cartItems.isEmpty) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(loc.yourCartIsEmpty),
+        ),
+      );
+      return;
+    }
+
+    setState(() => isPlacingOrder = true);
+
+    try {
+      final addressSnapshot =
+      await FirestoreService.getSavedAddressesStream().first;
+
+      if (!mounted) return;
+
+      if (addressSnapshot.docs.isEmpty) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(loc.pleaseAddADeliveryAddress),
+          ),
+        );
+        return;
+      }
+
+      int totalItems = 0;
+      double checkedSubtotal = 0;
+
+      for (final item in cartItems) {
+        totalItems += item.quantity;
+        checkedSubtotal += item.price * item.quantity;
+
+        final productDoc = await FirebaseFirestore.instance
+            .collection('boutiques')
+            .doc(item.boutiqueId)
+            .collection('products')
+            .doc(item.productId)
+            .get();
+
+        if (!productDoc.exists) {
+          throw Exception('${item.title} is no longer available');
+        }
+
+        final productData = productDoc.data();
+        final stockValue = productData?['stock'] ?? 0;
+
+        final int currentStock = stockValue is int
+            ? stockValue
+            : int.tryParse(stockValue.toString()) ?? 0;
+
+        if (currentStock < item.quantity) {
+          throw Exception('${item.title} does not have enough stock');
+        }
+      }
+
+      final checkedTotal = checkedSubtotal + deliveryCost;
+
+      final paymentIntentId = await _startStripeCheckout(
+        cartItems: cartItems,
+        deliveryCost: deliveryCost,
+      );
+
+      final List<Map<String, dynamic>> orderItems = cartItems.map((item) {
+        return {
+          'productId': item.productId,
+          'boutiqueId': item.boutiqueId,
+          'title': item.title,
+          'imageUrl': item.imageUrl,
+          'description': item.description,
+          'size': item.size,
+          'price': item.price,
+          'quantity': item.quantity,
+        };
+      }).toList();
+
+      final orderNumber = await FirestoreService.createOrder(
+        items: orderItems,
+        itemCount: totalItems,
+        total: checkedTotal,
+        deliveryMethod: deliveryMethod,
+        paymentMethod: paymentMethod,
+        paymentIntentId: paymentIntentId,
+      );
+
+      for (final item in cartItems) {
+        await FirestoreService.deleteCartItem(item.id);
+      }
+
+      if (!mounted) return;
+
+      navigator.push(
+        MaterialPageRoute(
+          builder: (context) => OrderConfirmationPage(
+            orderNumber: orderNumber,
+          ),
+        ),
+      );
+    } on StripeException catch (e) {
+      if (!mounted) return;
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            e.error.localizedMessage ?? loc.paymentCancelled,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint("PLACE ORDER ERROR: $e");
+
+      if (!mounted) return;
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text("${loc.error}: $e"),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => isPlacingOrder = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -107,6 +240,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     user.displayName != null && user.displayName!.trim().isNotEmpty
         ? user.displayName!
         : AppLocalizations.of(context)!.user;
+
     final email = user.email ?? AppLocalizations.of(context)!.noEmail;
 
     return Scaffold(
@@ -166,6 +300,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         const SizedBox(height: 6),
                         const Divider(),
                         const SizedBox(height: 18),
+
                         Text(
                           AppLocalizations.of(context)!.accountDetails,
                           style: const TextStyle(
@@ -178,7 +313,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 16),
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.grey.shade200,
                             borderRadius: BorderRadius.circular(10),
@@ -204,6 +341,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             ],
                           ),
                         ),
+
                         const SizedBox(height: 28),
                         Text(
                           AppLocalizations.of(context)!.deliveryAddress,
@@ -214,6 +352,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           ),
                         ),
                         const SizedBox(height: 12),
+
                         StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                           stream: FirestoreService.getSavedAddressesStream(),
                           builder: (context, addressSnapshot) {
@@ -222,46 +361,38 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               return const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 8),
                                 child: Center(
-                                    child: CircularProgressIndicator()),
+                                  child: CircularProgressIndicator(),
+                                ),
                               );
                             }
 
                             if (addressSnapshot.hasError) {
                               return Padding(
-                                padding:
-                                const EdgeInsets.only(bottom: 16),
+                                padding: const EdgeInsets.only(bottom: 16),
                                 child: Text(
                                   "${AppLocalizations.of(context)!.couldNotLoadSavedAddresses}: ${addressSnapshot.error}",
                                   style: const TextStyle(
-                                      color: Colors.black54),
+                                    color: Colors.black54,
+                                  ),
                                 ),
                               );
                             }
 
-                            if (!addressSnapshot.hasData ||
-                                addressSnapshot.data!.docs.isEmpty) {
-                              return const SizedBox();
-                            }
-
-                            final latestAddress =
-                            addressSnapshot.data!.docs.first.data();
+                            final addressDocs = addressSnapshot.data?.docs ?? [];
+                            final hasAddress = addressDocs.isNotEmpty;
 
                             return Column(
                               children: [
-                                addressInfo(latestAddress),
-                                const SizedBox(height: 16),
+                                if (hasAddress) ...[
+                                  addressInfo(addressDocs.first.data()),
+                                  const SizedBox(height: 16),
+                                ],
+                                addressButton(hasAddress: hasAddress),
                               ],
                             );
                           },
                         ),
-                        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                          stream: FirestoreService.getSavedAddressesStream(),
-                          builder: (context, addressSnapshot) {
-                            final hasAddress = addressSnapshot.hasData &&
-                                addressSnapshot.data!.docs.isNotEmpty;
-                            return addressButton(hasAddress: hasAddress);
-                          },
-                        ),
+
                         const SizedBox(height: 28),
                         Text(
                           AppLocalizations.of(context)!.deliveryMethod,
@@ -273,8 +404,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         ),
                         const SizedBox(height: 12),
                         Container(
-                          padding:
-                          const EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: BoxDecoration(
                             color: Colors.grey.shade200,
                             borderRadius: BorderRadius.circular(10),
@@ -287,15 +417,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               items: [
                                 DropdownMenuItem(
                                   value: "Regular Delivery",
-                                  child: Text(AppLocalizations.of(
-                                      context)!
-                                      .regularDelivery),
+                                  child: Text(
+                                    AppLocalizations.of(context)!
+                                        .regularDelivery,
+                                  ),
                                 ),
                                 DropdownMenuItem(
                                   value: "Same Day Delivery",
-                                  child: Text(AppLocalizations.of(
-                                      context)!
-                                      .sameDayDelivery),
+                                  child: Text(
+                                    AppLocalizations.of(context)!
+                                        .sameDayDelivery,
+                                  ),
                                 ),
                               ],
                               onChanged: (value) {
@@ -310,6 +442,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             ),
                           ),
                         ),
+
                         const SizedBox(height: 28),
                         Text(
                           AppLocalizations.of(context)!.paymentMethod,
@@ -321,8 +454,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         ),
                         const SizedBox(height: 12),
                         Container(
-                          padding:
-                          const EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: BoxDecoration(
                             color: Colors.grey.shade200,
                             borderRadius: BorderRadius.circular(10),
@@ -336,7 +468,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                 DropdownMenuItem(
                                   value: "Card",
                                   child: Text(
-                                      AppLocalizations.of(context)!.card),
+                                    AppLocalizations.of(context)!.card,
+                                  ),
                                 ),
                               ],
                               onChanged: (value) {
@@ -349,6 +482,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             ),
                           ),
                         ),
+
                         const SizedBox(height: 40),
                         const Divider(),
                         const SizedBox(height: 20),
@@ -380,120 +514,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   child: ElevatedButton.icon(
                     onPressed: isPlacingOrder
                         ? null
-                        : () async {
-                      if (cartItems.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(AppLocalizations.of(
-                                context)!
-                                .yourCartIsEmpty),
-                          ),
-                        );
-                        return;
-                      }
-
-                      setState(() => isPlacingOrder = true);
-
-                      try {
-                        final addressSnapshot =
-                        await FirestoreService
-                            .getSavedAddressesStream()
-                            .first;
-
-                        if (addressSnapshot.docs.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(AppLocalizations.of(
-                                  context)!
-                                  .pleaseAddADeliveryAddress),
-                            ),
-                          );
-                          return;
-                        }
-
-                        int totalItems = 0;
-                        for (final item in cartItems) {
-                          totalItems += item.quantity;
-                        }
-
-                        double subtotal = 0;
-                        for (final item in cartItems) {
-                          subtotal += item.price * item.quantity;
-                        }
-
-                        final double total = subtotal + deliveryCost;
-
-                        final paymentIntentId =
-                        await _startStripeCheckout(
-                          cartItems: cartItems,
-                          deliveryCost: deliveryCost,
-                        );
-
-                        final List<Map<String, dynamic>> orderItems =
-                        cartItems.map((item) {
-                          return {
-                            'productId': item.productId,
-                            'boutiqueId': item.boutiqueId,
-                            'title': item.title,
-                            'imageUrl': item.imageUrl,
-                            'description': item.description,
-                            'size': item.size,
-                            'price': item.price,
-                            'quantity': item.quantity,
-                          };
-                        }).toList();
-
-                        final orderNumber =
-                        await FirestoreService.createOrder(
-                          items: orderItems,
-                          itemCount: totalItems,
-                          total: total,
-                          deliveryMethod: deliveryMethod,
-                          paymentMethod: paymentMethod,
-                          paymentIntentId: paymentIntentId,
-                        );
-
-                        for (final item in cartItems) {
-                          await FirestoreService.deleteCartItem(
-                              item.id);
-                        }
-
-                        if (!mounted) return;
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                OrderConfirmationPage(
-                                  orderNumber: orderNumber,
-                                ),
-                          ),
-                        );
-                      } on StripeException catch (e) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              e.error.localizedMessage ??
-                                  AppLocalizations.of(context)!
-                                      .paymentCancelled,
-                            ),
-                          ),
-                        );
-                      } catch (e) {
-                        debugPrint("PLACE ORDER ERROR: $e");
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                "${AppLocalizations.of(context)!.error}: $e"),
-                          ),
-                        );
-                      } finally {
-                        if (mounted) {
-                          setState(() => isPlacingOrder = false);
-                        }
-                      }
+                        : () {
+                      _placeOrder(
+                        cartItems: cartItems,
+                        total: total,
+                      );
                     },
                     icon: isPlacingOrder
                         ? const SizedBox(
@@ -542,6 +567,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             builder: (context) => const AddAddressPage(),
           ),
         );
+
         if (mounted) setState(() {});
       },
       child: Container(
@@ -577,7 +603,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
         ),
         const SizedBox(height: 4),
         Text(
-          "${AppLocalizations.of(context)!.block} ${address["block"]} ${AppLocalizations.of(context)!.street} ${address["street"]} ${AppLocalizations.of(context)!.house} ${address["house"]}",
+          "${AppLocalizations.of(context)!.block} ${address["block"]} "
+              "${AppLocalizations.of(context)!.street} ${address["street"]} "
+              "${AppLocalizations.of(context)!.house} ${address["house"]}",
         ),
         Text("${address["area"]} ${address["governorate"]}"),
         Text(address["phone"] ?? ""),

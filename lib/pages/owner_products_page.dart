@@ -4,6 +4,7 @@ import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import 'edit_product_page.dart';
 import '../widgets/theme.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class OwnerProductsPage extends StatefulWidget {
   const OwnerProductsPage({super.key});
@@ -16,15 +17,6 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
   String? boutiqueId;
   bool isLoading = true;
   String? errorMessage;
-
-  static const backgroundColor = AppColors.background;
-  static const cardColor = AppColors.card;
-  static const fieldColor = AppColors.field;
-  static const borderColor = AppColors.border;
-  static const primaryText = AppColors.primaryText;
-  static const secondaryText = AppColors.secondaryText;
-  static const softAccent = AppColors.softAccent;
-  static const deepAccent = AppColors.deepAccent;
 
   @override
   void initState() {
@@ -75,7 +67,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: backgroundColor,
+          backgroundColor: AppColors.background,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -83,13 +75,13 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
             'Delete Product',
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: primaryText,
+              color: AppColors.primaryText,
             ),
           ),
           content: const Text(
             'Are you sure you want to delete this product?',
             style: TextStyle(
-              color: secondaryText,
+              color: AppColors.secondaryText,
               height: 1.4,
             ),
           ),
@@ -99,7 +91,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
               child: const Text(
                 'Cancel',
                 style: TextStyle(
-                  color: deepAccent,
+                  color: AppColors.deepAccent,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -124,19 +116,41 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
     if (shouldDelete != true) return;
 
     try {
-      await FirebaseFirestore.instance
+      final productRef = FirebaseFirestore.instance
           .collection('boutiques')
           .doc(boutiqueId)
           .collection('products')
-          .doc(productId)
-          .delete();
+          .doc(productId);
+
+      final productDoc = await productRef.get();
+      final data = productDoc.data();
+      final imageUrl = data?['imageUrl']?.toString() ?? '';
+      final imageUrlsData = data?['imageUrls'];
+
+      final List<String> imageUrls = imageUrlsData is List
+          ? imageUrlsData.map((image) => image.toString()).toList()
+          : imageUrl.isNotEmpty
+          ? [imageUrl]
+          : [];
+
+      await productRef.delete();
+
+      for (final image in imageUrls) {
+        try {
+          await FirebaseStorage.instance.refFromURL(image).delete();
+        } catch (e) {
+          debugPrint('Failed to delete product image: $e');
+        }
+      }
 
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Product deleted')),
       );
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to delete product')),
       );
@@ -146,7 +160,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -155,7 +169,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
               child: isLoading
                   ? const Center(
                 child: CircularProgressIndicator(
-                  color: deepAccent,
+                  color: AppColors.deepAccent,
                 ),
               )
                   : Column(
@@ -168,7 +182,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
-                        color: primaryText,
+                        color: AppColors.primaryText,
                         letterSpacing: 0.2,
                       ),
                     ),
@@ -185,7 +199,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                               errorMessage!,
                               style: const TextStyle(
                                 fontSize: 15,
-                                color: secondaryText,
+                                color: AppColors.secondaryText,
                               ),
                               textAlign: TextAlign.center,
                             ),
@@ -202,7 +216,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                             ConnectionState.waiting) {
                           return const Center(
                             child: CircularProgressIndicator(
-                              color: deepAccent,
+                              color: AppColors.deepAccent,
                             ),
                           );
                         }
@@ -212,7 +226,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                             child: Text(
                               'Failed to load products',
                               style: TextStyle(
-                                color: secondaryText,
+                                color: AppColors.secondaryText,
                               ),
                             ),
                           );
@@ -232,7 +246,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                     'No products yet',
                                     style: TextStyle(
                                       fontSize: 16,
-                                      color: secondaryText,
+                                      color: AppColors.secondaryText,
                                     ),
                                   ),
                                 ),
@@ -253,7 +267,19 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
 
                               final title = data['title'] ?? 'No title';
                               final description = data['description'] ?? 'No description';
-                              final imageUrl = data['imageUrl'] ?? '';
+                              final imageUrl = data['imageUrl']?.toString() ?? '';
+                              final imageUrlsData = data['imageUrls'];
+
+                              final List<String> imageUrls = imageUrlsData is List
+                                  ? imageUrlsData.map((image) => image.toString()).toList()
+                                  : imageUrl.isNotEmpty
+                                  ? [imageUrl]
+                                  : [];
+
+                              final displayImageUrl = imageUrls.isNotEmpty
+                                  ? imageUrls.first
+                                  : imageUrl;
+
                               final price = data['price'];
                               final stock = data['stock'];
 
@@ -261,18 +287,18 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                 margin: const EdgeInsets.only(bottom: 14),
                                 padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(
-                                  color: cardColor,
+                                  color: AppColors.card,
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: borderColor),
+                                  border: Border.all(color: AppColors.border),
                                 ),
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(14),
-                                      child: imageUrl.toString().isNotEmpty
+                                      child: displayImageUrl.isNotEmpty
                                           ? Image.network(
-                                        imageUrl,
+                                        displayImageUrl,
                                         width: 82,
                                         height: 100,
                                         fit: BoxFit.cover,
@@ -280,10 +306,10 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                           return Container(
                                             width: 82,
                                             height: 100,
-                                            color: fieldColor,
+                                            color: AppColors.field,
                                             child: const Icon(
                                               Icons.image_not_supported_outlined,
-                                              color: deepAccent,
+                                              color: AppColors.deepAccent,
                                             ),
                                           );
                                         },
@@ -291,10 +317,10 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                           : Container(
                                         width: 82,
                                         height: 100,
-                                        color: fieldColor,
+                                        color: AppColors.field,
                                         child: const Icon(
                                           Icons.image_not_supported_outlined,
-                                          color: deepAccent,
+                                          color: AppColors.deepAccent,
                                         ),
                                       ),
                                     ),
@@ -308,7 +334,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                             style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.w700,
-                                              color: primaryText,
+                                              color: AppColors.primaryText,
                                             ),
                                           ),
                                           const SizedBox(height: 6),
@@ -318,7 +344,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
                                               fontSize: 13,
-                                              color: secondaryText,
+                                              color: AppColors.secondaryText,
                                               height: 1.4,
                                             ),
                                           ),
@@ -328,7 +354,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                             style: const TextStyle(
                                               fontSize: 15,
                                               fontWeight: FontWeight.w700,
-                                              color: primaryText,
+                                              color: AppColors.primaryText,
                                             ),
                                           ),
                                           const SizedBox(height: 6),
@@ -336,7 +362,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                             'Stock: ${stock ?? 0}',
                                             style: const TextStyle(
                                               fontSize: 12,
-                                              color: secondaryText,
+                                              color: AppColors.secondaryText,
                                             ),
                                           ),
                                           const SizedBox(height: 12),
@@ -358,9 +384,9 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                                     setState(() {});
                                                   },
                                                   style: OutlinedButton.styleFrom(
-                                                    foregroundColor: deepAccent,
-                                                    backgroundColor: AppColors.softAccent.withOpacity(0.08),
-                                                    side: const BorderSide(color: deepAccent),
+                                                    foregroundColor: AppColors.deepAccent,
+                                                    backgroundColor: AppColors.softAccent.withValues(alpha: 0.08),
+                                                    side: const BorderSide(color: AppColors.deepAccent),
                                                     elevation: 0,
                                                     shape: RoundedRectangleBorder(
                                                       borderRadius: BorderRadius.circular(12),

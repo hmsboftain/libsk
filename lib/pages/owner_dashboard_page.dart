@@ -354,7 +354,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                       iconColor: deepAccent,
                                       subtitleColor: deepAccent,
                                       iconBackgroundColor:
-                                      softAccent.withOpacity(0.22),
+                                      softAccent.withValues(alpha:0.22),
                                       borderColor: borderColor,
                                       cardColor: cardColor,
                                     ),
@@ -369,7 +369,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                       iconColor: deepAccent,
                                       subtitleColor: secondaryText,
                                       iconBackgroundColor:
-                                      softAccent.withOpacity(0.22),
+                                      softAccent.withValues(alpha:0.22),
                                       borderColor: borderColor,
                                       cardColor: cardColor,
                                     ),
@@ -390,7 +390,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                       iconColor: deepAccent,
                                       subtitleColor: secondaryText,
                                       iconBackgroundColor:
-                                      softAccent.withOpacity(0.22),
+                                      softAccent.withValues(alpha:0.22),
                                       borderColor: borderColor,
                                       cardColor: cardColor,
                                     ),
@@ -407,7 +407,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                       iconColor: deepAccent,
                                       subtitleColor: deepAccent,
                                       iconBackgroundColor:
-                                      softAccent.withOpacity(0.22),
+                                      softAccent.withValues(alpha:0.22),
                                       borderColor: borderColor,
                                       cardColor: cardColor,
                                     ),
@@ -446,7 +446,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                           formatKwd(
                                             weeklySales.fold(
                                               0,
-                                                  (sum, value) => sum + value,
+                                                  (total, value) => total + value,
                                             ),
                                           ),
                                           style: TextStyle(
@@ -836,7 +836,7 @@ class InventoryRow extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: AppColors.softAccent.withOpacity(0.25),
+            color: AppColors.softAccent.withValues(alpha:0.25),
             borderRadius: BorderRadius.circular(14),
           ),
           child: const Icon(
@@ -905,7 +905,7 @@ class SalesChartPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final fillPaint = Paint()
-      ..color = lineColor.withOpacity(0.08)
+      ..color = lineColor.withValues(alpha:0.08)
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < 4; i++) {
@@ -965,7 +965,7 @@ class SalesChartPainter extends CustomPainter {
       canvas.drawCircle(
         point,
         7,
-        Paint()..color = lineColor.withOpacity(0.15),
+        Paint()..color = lineColor.withValues(alpha:0.15),
       );
     }
   }
