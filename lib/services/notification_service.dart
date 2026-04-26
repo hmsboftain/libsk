@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../firebase_options.dart';
@@ -9,10 +8,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
-  debugPrint('Background title: ${message.notification?.title}');
-  debugPrint('Background body: ${message.notification?.body}');
-  debugPrint('Background data: ${message.data}');
 }
 
 class NotificationService {
@@ -31,37 +26,29 @@ class NotificationService {
     );
 
     // Ask user for permission
-    NotificationSettings settings = await _messaging.requestPermission(
+    await _messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
       provisional: false,
     );
 
-    debugPrint('Notification permission status: ${settings.authorizationStatus}');
-
-    // Get device token
-    final String? token = await _messaging.getToken();
-    debugPrint('FCM token: $token');
+    // Save device token to Firestore
+    await _messaging.getToken();
 
     // Token refresh listener
     _messaging.onTokenRefresh.listen((newToken) async {
-      debugPrint('FCM token refreshed: $newToken');
       await FirestoreService.saveCurrentUserFcmToken();
     });
 
     // Foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('Foreground message received: ${message.messageId}');
-      debugPrint('Foreground title: ${message.notification?.title}');
-      debugPrint('Foreground body: ${message.notification?.body}');
-      debugPrint('Foreground data: ${message.data}');
+      // Handle foreground message if needed
     });
 
     // App opened by tapping notification from background
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      debugPrint('Notification tap opened app from background');
-      debugPrint('Tap data: ${message.data}');
+      // Handle notification tap if needed
     });
 
     // App opened by tapping notification from terminated state
@@ -69,8 +56,7 @@ class NotificationService {
     await _messaging.getInitialMessage();
 
     if (initialMessage != null) {
-      debugPrint('Notification tap opened app from terminated state');
-      debugPrint('Initial data: ${initialMessage.data}');
+      // Handle initial message if needed
     }
   }
 }

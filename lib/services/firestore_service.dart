@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,8 +25,10 @@ class FirestoreService {
     String? savedGuestId = prefs.getString('guestCartId');
 
     if (savedGuestId == null || savedGuestId.isEmpty) {
-      final randomNumber = Random().nextInt(999999999);
-      savedGuestId = 'guest_$randomNumber';
+      final rng = Random.secure();
+      final bytes = List<int>.generate(16, (_) => rng.nextInt(256));
+      final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+      savedGuestId = 'guest_$hex';
 
       await prefs.setString('guestCartId', savedGuestId);
     }
@@ -398,35 +401,6 @@ class FirestoreService {
   static CollectionReference<Map<String, dynamic>> get _ordersRef =>
       _firestore.collection('users').doc(_uid).collection('orders');
 
-  static Future<String> generateOrderNumber() async {
-    final counterRef = _firestore.collection('metadata').doc('order_counter');
-
-    return _firestore.runTransaction((transaction) async {
-      final snapshot = await transaction.get(counterRef);
-
-      int lastOrderNumber = 100000;
-
-      if (snapshot.exists) {
-        final data = snapshot.data();
-        if (data != null && data['lastOrderNumber'] is int) {
-          lastOrderNumber = data['lastOrderNumber'] as int;
-        }
-      }
-
-      final newOrderNumber = lastOrderNumber + 1;
-
-      transaction.set(
-        counterRef,
-        {
-          'lastOrderNumber': newOrderNumber,
-        },
-        SetOptions(merge: true),
-      );
-
-      return newOrderNumber.toString();
-    });
-  }
-
   static Future<String> createOrder({
     required List<Map<String, dynamic>> items,
     required int itemCount,
@@ -436,182 +410,24 @@ class FirestoreService {
     String? paymentIntentId,
   }) async {
     final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception("User not logged in");
-    }
+    if (user == null) throw Exception("User not logged in");
 
-    final orderNumber = await generateOrderNumber();
+    final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+    final callable  = functions.httpsCallable('createOrder');
 
-    final latestAddressSnapshot = await _savedAddressesRef
-        .orderBy('createdAt', descending: true)
-        .limit(1)
-        .get();
-
-    Map<String, dynamic>? addressData;
-    if (latestAddressSnapshot.docs.isNotEmpty) {
-      addressData = latestAddressSnapshot.docs.first.data();
-    }
-
-    final userOrderRef = _ordersRef.doc();
-    final globalOrderRef =
-    _firestore.collection('global_orders').doc(userOrderRef.id);
-
-    final Map<String, List<Map<String, dynamic>>> boutiqueItemsMap = {};
-
-    for (final item in items) {
-      final boutiqueId = item['boutiqueId']?.toString();
-
-      if (boutiqueId == null || boutiqueId.isEmpty) {
-        continue;
-      }
-
-      boutiqueItemsMap.putIfAbsent(boutiqueId, () => []);
-      boutiqueItemsMap[boutiqueId]!.add(item);
-    }
-
-    await _firestore.runTransaction((transaction) async {
-      for (final item in items) {
-        final boutiqueId = item['boutiqueId']?.toString();
-        final productId = item['productId']?.toString();
-
-        if (boutiqueId == null ||
-            boutiqueId.isEmpty ||
-            productId == null ||
-            productId.isEmpty) {
-          throw Exception('Invalid product information.');
-        }
-
-        final quantityValue = item['quantity'] ?? 0;
-        final int quantity = quantityValue is int
-            ? quantityValue
-            : int.tryParse(quantityValue.toString()) ?? 0;
-
-        if (quantity <= 0) {
-          throw Exception('Invalid quantity for ${item['title'] ?? 'product'}.');
-        }
-
-        final productRef = _firestore
-            .collection('boutiques')
-            .doc(boutiqueId)
-            .collection('products')
-            .doc(productId);
-
-        final productSnapshot = await transaction.get(productRef);
-
-        if (!productSnapshot.exists) {
-          throw Exception(
-            '${item['title'] ?? 'Product'} is no longer available.',
-          );
-        }
-
-        final productData = productSnapshot.data();
-        final stockValue = productData?['stock'] ?? 0;
-
-        final int currentStock = stockValue is int
-            ? stockValue
-            : int.tryParse(stockValue.toString()) ?? 0;
-
-        if (currentStock < quantity) {
-          throw Exception(
-            '${item['title'] ?? 'Product'} does not have enough stock.',
-          );
-        }
-      }
-
-      final userOrderData = {
-        'orderNumber': orderNumber,
-        'date':
-        "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}",
-        'itemCount': itemCount,
-        'total': total,
-        'status': 'Placed',
-        'customerUid': user.uid,
-        'customerName': user.displayName ?? 'User',
-        'customerEmail': user.email ?? '',
-        'deliveryMethod': deliveryMethod ?? '',
-        'paymentMethod': paymentMethod ?? '',
-        'paymentIntentId': paymentIntentId ?? '',
-        'address': addressData,
-        'items': items,
-        'createdAt': FieldValue.serverTimestamp(),
-      };
-
-      transaction.set(userOrderRef, userOrderData);
-
-      transaction.set(globalOrderRef, {
-        ...userOrderData,
-        'sourceUserOrderId': userOrderRef.id,
-      });
-
-      for (final entry in boutiqueItemsMap.entries) {
-        final boutiqueId = entry.key;
-        final boutiqueItems = entry.value;
-
-        int boutiqueItemCount = 0;
-        double boutiqueTotal = 0;
-
-        for (final item in boutiqueItems) {
-          final quantityValue = item['quantity'] ?? 0;
-          final priceValue = item['price'] ?? 0;
-
-          final int quantity = quantityValue is int
-              ? quantityValue
-              : int.tryParse(quantityValue.toString()) ?? 0;
-
-          final double price = priceValue is num
-              ? priceValue.toDouble()
-              : double.tryParse(priceValue.toString()) ?? 0;
-
-          boutiqueItemCount += quantity;
-          boutiqueTotal += price * quantity;
-        }
-
-        final boutiqueOrderRef = _firestore
-            .collection('boutiques')
-            .doc(boutiqueId)
-            .collection('orders')
-            .doc();
-
-        transaction.set(boutiqueOrderRef, {
-          'orderNumber': orderNumber,
-          'sourceUserOrderId': userOrderRef.id,
-          'date':
-          "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}",
-          'itemCount': boutiqueItemCount,
-          'total': boutiqueTotal,
-          'status': 'Placed',
-          'customerUid': user.uid,
-          'customerName': user.displayName ?? 'User',
-          'customerEmail': user.email ?? '',
-          'deliveryMethod': deliveryMethod ?? '',
-          'paymentMethod': paymentMethod ?? '',
-          'address': addressData,
-          'items': boutiqueItems,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      for (final item in items) {
-        final boutiqueId = item['boutiqueId'].toString();
-        final productId = item['productId'].toString();
-
-        final quantityValue = item['quantity'] ?? 0;
-        final int quantity = quantityValue is int
-            ? quantityValue
-            : int.tryParse(quantityValue.toString()) ?? 0;
-
-        final productRef = _firestore
-            .collection('boutiques')
-            .doc(boutiqueId)
-            .collection('products')
-            .doc(productId);
-
-        transaction.update(productRef, {
-          'stock': FieldValue.increment(-quantity),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      }
+    final result = await callable.call({
+      'items':           items,
+      'deliveryMethod':  deliveryMethod  ?? '',
+      'paymentMethod':   paymentMethod   ?? '',
+      'paymentIntentId': paymentIntentId ?? '',
     });
+
+    final data        = Map<String, dynamic>.from(result.data as Map);
+    final orderNumber = data['orderNumber']?.toString();
+
+    if (orderNumber == null || orderNumber.isEmpty) {
+      throw Exception('Order number missing from server response');
+    }
 
     return orderNumber;
   }

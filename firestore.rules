@@ -1,0 +1,171 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admin_users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.isApproved == true;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admin_users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.isApproved == true &&
+        get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.role == 'super_admin';
+    }
+
+    function isBoutiqueOwnerOf(boutiqueId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/boutique_owners/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/boutique_owners/$(request.auth.uid)).data.boutiqueId == boutiqueId &&
+        get(/databases/$(database)/documents/boutique_owners/$(request.auth.uid)).data.isApproved == true;
+    }
+
+    function isGuestPath(userId) {
+      return userId.matches('guest_[0-9a-f]+');
+    }
+
+    function isValidNewOrder() {
+      return request.resource.data.customerUid == request.auth.uid &&
+             request.resource.data.status == 'Placed';
+    }
+
+    function isValidUserProfile() {
+      let d = request.resource.data;
+      return d.firstName is string && d.firstName.size() <= 50 &&
+             d.lastName  is string && d.lastName.size()  <= 50 &&
+             d.phone     is string && d.phone.size()     <= 20 &&
+             d.email     is string && d.email.size()     <= 100;
+    }
+
+    function isValidAddress() {
+      let d = request.resource.data;
+      return d.firstName    is string && d.firstName.size()    <= 50 &&
+             d.lastName     is string && d.lastName.size()     <= 50 &&
+             d.phone        is string && d.phone.size()        <= 20 &&
+             d.governorate  is string && d.governorate.size()  <= 100 &&
+             d.area         is string && d.area.size()         <= 100 &&
+             d.block        is string && d.block.size()        <= 20 &&
+             d.street       is string && d.street.size()       <= 100 &&
+             d.house        is string && d.house.size()        <= 20;
+    }
+
+    function isValidProduct() {
+      let d = request.resource.data;
+      return d.title       is string && d.title.size()       <= 100 &&
+             d.description is string && d.description.size() <= 2000 &&
+             d.price       is number && d.price              >  0 &&
+             d.price                 && d.price              <= 100000 &&
+             d.stock       is int    && d.stock              >= 0;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) &&
+        request.resource.data.role == 'user' &&
+        isValidUserProfile();
+      allow update: if (isOwner(userId) &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['role', 'isActive'])) || isAdmin();
+      allow delete: if isSuperAdmin();
+
+      match /saved_items/{itemId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /saved_boutiques/{boutiqueId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /saved_addresses/{addressId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidAddress();
+      }
+      match /cart_items/{itemId} {
+        allow read, write: if isOwner(userId) ||
+          (isGuestPath(userId) && !isSignedIn());
+      }
+      match /orders/{orderId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if false;
+        allow update: if isAdmin();
+        allow delete: if false;
+      }
+      match /notifications/{notifId} {
+        allow read: if isOwner(userId);
+        allow update: if isOwner(userId) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['isRead', 'readAt']);
+        allow create, delete: if false;
+      }
+    }
+
+    match /boutiques/{boutiqueId} {
+      allow read: if true;
+      allow create: if isSuperAdmin();
+      allow update: if isBoutiqueOwnerOf(boutiqueId) || isAdmin();
+      allow delete: if isSuperAdmin();
+
+      match /products/{productId} {
+        allow read: if true;
+        allow create, update: if (isBoutiqueOwnerOf(boutiqueId) || isAdmin()) &&
+          isValidProduct();
+        allow delete: if isBoutiqueOwnerOf(boutiqueId) || isAdmin();
+      }
+      match /orders/{orderId} {
+        allow read: if isBoutiqueOwnerOf(boutiqueId) || isAdmin();
+        allow create: if false;
+        allow update: if isBoutiqueOwnerOf(boutiqueId) || isAdmin();
+        allow delete: if false;
+      }
+    }
+
+    match /boutique_owners/{ownerId} {
+      allow read: if isOwner(ownerId) || isAdmin();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    match /admin_users/{adminId} {
+      allow read: if isOwner(adminId) || isSuperAdmin();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    match /global_orders/{orderId} {
+      allow read: if isAdmin() ||
+        (isSignedIn() && resource.data.customerUid == request.auth.uid);
+      allow create: if false;
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /disputes/{disputeId} {
+      allow read: if isSignedIn() &&
+        (resource.data.customerUid == request.auth.uid || isAdmin());
+      allow create: if false;
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /metadata/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /manual_notifications/{notifId} {
+      allow read, create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

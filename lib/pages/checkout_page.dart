@@ -202,10 +202,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       if (!mounted) return;
 
+      final message = e is Exception
+          ? e.toString().replaceFirst('Exception: ', '')
+          : 'Something went wrong. Please try again.';
+
       messenger.showSnackBar(
-        SnackBar(
-          content: Text("${loc.error}: $e"),
-        ),
+        SnackBar(content: Text(message)),
       );
     } finally {
       if (mounted) {

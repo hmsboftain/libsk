@@ -50,7 +50,6 @@ class _LoginPageState extends State<LoginPage> {
       await FirestoreService.prepareGuestCartId();
 
       final isSuperAdmin = await FirestoreService.isCurrentUserSuperAdmin();
-      final isAdmin = await FirestoreService.isCurrentUserAdmin();
       final isOwner = await FirestoreService.isCurrentUserApprovedOwner();
 
       if (!mounted) return;
@@ -62,7 +61,6 @@ class _LoginPageState extends State<LoginPage> {
             builder: (context) => const SuperAdminDashboardPage(),
           ),
         );
-        Navigator.pop(context, true);
       } else if (isOwner) {
         Navigator.pushReplacement(
           context,
@@ -117,7 +115,6 @@ class _LoginPageState extends State<LoginPage> {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
 
       if (googleUser == null) {
-        // User cancelled
         return;
       }
 
@@ -132,7 +129,6 @@ class _LoginPageState extends State<LoginPage> {
       final userCredential =
       await FirebaseAuth.instance.signInWithCredential(credential);
 
-      // Create or update user profile in Firestore
       final user = userCredential.user;
       if (user != null) {
         final nameParts = (user.displayName ?? '').split(' ');
@@ -406,7 +402,8 @@ class _LoginPageState extends State<LoginPage> {
                         const Icon(Icons.g_mobiledata, size: 28),
                         const SizedBox(width: 8),
                         Text(
-                          AppLocalizations.of(context)!.continueWithGoogle,
+                          AppLocalizations.of(context)!
+                              .continueWithGoogle,
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
                           ),

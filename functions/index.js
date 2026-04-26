@@ -7,7 +7,8 @@ const {
 
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
-const stripe = require("stripe")("sk_test_51TOOjvCTdAUQnhiZUdNulSKX9T7wiuEp6PBweW61vsv53KNvLzavtgPGKy743rsAnahnBy18NqpwPxy8HJ3cYlDf00t5YvMgtG");
+const { defineSecret } = require("firebase-functions/params");
+const stripeSecret = defineSecret("STRIPE_SECRET_KEY");
 
 admin.initializeApp();
 
@@ -148,7 +149,8 @@ function getBoutiqueIdsFromItems(items) {
 
 // ================= PAYMENTS =================
 
-exports.createPaymentIntent = onCall(async (request) => {
+exports.createPaymentIntent = onCall({ secrets: [stripeSecret] }, async (request) => {
+  const stripe = require("stripe")(stripeSecret.value());
   try {
     const data = request.data || {};
 
@@ -173,19 +175,47 @@ exports.createPaymentIntent = onCall(async (request) => {
       throw new HttpsError("invalid-argument", "Currency is required.");
     }
 
+    const allowedCurrencies = ["kwd", "usd", "gbp", "eur"];
+    if (!allowedCurrencies.includes(currency.toLowerCase())) {
+      throw new HttpsError("invalid-argument", "Unsupported currency.");
+    }
+
     let subtotal = 0;
 
     for (const item of items) {
-      const price = Number(item.price) || 0;
-      const quantity = Number(item.quantity) || 0;
+      const boutiqueId = String(item.boutiqueId || "");
+      const productId  = String(item.productId  || "");
+      const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
 
-      subtotal += price * quantity;
+      if (!boutiqueId || !productId) {
+        throw new HttpsError("invalid-argument", "Each item must have boutiqueId and productId.");
+      }
+
+      if (quantity > 100) {
+        throw new HttpsError("invalid-argument", "Quantity cannot exceed 100 per item.");
+      }
+
+      const productDoc = await db
+        .collection("boutiques").doc(boutiqueId)
+        .collection("products").doc(productId)
+        .get();
+
+      if (!productDoc.exists) {
+        throw new HttpsError("not-found", `Product ${productId} not found.`);
+      }
+
+      const serverPrice = Number(productDoc.data().price) || 0;
+      subtotal += serverPrice * quantity;
     }
 
     const delivery = Number(deliveryCost) || 0;
     const total = subtotal + delivery;
     const multiplier = currency.toLowerCase() === "kwd" ? 1000 : 100;
     const amount = Math.round(total * multiplier);
+
+    if (amount <= 0) {
+      throw new HttpsError("invalid-argument", "Order total must be greater than zero.");
+    }
 
     logger.info("Creating payment intent", {
       subtotal,
@@ -216,7 +246,8 @@ exports.createPaymentIntent = onCall(async (request) => {
   }
 });
 
-exports.processRefund = onCall(async (request) => {
+exports.processRefund = onCall({ secrets: [stripeSecret] }, async (request) => {
+  const stripe = require("stripe")(stripeSecret.value());
   try {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
@@ -239,6 +270,10 @@ exports.processRefund = onCall(async (request) => {
         "invalid-argument",
         "paymentIntentId is required.",
       );
+    }
+
+    if (typeof paymentIntentId !== "string" || paymentIntentId.length > 200) {
+      throw new HttpsError("invalid-argument", "Invalid paymentIntentId.");
     }
 
     logger.info("Processing refund for", {paymentIntentId});
@@ -266,6 +301,194 @@ exports.processRefund = onCall(async (request) => {
       error.message || "Failed to process refund.",
     );
   }
+});
+
+// ================= CREATE ORDER =================
+
+exports.createOrder = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+
+  const uid             = request.auth.uid;
+  const data            = request.data || {};
+  const items           = data.items;
+  const deliveryMethod  = data.deliveryMethod  || "";
+  const paymentMethod   = data.paymentMethod   || "";
+  const paymentIntentId = data.paymentIntentId || "";
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    throw new HttpsError("invalid-argument", "Items must be a non-empty array.");
+  }
+
+  if (items.length > 50) {
+    throw new HttpsError("invalid-argument", "Order cannot contain more than 50 items.");
+  }
+
+  const allowedDeliveryMethods = ["Regular Delivery", "Same Day Delivery"];
+  const allowedPaymentMethods  = ["Card"];
+
+  if (!allowedDeliveryMethods.includes(deliveryMethod)) {
+    throw new HttpsError("invalid-argument", "Invalid delivery method.");
+  }
+
+  if (!allowedPaymentMethods.includes(paymentMethod)) {
+    throw new HttpsError("invalid-argument", "Invalid payment method.");
+  }
+
+  if (typeof paymentIntentId !== "string" || paymentIntentId.length > 200) {
+    throw new HttpsError("invalid-argument", "Invalid paymentIntentId.");
+  }
+
+  const counterRef = db.collection("metadata").doc("order_counter");
+  const orderNumber = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(counterRef);
+    let last = 100000;
+    if (snap.exists && typeof snap.data().lastOrderNumber === "number") {
+      last = snap.data().lastOrderNumber;
+    }
+    const next = last + 1;
+    tx.set(counterRef, { lastOrderNumber: next }, { merge: true });
+    return String(next);
+  });
+
+  const addressSnap = await db
+    .collection("users").doc(uid)
+    .collection("saved_addresses")
+    .orderBy("createdAt", "desc")
+    .limit(1)
+    .get();
+  const addressData = addressSnap.empty ? null : addressSnap.docs[0].data();
+
+  const userDoc = await db.collection("users").doc(uid).get();
+  const userData = userDoc.exists ? userDoc.data() : {};
+  const customerName  = userData.fullName  || request.auth.token.name  || "User";
+  const customerEmail = userData.email     || request.auth.token.email || "";
+
+  const now        = new Date();
+  const dateString = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
+
+  const userOrderRef   = db.collection("users").doc(uid).collection("orders").doc();
+  const globalOrderRef = db.collection("global_orders").doc(userOrderRef.id);
+
+  const boutiqueMap = {};
+  for (const item of items) {
+    const bid = String(item.boutiqueId || "");
+    if (!bid) continue;
+    if (!boutiqueMap[bid]) boutiqueMap[bid] = [];
+    boutiqueMap[bid].push(item);
+  }
+
+  const verifiedItems = [];
+  let verifiedSubtotal = 0;
+
+  await db.runTransaction(async (tx) => {
+    for (const item of items) {
+      const boutiqueId = String(item.boutiqueId || "");
+      const productId  = String(item.productId  || "");
+      const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
+
+      if (!boutiqueId || !productId) {
+        throw new HttpsError("invalid-argument", "Invalid product information.");
+      }
+
+      if (quantity > 100) {
+        throw new HttpsError("invalid-argument", "Quantity cannot exceed 100 per item.");
+      }
+
+      const productRef  = db.collection("boutiques").doc(boutiqueId)
+                            .collection("products").doc(productId);
+      const productSnap = await tx.get(productRef);
+
+      if (!productSnap.exists) {
+        throw new HttpsError("not-found",
+          `${item.title || "Product"} is no longer available.`);
+      }
+
+      const productData = productSnap.data();
+      const stock       = Number(productData.stock) || 0;
+
+      if (stock < quantity) {
+        throw new HttpsError("failed-precondition",
+          `${productData.title || "Product"} does not have enough stock.`);
+      }
+
+      const serverPrice = Number(productData.price) || 0;
+      verifiedSubtotal += serverPrice * quantity;
+
+      verifiedItems.push({
+        productId,
+        boutiqueId,
+        title:        productData.title        || item.title       || "",
+        imageUrl:     item.imageUrl            || "",
+        description:  productData.description  || item.description || "",
+        size:         item.size                || "",
+        price:        serverPrice,
+        quantity,
+        boutiqueName: productData.boutiqueName || "",
+      });
+    }
+
+    const deliveryCost = deliveryMethod === "Regular Delivery" ? 3 : 5;
+    const total = verifiedSubtotal + deliveryCost;
+
+    const orderBase = {
+      orderNumber,
+      date: dateString,
+      itemCount: verifiedItems.reduce((s, i) => s + i.quantity, 0),
+      total,
+      status: "Placed",
+      customerUid: uid,
+      customerName,
+      customerEmail,
+      deliveryMethod,
+      paymentMethod,
+      paymentIntentId,
+      address: addressData,
+      items: verifiedItems,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    tx.set(userOrderRef, orderBase);
+    tx.set(globalOrderRef, { ...orderBase, sourceUserOrderId: userOrderRef.id });
+
+    for (const [boutiqueId] of Object.entries(boutiqueMap)) {
+      const bItems = verifiedItems.filter(i => i.boutiqueId === boutiqueId);
+      const bTotal = bItems.reduce((s, i) => s + i.price * i.quantity, 0);
+      const bCount = bItems.reduce((s, i) => s + i.quantity, 0);
+
+      const boutiqueOrderRef = db.collection("boutiques").doc(boutiqueId)
+                                 .collection("orders").doc();
+
+      tx.set(boutiqueOrderRef, {
+        orderNumber,
+        sourceUserOrderId: userOrderRef.id,
+        date: dateString,
+        itemCount: bCount,
+        total: bTotal,
+        status: "Placed",
+        customerUid: uid,
+        customerName,
+        customerEmail,
+        deliveryMethod,
+        paymentMethod,
+        address: addressData,
+        items: bItems,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    for (const item of verifiedItems) {
+      const productRef = db.collection("boutiques").doc(item.boutiqueId)
+                           .collection("products").doc(item.productId);
+      tx.update(productRef, {
+        stock: admin.firestore.FieldValue.increment(-item.quantity),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+  });
+
+  return { orderNumber };
 });
 
 // ================= ORDER NOTIFICATIONS =================
@@ -483,121 +706,134 @@ exports.notifyDisputeStatusChanged = onDocumentUpdated(
       },
     );
   },
+);
 
-  exports.submitDispute = onCall(async (request) => {
-    try {
-      if (!request.auth) {
-        throw new HttpsError("unauthenticated", "You must be logged in.");
-      }
+exports.submitDispute = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "You must be logged in.");
+    }
 
-      const uid = request.auth.uid;
-      const data = request.data || {};
+    const uid = request.auth.uid;
+    const data = request.data || {};
 
-      const orderId = data.orderId;
-      const category = data.category;
-      const description = data.description || "";
+    const orderId     = data.orderId;
+    const category    = data.category;
+    const description = data.description || "";
 
-      if (!orderId || !category) {
-        throw new HttpsError(
-          "invalid-argument",
-          "orderId and category are required.",
-        );
-      }
-
-      const userOrderRef = db
-        .collection("users")
-        .doc(uid)
-        .collection("orders")
-        .doc(orderId);
-
-      const orderDoc = await userOrderRef.get();
-
-      if (!orderDoc.exists) {
-        throw new HttpsError("not-found", "Order not found.");
-      }
-
-      const orderData = orderDoc.data();
-
-      if (orderData.customerUid !== uid) {
-        throw new HttpsError(
-          "permission-denied",
-          "You can only dispute your own orders.",
-        );
-      }
-
-      if (String(orderData.status).toLowerCase() !== "delivered") {
-        throw new HttpsError(
-          "failed-precondition",
-          "Only delivered orders can be disputed.",
-        );
-      }
-
-      const createdAt = orderData.createdAt;
-
-      if (!createdAt || !createdAt.toDate) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Order date is missing.",
-        );
-      }
-
-      const orderDate = createdAt.toDate();
-      const now = new Date();
-
-      const diffMs = now.getTime() - orderDate.getTime();
-      const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-      if (diffDays > 7) {
-        throw new HttpsError(
-          "failed-precondition",
-          "The 7-day dispute window has passed.",
-        );
-      }
-
-      const existingDisputes = await db
-        .collection("disputes")
-        .where("orderId", "==", orderId)
-        .where("customerUid", "==", uid)
-        .limit(1)
-        .get();
-
-      if (!existingDisputes.empty) {
-        throw new HttpsError(
-          "already-exists",
-          "A dispute has already been submitted for this order.",
-        );
-      }
-
-      const disputeRef = await db.collection("disputes").add({
-        orderId,
-        orderNumber: orderData.orderNumber || "",
-        customerUid: uid,
-        customerName: orderData.customerName || "User",
-        customerEmail: orderData.customerEmail || "",
-        category,
-        description,
-        status: "Open",
-        orderTotal: orderData.total || 0,
-        paymentIntentId: orderData.paymentIntentId || "",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      return {
-        success: true,
-        disputeId: disputeRef.id,
-      };
-    } catch (error) {
-      logger.error("Submit dispute error", error);
-
-      if (error instanceof HttpsError) throw error;
-
+    if (!orderId || !category) {
       throw new HttpsError(
-        "internal",
-        error.message || "Failed to submit dispute.",
+        "invalid-argument",
+        "orderId and category are required.",
       );
     }
-  });
-);
+
+    if (typeof orderId !== "string" || orderId.length > 200) {
+      throw new HttpsError("invalid-argument", "Invalid orderId.");
+    }
+
+    const allowedCategories = ["Wrong Item", "Damaged Item", "Not Delivered", "Other"];
+    if (!allowedCategories.includes(category)) {
+      throw new HttpsError("invalid-argument", "Invalid category.");
+    }
+
+    if (typeof description !== "string" || description.length > 1000) {
+      throw new HttpsError("invalid-argument", "Description must be under 1000 characters.");
+    }
+
+    const userOrderRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("orders")
+      .doc(orderId);
+
+    const orderDoc = await userOrderRef.get();
+
+    if (!orderDoc.exists) {
+      throw new HttpsError("not-found", "Order not found.");
+    }
+
+    const orderData = orderDoc.data();
+
+    if (orderData.customerUid !== uid) {
+      throw new HttpsError(
+        "permission-denied",
+        "You can only dispute your own orders.",
+      );
+    }
+
+    if (String(orderData.status).toLowerCase() !== "delivered") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Only delivered orders can be disputed.",
+      );
+    }
+
+    const createdAt = orderData.createdAt;
+
+    if (!createdAt || !createdAt.toDate) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Order date is missing.",
+      );
+    }
+
+    const orderDate = createdAt.toDate();
+    const now = new Date();
+
+    const diffMs = now.getTime() - orderDate.getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+    if (diffDays > 7) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The 7-day dispute window has passed.",
+      );
+    }
+
+    const existingDisputes = await db
+      .collection("disputes")
+      .where("orderId", "==", orderId)
+      .where("customerUid", "==", uid)
+      .limit(1)
+      .get();
+
+    if (!existingDisputes.empty) {
+      throw new HttpsError(
+        "already-exists",
+        "A dispute has already been submitted for this order.",
+      );
+    }
+
+    const disputeRef = await db.collection("disputes").add({
+      orderId,
+      orderNumber: orderData.orderNumber || "",
+      customerUid: uid,
+      customerName: orderData.customerName || "User",
+      customerEmail: orderData.customerEmail || "",
+      category,
+      description,
+      status: "Open",
+      orderTotal: orderData.total || 0,
+      paymentIntentId: orderData.paymentIntentId || "",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true,
+      disputeId: disputeRef.id,
+    };
+  } catch (error) {
+    logger.error("Submit dispute error", error);
+
+    if (error instanceof HttpsError) throw error;
+
+    throw new HttpsError(
+      "internal",
+      error.message || "Failed to submit dispute.",
+    );
+  }
+});
 
 // ================= LOW STOCK NOTIFICATIONS =================
 
@@ -657,7 +893,7 @@ exports.sendManualNotification = onCall(async (request) => {
 
     const data = request.data || {};
     const title = data.title;
-    const body = data.body;
+    const body  = data.body;
     const targetType = data.targetType;
 
     if (!title || !body || !targetType) {
@@ -665,6 +901,14 @@ exports.sendManualNotification = onCall(async (request) => {
         "invalid-argument",
         "title, body and targetType are required.",
       );
+    }
+
+    if (typeof title !== "string" || title.length > 100) {
+      throw new HttpsError("invalid-argument", "Title must be under 100 characters.");
+    }
+
+    if (typeof body !== "string" || body.length > 500) {
+      throw new HttpsError("invalid-argument", "Body must be under 500 characters.");
     }
 
     const allowedTargets = [
