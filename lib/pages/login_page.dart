@@ -62,12 +62,6 @@ class _LoginPageState extends State<LoginPage> {
             builder: (context) => const SuperAdminDashboardPage(),
           ),
         );
-      } else if (isAdmin) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context)!.adminPanelComingNext),
-          ),
-        );
         Navigator.pop(context, true);
       } else if (isOwner) {
         Navigator.pushReplacement(

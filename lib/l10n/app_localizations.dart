@@ -563,11 +563,6 @@ abstract class AppLocalizations {
   /// **'No boutiques available'**
   String get noBoutiquesAvailable;
 
-  /// No description provided for @adminPanelComingNext.
-  ///
-  /// In en, this message translates to:
-  /// **'Admin panel coming next'**
-  String get adminPanelComingNext;
 
   /// No description provided for @loginFailed.
   ///
@@ -652,12 +647,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Minimum 6 characters'**
   String get minimumSixCharacters;
-
-  /// No description provided for @keepMeSignedIn.
-  ///
-  /// In en, this message translates to:
-  /// **'Keep me signed in'**
-  String get keepMeSignedIn;
 
   /// No description provided for @forgotPassword.
   ///

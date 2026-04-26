@@ -243,9 +243,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noBoutiquesAvailable => 'No boutiques available';
 
   @override
-  String get adminPanelComingNext => 'Admin panel coming next';
-
-  @override
   String get loginFailed => 'Login failed';
 
   @override
@@ -286,9 +283,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get minimumSixCharacters => 'Minimum 6 characters';
-
-  @override
-  String get keepMeSignedIn => 'Keep me signed in';
 
   @override
   String get forgotPassword => 'Forgot Password?';

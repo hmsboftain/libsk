@@ -243,9 +243,6 @@ class AppLocalizationsAr extends AppLocalizations {
   String get noBoutiquesAvailable => 'لا توجد بوتيكات متاحة';
 
   @override
-  String get adminPanelComingNext => 'لوحة الإدارة قادمة قريبًا';
-
-  @override
   String get loginFailed => 'فشل تسجيل الدخول';
 
   @override
@@ -286,9 +283,6 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get minimumSixCharacters => 'الحد الأدنى 6 أحرف';
-
-  @override
-  String get keepMeSignedIn => 'ابقني مسجلًا';
 
   @override
   String get forgotPassword => 'نسيت كلمة المرور؟';

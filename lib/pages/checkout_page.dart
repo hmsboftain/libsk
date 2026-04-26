@@ -88,6 +88,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Future<void> _placeOrder({
     required List<CartItem> cartItems,
     required double total,
+    required bool hasAddress,
   }) async {
     final loc = AppLocalizations.of(context)!;
     final messenger = ScaffoldMessenger.of(context);
@@ -102,23 +103,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
       return;
     }
 
+    if (!hasAddress) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(loc.pleaseAddADeliveryAddress),
+        ),
+      );
+      return;
+    }
+
     setState(() => isPlacingOrder = true);
 
     try {
-      final addressSnapshot =
-      await FirestoreService.getSavedAddressesStream().first;
-
-      if (!mounted) return;
-
-      if (addressSnapshot.docs.isEmpty) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(loc.pleaseAddADeliveryAddress),
-          ),
-        );
-        return;
-      }
-
       int totalItems = 0;
       double checkedSubtotal = 0;
 
@@ -278,96 +274,94 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
             final double total = subtotal + deliveryCost;
 
-            return Column(
-              children: [
-                const AppHeader(showBackButton: true),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 22),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 10),
-                        Center(
-                          child: Text(
-                            AppLocalizations.of(context)!.checkout,
-                            style: const TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w700,
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirestoreService.getSavedAddressesStream(),
+              builder: (context, addressSnapshot) {
+                final addressDocs = addressSnapshot.data?.docs ?? [];
+                final hasAddress = addressDocs.isNotEmpty;
+
+                return Column(
+                  children: [
+                    const AppHeader(showBackButton: true),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 10),
+                            Center(
+                              child: Text(
+                                AppLocalizations.of(context)!.checkout,
+                                style: const TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Divider(),
-                        const SizedBox(height: 18),
-
-                        Text(
-                          AppLocalizations.of(context)!.accountDetails,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                fullName,
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            const SizedBox(height: 6),
+                            const Divider(),
+                            const SizedBox(height: 18),
+                            Text(
+                              AppLocalizations.of(context)!.accountDetails,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w600,
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                email,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black54,
-                                ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
                               ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 28),
-                        Text(
-                          AppLocalizations.of(context)!.deliveryAddress,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                          stream: FirestoreService.getSavedAddressesStream(),
-                          builder: (context, addressSnapshot) {
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    fullName,
+                                    style: const TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    email,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            Text(
+                              AppLocalizations.of(context)!.deliveryAddress,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                             if (addressSnapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Padding(
+                                ConnectionState.waiting)
+                              const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 8),
                                 child: Center(
                                   child: CircularProgressIndicator(),
                                 ),
-                              );
-                            }
-
-                            if (addressSnapshot.hasError) {
-                              return Padding(
+                              )
+                            else if (addressSnapshot.hasError)
+                              Padding(
                                 padding: const EdgeInsets.only(bottom: 16),
                                 child: Text(
                                   "${AppLocalizations.of(context)!.couldNotLoadSavedAddresses}: ${addressSnapshot.error}",
@@ -375,182 +369,181 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     color: Colors.black54,
                                   ),
                                 ),
-                              );
-                            }
-
-                            final addressDocs = addressSnapshot.data?.docs ?? [];
-                            final hasAddress = addressDocs.isNotEmpty;
-
-                            return Column(
-                              children: [
-                                if (hasAddress) ...[
-                                  addressInfo(addressDocs.first.data()),
-                                  const SizedBox(height: 16),
+                              )
+                            else
+                              Column(
+                                children: [
+                                  if (hasAddress) ...[
+                                    addressInfo(addressDocs.first.data()),
+                                    const SizedBox(height: 16),
+                                  ],
+                                  addressButton(hasAddress: hasAddress),
                                 ],
-                                addressButton(hasAddress: hasAddress),
-                              ],
-                            );
-                          },
+                              ),
+                            const SizedBox(height: 28),
+                            Text(
+                              AppLocalizations.of(context)!.deliveryMethod,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding:
+                              const EdgeInsets.symmetric(horizontal: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: deliveryMethod,
+                                  isExpanded: true,
+                                  dropdownColor: AppColors.field,
+                                  items: [
+                                    DropdownMenuItem(
+                                      value: "Regular Delivery",
+                                      child: Text(
+                                        AppLocalizations.of(context)!
+                                            .regularDelivery,
+                                      ),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: "Same Day Delivery",
+                                      child: Text(
+                                        AppLocalizations.of(context)!
+                                            .sameDayDelivery,
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        deliveryMethod = value;
+                                        deliveryCost =
+                                        value == "Regular Delivery" ? 3 : 5;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            Text(
+                              AppLocalizations.of(context)!.paymentMethod,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding:
+                              const EdgeInsets.symmetric(horizontal: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: paymentMethod,
+                                  isExpanded: true,
+                                  dropdownColor: AppColors.field,
+                                  items: [
+                                    DropdownMenuItem(
+                                      value: "Card",
+                                      child: Text(
+                                        AppLocalizations.of(context)!.card,
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        paymentMethod = value;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 40),
+                            const Divider(),
+                            const SizedBox(height: 20),
+                            buildTotalRow(
+                              AppLocalizations.of(context)!.subtotal,
+                              "${subtotal.toStringAsFixed(0)} KWD",
+                            ),
+                            const SizedBox(height: 8),
+                            buildTotalRow(
+                              AppLocalizations.of(context)!.delivery,
+                              "${deliveryCost.toStringAsFixed(0)} KWD",
+                            ),
+                            const SizedBox(height: 12),
+                            const Divider(),
+                            const SizedBox(height: 12),
+                            buildTotalRow(
+                              AppLocalizations.of(context)!.total,
+                              "${total.toStringAsFixed(0)} KWD",
+                              bold: true,
+                            ),
+                            const SizedBox(height: 30),
+                          ],
                         ),
-
-                        const SizedBox(height: 28),
-                        Text(
-                          AppLocalizations.of(context)!.deliveryMethod,
+                      ),
+                    ),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 70,
+                      child: ElevatedButton.icon(
+                        onPressed: isPlacingOrder
+                            ? null
+                            : () {
+                          _placeOrder(
+                            cartItems: cartItems,
+                            total: total,
+                            hasAddress: hasAddress,
+                          );
+                        },
+                        icon: isPlacingOrder
+                            ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                            : const Icon(
+                          Icons.shopping_bag_outlined,
+                          size: 28,
+                        ),
+                        label: Text(
+                          isPlacingOrder
+                              ? AppLocalizations.of(context)!.placingOrder
+                              : AppLocalizations.of(context)!.placeOrder,
                           style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.black54,
+                            fontSize: 18,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: deliveryMethod,
-                              isExpanded: true,
-                              dropdownColor: AppColors.field,
-                              items: [
-                                DropdownMenuItem(
-                                  value: "Regular Delivery",
-                                  child: Text(
-                                    AppLocalizations.of(context)!
-                                        .regularDelivery,
-                                  ),
-                                ),
-                                DropdownMenuItem(
-                                  value: "Same Day Delivery",
-                                  child: Text(
-                                    AppLocalizations.of(context)!
-                                        .sameDayDelivery,
-                                  ),
-                                ),
-                              ],
-                              onChanged: (value) {
-                                if (value != null) {
-                                  setState(() {
-                                    deliveryMethod = value;
-                                    deliveryCost =
-                                    value == "Regular Delivery" ? 3 : 5;
-                                  });
-                                }
-                              },
-                            ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.black54,
+                          disabledForegroundColor: Colors.white,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.zero,
                           ),
                         ),
-
-                        const SizedBox(height: 28),
-                        Text(
-                          AppLocalizations.of(context)!.paymentMethod,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: paymentMethod,
-                              isExpanded: true,
-                              dropdownColor: AppColors.field,
-                              items: [
-                                DropdownMenuItem(
-                                  value: "Card",
-                                  child: Text(
-                                    AppLocalizations.of(context)!.card,
-                                  ),
-                                ),
-                              ],
-                              onChanged: (value) {
-                                if (value != null) {
-                                  setState(() {
-                                    paymentMethod = value;
-                                  });
-                                }
-                              },
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 40),
-                        const Divider(),
-                        const SizedBox(height: 20),
-                        buildTotalRow(
-                          AppLocalizations.of(context)!.subtotal,
-                          "${subtotal.toStringAsFixed(0)} KWD",
-                        ),
-                        const SizedBox(height: 8),
-                        buildTotalRow(
-                          AppLocalizations.of(context)!.delivery,
-                          "${deliveryCost.toStringAsFixed(0)} KWD",
-                        ),
-                        const SizedBox(height: 12),
-                        const Divider(),
-                        const SizedBox(height: 12),
-                        buildTotalRow(
-                          AppLocalizations.of(context)!.total,
-                          "${total.toStringAsFixed(0)} KWD",
-                          bold: true,
-                        ),
-                        const SizedBox(height: 30),
-                      ],
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: double.infinity,
-                  height: 70,
-                  child: ElevatedButton.icon(
-                    onPressed: isPlacingOrder
-                        ? null
-                        : () {
-                      _placeOrder(
-                        cartItems: cartItems,
-                        total: total,
-                      );
-                    },
-                    icon: isPlacingOrder
-                        ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                        : const Icon(Icons.shopping_bag_outlined, size: 28),
-                    label: Text(
-                      isPlacingOrder
-                          ? AppLocalizations.of(context)!.placingOrder
-                          : AppLocalizations.of(context)!.placeOrder,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.black54,
-                      disabledForegroundColor: Colors.white,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.zero,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             );
           },
         ),
