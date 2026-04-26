@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "836617178098",
+    "project_id": "libsk-b68f5",
+    "storage_bucket": "libsk-b68f5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:836617178098:android:dc98f6a95f608bd0ae796b",
+        "android_client_info": {
+          "package_name": "com.example.libsk"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "836617178098-iil03dj087h3mheuahfn0r83j7rh7m78.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.libsk",
+            "certificate_hash": "e228806a97f061f64c59732a630c9b8d13089294"
+          }
+        },
+        {
+          "client_id": "836617178098-tn30eik8qtbaasummu05tojl3o247po4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD1EttMUYmap8fOc0ck6cfpSLwPYY4ZAvY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "836617178098-tn30eik8qtbaasummu05tojl3o247po4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "836617178098-9k32tnbq495n87mj42fjsg9c99p54jfg.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.boftain.libsk"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
