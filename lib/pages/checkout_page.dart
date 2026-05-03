@@ -44,7 +44,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final result = await callable.call({
       'items': items,
       'deliveryCost': deliveryCost,
-      'currency': 'kwd',
+      'currency': 'usd',
     });
 
     final data = Map<String, dynamic>.from(result.data as Map);

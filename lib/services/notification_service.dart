@@ -18,45 +18,63 @@ class NotificationService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
   Future<void> initialize() async {
-    // iOS foreground presentation
-    await _messaging.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    try {
+      // Delay to prevent iOS crash on startup
+      await Future.delayed(const Duration(seconds: 2));
 
-    // Ask user for permission
-    await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: false,
-    );
+      // Ask user for permission
+      await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
 
-    // Save device token to Firestore
-    await _messaging.getToken();
+      // iOS foreground presentation
+      await _messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
 
-    // Token refresh listener
-    _messaging.onTokenRefresh.listen((newToken) async {
-      await FirestoreService.saveCurrentUserFcmToken();
-    });
+      // Save device token to Firestore
+      try {
+        final token = await _messaging.getToken();
+        print('FCM Token: $token');
 
-    // Foreground messages
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      // Handle foreground message if needed
-    });
+        await FirestoreService.saveCurrentUserFcmToken();
+      } catch (e) {
+        print('FCM token error: $e');
+      }
 
-    // App opened by tapping notification from background
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      // Handle notification tap if needed
-    });
+      // Token refresh listener
+      _messaging.onTokenRefresh.listen((newToken) async {
+        try {
+          await FirestoreService.saveCurrentUserFcmToken();
+        } catch (e) {
+          print('FCM refresh save error: $e');
+        }
+      });
 
-    // App opened by tapping notification from terminated state
-    final RemoteMessage? initialMessage =
-    await _messaging.getInitialMessage();
+      // Foreground messages
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        // Handle foreground message if needed
+      });
 
-    if (initialMessage != null) {
-      // Handle initial message if needed
+      // App opened by tapping notification from background
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        // Handle notification tap if needed
+      });
+
+      // App opened by tapping notification from terminated state
+      final RemoteMessage? initialMessage =
+          await _messaging.getInitialMessage();
+
+      if (initialMessage != null) {
+        // Handle initial message if needed
+      }
+    } catch (e) {
+      print('Notification service error: $e');
     }
   }
 }

@@ -28,9 +28,15 @@ Future<void> main() async {
   'pk_test_51TOOjvCTdAUQnhiZ4ArRKUYtg2TIuKEc3j0LeMDk036JhqGoPlsVV6ZdO4resgC8XJg5C8fZBhkhMROon5Go9Flf00SX2GiCmu';
   await Stripe.instance.applySettings();
 
-  await NotificationService.instance.initialize();
+runApp(const LibskApp());
 
-  runApp(const LibskApp());
+Future.delayed(const Duration(seconds: 2), () async {
+  try {
+    await NotificationService.instance.initialize();
+  } catch (e) {
+    debugPrint('Notification initialization failed: $e');
+  }
+});
 }
 
 class LibskApp extends StatefulWidget {

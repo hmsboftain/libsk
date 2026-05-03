@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+
 class FirestoreService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -777,10 +778,12 @@ class FirestoreService {
 
   // ================= NOTIFICATIONS =================
 
-  static Future<void> saveCurrentUserFcmToken() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
+static Future<void> saveCurrentUserFcmToken() async {
+  final user = _auth.currentUser;
 
+  if (user == null) return;
+
+  try {
     final token = await FirebaseMessaging.instance.getToken();
 
     if (token == null || token.isEmpty) return;
@@ -789,7 +792,11 @@ class FirestoreService {
       'fcmToken': token,
       'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  } catch (e) {
+    print('Error saving FCM token: $e');
   }
+}
+
 
   static Future<void> deleteCurrentUserFcmToken() async {
     final user = _auth.currentUser;

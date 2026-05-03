@@ -13,6 +13,7 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> {
+  // text controllers for each form field
   final TextEditingController firstNameController = TextEditingController();
   final TextEditingController lastNameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
@@ -23,13 +24,17 @@ class _SignUpPageState extends State<SignUpPage> {
 
   final _formKey = GlobalKey<FormState>();
 
+  // password visibility toggles
   bool obscurePassword = true;
   bool obscureConfirmPassword = true;
+
+  // loading states for email signup and google signin
   bool isLoading = false;
   bool isGoogleLoading = false;
 
   @override
   void dispose() {
+    // clean up controllers when page is removed
     firstNameController.dispose();
     lastNameController.dispose();
     emailController.dispose();
@@ -39,6 +44,7 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
+  // reusable labeled text field with optional validation and suffix icon
   Widget buildInput({
     required String label,
     required TextEditingController controller,
@@ -81,6 +87,7 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
+  // handles email/password account creation
   Future<void> createAccount() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -96,14 +103,17 @@ class _SignUpPageState extends State<SignUpPage> {
       final password = passwordController.text.trim();
       final fullName = '$firstName $lastName'.trim();
 
+      // create firebase auth account
       final credential =
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
+      // set display name on the auth user
       await credential.user?.updateDisplayName(fullName);
 
+      // create the user document in firestore
       if (credential.user != null) {
         await FirestoreService.createUserProfile(
           uid: credential.user!.uid,
@@ -114,11 +124,13 @@ class _SignUpPageState extends State<SignUpPage> {
         );
       }
 
+      // move any guest cart items to the new account
       await FirestoreService.mergeGuestCartToUser();
 
       if (!mounted) return;
       Navigator.pop(context, true);
     } on FirebaseAuthException catch (e) {
+      // map firebase error codes to user-friendly messages
       String message = AppLocalizations.of(context)!.signUpFailed;
 
       if (e.code == 'email-already-in-use') {
@@ -151,6 +163,7 @@ class _SignUpPageState extends State<SignUpPage> {
     }
   }
 
+  // handles google sign in and profile creation if first time
   Future<void> signInWithGoogle() async {
     setState(() {
       isGoogleLoading = true;
@@ -159,6 +172,7 @@ class _SignUpPageState extends State<SignUpPage> {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
 
+      // user cancelled the google sign in sheet
       if (googleUser == null) {
         return;
       }
@@ -174,6 +188,7 @@ class _SignUpPageState extends State<SignUpPage> {
       final userCredential =
       await FirebaseAuth.instance.signInWithCredential(credential);
 
+      // create or update firestore profile using google account info
       final user = userCredential.user;
       if (user != null) {
         final nameParts = (user.displayName ?? '').split(' ');
@@ -190,6 +205,7 @@ class _SignUpPageState extends State<SignUpPage> {
         );
       }
 
+      // merge guest cart and mark user as online
       await FirestoreService.mergeGuestCartToUser();
       await FirestoreService.updateCurrentUserLastLogin();
       await FirestoreService.setCurrentUserOnline();
@@ -197,12 +213,9 @@ class _SignUpPageState extends State<SignUpPage> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
+      debugPrint("GOOGLE SIGN IN ERROR: $e");
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.somethingWentWrong),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar;
     } finally {
       if (mounted) {
         setState(() {
@@ -216,6 +229,17 @@ class _SignUpPageState extends State<SignUpPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+
+      // back arrow to return to previous page
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -224,12 +248,15 @@ class _SignUpPageState extends State<SignUpPage> {
             child: Column(
               children: [
                 const SizedBox(height: 30),
+
+                // app logo
                 Image.asset(
                   "assets/libsk_logo.png",
                   height: 90,
                   fit: BoxFit.contain,
                 ),
                 const SizedBox(height: 60),
+
                 Text(
                   AppLocalizations.of(context)!.signUp,
                   style: const TextStyle(
@@ -238,6 +265,8 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                 ),
                 const SizedBox(height: 36),
+
+                // first and last name side by side
                 Row(
                   children: [
                     Expanded(
@@ -270,6 +299,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   ],
                 ),
                 const SizedBox(height: 22),
+
                 buildInput(
                   label: AppLocalizations.of(context)!.emailAddress,
                   controller: emailController,
@@ -285,6 +315,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   },
                 ),
                 const SizedBox(height: 22),
+
                 buildInput(
                   label: AppLocalizations.of(context)!.phoneNumber,
                   controller: phoneController,
@@ -297,6 +328,8 @@ class _SignUpPageState extends State<SignUpPage> {
                   },
                 ),
                 const SizedBox(height: 22),
+
+                // password field with show/hide toggle
                 buildInput(
                   label: AppLocalizations.of(context)!.password,
                   controller: passwordController,
@@ -324,6 +357,8 @@ class _SignUpPageState extends State<SignUpPage> {
                   },
                 ),
                 const SizedBox(height: 22),
+
+                // confirm password field checks it matches the first
                 buildInput(
                   label: AppLocalizations.of(context)!.confirmPassword,
                   controller: confirmPasswordController,
@@ -352,6 +387,8 @@ class _SignUpPageState extends State<SignUpPage> {
                   },
                 ),
                 const SizedBox(height: 32),
+
+                // main create account button
                 SizedBox(
                   width: double.infinity,
                   height: 58,
@@ -383,6 +420,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                 ),
                 const SizedBox(height: 36),
+
                 Row(
                   children: [
                     const Expanded(child: Divider()),
@@ -400,6 +438,8 @@ class _SignUpPageState extends State<SignUpPage> {
                   ],
                 ),
                 const SizedBox(height: 24),
+
+                // google sign in button
                 GestureDetector(
                   onTap: isGoogleLoading ? null : signInWithGoogle,
                   child: Container(
@@ -427,7 +467,8 @@ class _SignUpPageState extends State<SignUpPage> {
                         const Icon(Icons.g_mobiledata, size: 28),
                         const SizedBox(width: 8),
                         Text(
-                          AppLocalizations.of(context)!.continueWithGoogle,
+                          AppLocalizations.of(context)!
+                              .continueWithGoogle,
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
                           ),

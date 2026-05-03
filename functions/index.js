@@ -7,8 +7,8 @@ const {
 
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
-const { defineSecret } = require("firebase-functions/params");
-const stripeSecret = defineSecret("STRIPE_SECRET_KEY");
+const { defineString } = require("firebase-functions/params");
+const stripeSecret = defineString("STRIPE_SECRET_KEY");
 
 admin.initializeApp();
 
@@ -149,7 +149,7 @@ function getBoutiqueIdsFromItems(items) {
 
 // ================= PAYMENTS =================
 
-exports.createPaymentIntent = onCall({ secrets: [stripeSecret] }, async (request) => {
+exports.createPaymentIntent = onCall(async (request) => {
   const stripe = require("stripe")(stripeSecret.value());
   try {
     const data = request.data || {};
@@ -246,7 +246,7 @@ exports.createPaymentIntent = onCall({ secrets: [stripeSecret] }, async (request
   }
 });
 
-exports.processRefund = onCall({ secrets: [stripeSecret] }, async (request) => {
+exports.processRefund = onCall(async (request) => {
   const stripe = require("stripe")(stripeSecret.value());
   try {
     if (!request.auth) {

@@ -220,6 +220,7 @@ class _SearchPageState extends State<SearchPage> {
                             }
 
                             if (productsSnapshot.hasError) {
+                              debugPrint("SEARCH ERROR: ${productsSnapshot.error}");
                               return Text(
                                 AppLocalizations.of(context)!
                                     .failedToLoadSearchResults,
@@ -347,6 +348,7 @@ class _SearchPageState extends State<SearchPage> {
                             }
 
                             if (boutiquesSnapshot.hasError) {
+                              debugPrint("BOUTIQUE SEARCH ERROR: ${boutiquesSnapshot.error}");
                               return Text(
                                 AppLocalizations.of(context)!
                                     .failedToLoadSearchResults,
