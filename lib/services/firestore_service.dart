@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -793,7 +794,7 @@ static Future<void> saveCurrentUserFcmToken() async {
       'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   } catch (e) {
-    print('Error saving FCM token: $e');
+    debugPrint('Error saving FCM token: $e');
   }
 }
 
@@ -848,41 +849,5 @@ static Future<void> saveCurrentUserFcmToken() async {
     }
 
     await batch.commit();
-  }
-
-  static Future<void> createManualNotificationRequest({
-    required String title,
-    required String body,
-    required String targetType,
-  }) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception('User not logged in');
-    }
-
-    final isAdmin = await isCurrentUserAdmin();
-    final isSuperAdmin = await isCurrentUserSuperAdmin();
-
-    if (!isAdmin && !isSuperAdmin) {
-      throw Exception('Only admins can send notifications');
-    }
-
-    await _firestore.collection('manual_notifications').add({
-      'title': title,
-      'body': body,
-      'targetType': targetType,
-      'createdByUid': user.uid,
-      'createdByEmail': user.email ?? '',
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-  }
-
-  static Stream<QuerySnapshot<Map<String, dynamic>>>
-  getManualNotificationsStream() {
-    return _firestore
-        .collection('manual_notifications')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
   }
 }

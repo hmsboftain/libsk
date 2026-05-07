@@ -28,15 +28,15 @@ Future<void> main() async {
   'pk_test_51TOOjvCTdAUQnhiZ4ArRKUYtg2TIuKEc3j0LeMDk036JhqGoPlsVV6ZdO4resgC8XJg5C8fZBhkhMROon5Go9Flf00SX2GiCmu';
   await Stripe.instance.applySettings();
 
-runApp(const LibskApp());
+  runApp(const LibskApp());
 
-Future.delayed(const Duration(seconds: 2), () async {
-  try {
-    await NotificationService.instance.initialize();
-  } catch (e) {
-    debugPrint('Notification initialization failed: $e');
-  }
-});
+  Future.delayed(const Duration(seconds: 2), () async {
+    try {
+      await NotificationService.instance.initialize();
+    } catch (e) {
+      debugPrint('Notification initialization failed: $e');
+    }
+  });
 }
 
 class LibskApp extends StatefulWidget {
@@ -112,14 +112,19 @@ class _PermissionGatePageState extends State<PermissionGatePage> {
   }
 
   Future<void> _requestPermissions() async {
-    await Permission.photos.request();
-    await Permission.location.request();
-
-    if (!mounted) return;
-
-    setState(() {
-      _permissionsHandled = true;
-    });
+    try {
+      await Permission.photos.request();
+      await Permission.location.request();
+    } catch (e) {
+      debugPrint('Permission request failed: $e');
+    } finally {
+      // always move forward even if permissions fail
+      if (mounted) {
+        setState(() {
+          _permissionsHandled = true;
+        });
+      }
+    }
   }
 
   @override

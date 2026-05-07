@@ -340,13 +340,16 @@ class _LoginPageState extends State<LoginPage> {
                       style: const TextStyle(color: Colors.black54),
                     ),
                     GestureDetector(
-                      onTap: () {
-                        Navigator.push(
+                      onTap: () async {
+                        final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => const SignUpPage(),
                           ),
                         );
+                        if (result == true && mounted) {
+                          Navigator.pop(context, true);
+                        }
                       },
                       child: Text(
                         AppLocalizations.of(context)!.signUp,
@@ -412,7 +415,6 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 30),
               ],
             ),
           ),

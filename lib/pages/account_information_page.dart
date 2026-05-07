@@ -29,12 +29,14 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
     loadUserData();
   }
 
+  // pull user data from both Auth and Firestore
   Future<void> loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
 
     fullNameController = TextEditingController(
       text: user?.displayName ?? '',
     );
+
     emailController = TextEditingController(
       text: user?.email ?? '',
     );
@@ -91,6 +93,7 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
 
       await user.updateDisplayName(fullName);
 
+      // merge so we don't overwrite other fields like role or createdAt
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)

@@ -198,12 +198,13 @@ class _EditProductPageState extends State<EditProductPage> {
 
       Navigator.pop(context, true);
     } catch (e) {
+      debugPrint('UPDATE PRODUCT ERROR: $e');
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update product')),
+        SnackBar(content: Text(e.toString())),
       );
-    } finally {
+    }
+    finally {
       if (mounted) {
         setState(() {
           isLoading = false;

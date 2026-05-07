@@ -27,6 +27,8 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
     return null;
   }
 
+
+  // filters orders by date range based on the selected chip
   bool _isInsideSelectedFilter(Map<String, dynamic> data) {
     if (selectedFilter == AnalyticsFilter.allTime) return true;
 
@@ -68,6 +70,8 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
     }).length;
   }
 
+
+  // finds the boutique with the highest combined sales across all orders
   String _topBoutiqueName(
       List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
       ) {

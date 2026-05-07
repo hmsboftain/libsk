@@ -76,23 +76,6 @@ flutter:
   assets:
     - assets/libsk_logo.png
     - assets/home_banner.png
-    - assets/product1.png
-    - assets/product2.png
-    - assets/product3.png
-    - assets/store1.png
-    - assets/store2.png
-    - assets/store3.png
-    - assets/store4.png
-    - assets/store5.png
-    - assets/store6.png
-    - assets/store7.png
-    - assets/store8.png
-    - assets/store9.png
-    - assets/store10.png
-    - assets/store11.png
-    - assets/store12.png
-    - assets/store13.png
-    - assets/storefront_banner.png
 
 
   # To add assets to your application, add an assets section, like this:

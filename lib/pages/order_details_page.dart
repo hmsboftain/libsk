@@ -23,10 +23,9 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
   bool _disputeAlreadySubmitted = false;
 
   final List<String> _disputeCategories = [
-    'Item Damaged',
-    'Wrong Item Sent',
-    'Item Never Arrived',
-    'Not As Described',
+    'Wrong Item',
+    'Damaged Item',
+    'Not Delivered',
     'Other',
   ];
 

@@ -95,7 +95,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         {
           'q': 'What payment methods are accepted?',
           'a':
-          'We currently accept cash on delivery and card payments via KNET and Visa/Mastercard depending on the boutique.',
+          'We currently accept only card payments via KNET and Visa/Mastercard.',
         },
         {
           'q': 'Is my payment information secure?',

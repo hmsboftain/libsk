@@ -33,6 +33,7 @@ class AdminHomepagePage extends StatelessWidget {
     });
   }
 
+  // sets an expiry timestamp so the feature can be auto-removed later
   Future<void> featureBoutiqueForDays({
     required String boutiqueId,
     required int days,

@@ -32,6 +32,19 @@ class _SignUpPageState extends State<SignUpPage> {
   bool isLoading = false;
   bool isGoogleLoading = false;
 
+  // tracks current password value for live strength meter
+  String _currentPassword = '';
+
+  @override
+  void initState() {
+    super.initState();
+    passwordController.addListener(() {
+      setState(() {
+        _currentPassword = passwordController.text;
+      });
+    });
+  }
+
   @override
   void dispose() {
     // clean up controllers when page is removed
@@ -44,6 +57,143 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
+  // returns 0–4 based on how many strength criteria are met
+  int _getPasswordStrength(String password) {
+    int score = 0;
+    if (password.length >= 8) score++;
+    if (password.contains(RegExp(r'[A-Z]'))) score++;
+    if (password.contains(RegExp(r'[a-z]'))) score++;
+    if (password.contains(RegExp(r'[0-9]'))) score++;
+    return score;
+  }
+
+  // label shown next to the strength bars
+  String _strengthLabel(int strength) {
+    switch (strength) {
+      case 0:
+      case 1:
+        return 'Weak';
+      case 2:
+        return 'Fair';
+      case 3:
+        return 'Good';
+      case 4:
+        return 'Strong';
+      default:
+        return '';
+    }
+  }
+
+  // color for each strength level
+  Color _strengthColor(int strength) {
+    switch (strength) {
+      case 0:
+      case 1:
+        return const Color(0xFFE53935); // red
+      case 2:
+        return const Color(0xFFFB8C00); // orange
+      case 3:
+        return const Color(0xFFFDD835); // yellow
+      case 4:
+        return const Color(0xFF43A047); // green
+      default:
+        return Colors.transparent;
+    }
+  }
+
+  // visual password strength meter — 4 bars that fill up as criteria are met
+  Widget _buildStrengthMeter(String password) {
+    if (password.isEmpty) return const SizedBox.shrink();
+
+    final strength = _getPasswordStrength(password);
+    final color = _strengthColor(strength);
+    final label = _strengthLabel(strength);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: List.generate(4, (index) {
+              final filled = index < strength;
+              return Expanded(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  margin: EdgeInsets.only(right: index < 3 ? 5 : 0),
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: filled ? color : Colors.black12,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Text(
+                  label,
+                  key: ValueKey(label),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // criteria checklist pills
+              _criteriaChip('8+ chars', password.length >= 8),
+              _criteriaChip('A-Z', password.contains(RegExp(r'[A-Z]'))),
+              _criteriaChip('a-z', password.contains(RegExp(r'[a-z]'))),
+              _criteriaChip('0-9', password.contains(RegExp(r'[0-9]'))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // small pill showing whether a single criterion is met
+  Widget _criteriaChip(String label, bool met) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      margin: const EdgeInsets.only(right: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: met ? const Color(0xFF43A047).withOpacity(0.12) : Colors.black.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: met ? const Color(0xFF43A047) : Colors.black12,
+          width: 1,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: met ? const Color(0xFF43A047) : Colors.black38,
+        ),
+      ),
+    );
+  }
+
   // reusable labeled text field with optional validation and suffix icon
   Widget buildInput({
     required String label,
@@ -52,6 +202,7 @@ class _SignUpPageState extends State<SignUpPage> {
     Widget? suffixIcon,
     String? Function(String?)? validator,
     TextInputType? keyboardType,
+    Widget? belowField,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,6 +234,7 @@ class _SignUpPageState extends State<SignUpPage> {
           ),
           validator: validator,
         ),
+        if (belowField != null) belowField,
       ],
     );
   }
@@ -112,6 +264,9 @@ class _SignUpPageState extends State<SignUpPage> {
 
       // set display name on the auth user
       await credential.user?.updateDisplayName(fullName);
+
+      // force token refresh so Firestore security rules can verify the new user
+      await credential.user?.getIdToken(true);
 
       // create the user document in firestore
       if (credential.user != null) {
@@ -147,7 +302,8 @@ class _SignUpPageState extends State<SignUpPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint("SIGNUP ERROR: $e");
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -191,6 +347,9 @@ class _SignUpPageState extends State<SignUpPage> {
       // create or update firestore profile using google account info
       final user = userCredential.user;
       if (user != null) {
+        // force token refresh so Firestore security rules can verify the user
+        await user.getIdToken(true);
+
         final nameParts = (user.displayName ?? '').split(' ');
         final firstName = nameParts.isNotEmpty ? nameParts.first : '';
         final lastName =
@@ -215,7 +374,11 @@ class _SignUpPageState extends State<SignUpPage> {
     } catch (e) {
       debugPrint("GOOGLE SIGN IN ERROR: $e");
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.somethingWentWrong),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -329,7 +492,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 ),
                 const SizedBox(height: 22),
 
-                // password field with show/hide toggle
+                // password field with show/hide toggle + live strength meter
                 buildInput(
                   label: AppLocalizations.of(context)!.password,
                   controller: passwordController,
@@ -350,11 +513,21 @@ class _SignUpPageState extends State<SignUpPage> {
                     if (value == null || value.trim().isEmpty) {
                       return AppLocalizations.of(context)!.passwordRequired;
                     }
-                    if (value.length < 6) {
-                      return AppLocalizations.of(context)!.minimumSixCharacters;
+                    if (value.length < 8) {
+                      return 'Password must be at least 8 characters';
+                    }
+                    if (!value.contains(RegExp(r'[A-Z]'))) {
+                      return 'Password must contain at least one uppercase letter';
+                    }
+                    if (!value.contains(RegExp(r'[a-z]'))) {
+                      return 'Password must contain at least one lowercase letter';
+                    }
+                    if (!value.contains(RegExp(r'[0-9]'))) {
+                      return 'Password must contain at least one number';
                     }
                     return null;
                   },
+                  belowField: _buildStrengthMeter(_currentPassword),
                 ),
                 const SizedBox(height: 22),
 
@@ -477,7 +650,6 @@ class _SignUpPageState extends State<SignUpPage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 30),
               ],
             ),
           ),

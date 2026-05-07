@@ -58,12 +58,12 @@ class NotificationService {
 
       // Foreground messages
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        // Handle foreground message if needed
+        // Handle foreground message
       });
 
       // App opened by tapping notification from background
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        // Handle notification tap if needed
+        // Handle notification tap
       });
 
       // App opened by tapping notification from terminated state
@@ -71,7 +71,7 @@ class NotificationService {
           await _messaging.getInitialMessage();
 
       if (initialMessage != null) {
-        // Handle initial message if needed
+        // Handle initial message
       }
     } catch (e) {
       print('Notification service error: $e');

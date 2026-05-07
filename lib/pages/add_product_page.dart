@@ -50,6 +50,7 @@ class _AddProductPageState extends State<AddProductPage> {
         selectedImages = images.map((image) => File(image.path)).toList();
       });
     } catch (e) {
+      debugPrint('ADD PRODUCT ERROR: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
