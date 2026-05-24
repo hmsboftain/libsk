@@ -9,10 +9,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 class OrderDetailsPage extends StatefulWidget {
   final OrderItem order;
 
-  const OrderDetailsPage({
-    super.key,
-    required this.order,
-  });
+  const OrderDetailsPage({super.key, required this.order});
 
   @override
   State<OrderDetailsPage> createState() => _OrderDetailsPageState();
@@ -54,8 +51,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     if (widget.order.status.toLowerCase() != 'delivered') return false;
     if (_disputeAlreadySubmitted) return false;
     if (widget.order.createdAt == null) return true;
-    final daysSince =
-        DateTime.now().difference(widget.order.createdAt!).inDays;
+    final daysSince = DateTime.now().difference(widget.order.createdAt!).inDays;
     return daysSince <= 7;
   }
 
@@ -68,23 +64,16 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: AppColors.background,
-          shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text(
-            'Submit Dispute',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
+          shape: const RoundedRectangleBorder(),
+          title: Text('Submit Dispute', style: AppTextStyles.headingSmall),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'What is the issue with your order?',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.secondaryText,
-                  ),
+                  style: AppTextStyles.bodySmall,
                 ),
                 const SizedBox(height: 16),
                 ..._disputeCategories.map((category) {
@@ -96,16 +85,18 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                       duration: const Duration(milliseconds: 150),
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? AppColors.softAccent.withValues(alpha:0.4)
+                            ? AppColors.selectedSoft
                             : AppColors.field,
-                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isSelected
                               ? AppColors.deepAccent
                               : AppColors.border,
+                          width: 0.5,
                         ),
                       ),
                       child: Row(
@@ -113,10 +104,9 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                           Expanded(
                             child: Text(
                               category,
-                              style: TextStyle(
-                                fontSize: 14,
+                              style: AppTextStyles.bodyMedium.copyWith(
                                 fontWeight: isSelected
-                                    ? FontWeight.w600
+                                    ? FontWeight.w500
                                     : FontWeight.w400,
                                 color: isSelected
                                     ? AppColors.deepAccent
@@ -125,20 +115,21 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                             ),
                           ),
                           if (isSelected)
-                            const Icon(Icons.check,
-                                color: AppColors.deepAccent, size: 18),
+                            const Icon(
+                              Icons.check,
+                              color: AppColors.deepAccent,
+                              size: 18,
+                            ),
                         ],
                       ),
                     ),
                   );
                 }),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Additional details (optional)',
-                  style: TextStyle(
-                    fontSize: 13,
+                  style: AppTextStyles.labelLarge.copyWith(
                     color: AppColors.secondaryText,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -147,19 +138,24 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                   maxLines: 3,
                   decoration: InputDecoration(
                     hintText: 'Describe the issue...',
-                    hintStyle: const TextStyle(
-                        color: AppColors.secondaryText, fontSize: 13),
+                    hintStyle: AppTextStyles.labelLarge.copyWith(
+                      color: AppColors.secondaryText,
+                    ),
                     filled: true,
                     fillColor: AppColors.field,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                      const BorderSide(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(
+                        color: AppColors.border,
+                        width: 0.5,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                      const BorderSide(color: AppColors.deepAccent),
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(
+                        color: AppColors.deepAccent,
+                        width: 1,
+                      ),
                     ),
                   ),
                 ),
@@ -169,27 +165,32 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel',
-                  style: TextStyle(color: AppColors.secondaryText)),
+              child: Text(
+                'Cancel',
+                style: AppTextStyles.labelLarge.copyWith(
+                  color: AppColors.secondaryText,
+                ),
+              ),
             ),
             ElevatedButton(
               onPressed: selectedCategory == null
                   ? null
                   : () async {
-                Navigator.pop(ctx);
-                await _submitDispute(
-                  category: selectedCategory!,
-                  description: descController.text.trim(),
-                );
-              },
+                      Navigator.pop(ctx);
+                      await _submitDispute(
+                        category: selectedCategory!,
+                        description: descController.text.trim(),
+                      );
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.deepAccent,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: const Text('Submit'),
+              child: Text('Submit', style: AppTextStyles.button),
             ),
           ],
         ),
@@ -204,8 +205,9 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     setState(() => _isSubmittingDispute = true);
 
     try {
-      final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
-          .httpsCallable('submitDispute');
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('submitDispute');
 
       await callable.call({
         'orderId': widget.order.id,
@@ -229,16 +231,14 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message ?? 'Failed to submit dispute'),
-        ),
+        SnackBar(content: Text(e.message ?? 'Failed to submit dispute')),
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to submit dispute')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to submit dispute')));
     } finally {
       if (mounted) setState(() => _isSubmittingDispute = false);
     }
@@ -266,44 +266,36 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                     const SizedBox(height: 8),
                     Text(
                       "${AppLocalizations.of(context)!.orderLabel} #${widget.order.orderNumber}",
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: AppTextStyles.headingLarge,
                     ),
                     const SizedBox(height: 8),
-                    const Divider(),
+                    const Divider(color: AppColors.border, thickness: 0.5),
                     const SizedBox(height: 18),
                     Text(
                       "${AppLocalizations.of(context)!.dateLabel} ${widget.order.displayDate}",
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: Colors.black54,
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.secondaryText,
                       ),
                     ),
                     const SizedBox(height: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.field,
-                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.border, width: 0.5),
                       ),
                       child: Text(
                         "${AppLocalizations.of(context)!.statusLabel} ${widget.order.status}",
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: AppTextStyles.labelLarge,
                       ),
                     ),
                     const SizedBox(height: 24),
                     Text(
                       AppLocalizations.of(context)!.itemsOrdered,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: AppTextStyles.headingMedium,
                     ),
                     const SizedBox(height: 16),
                     ...widget.order.orderedItems.map((item) {
@@ -311,45 +303,43 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                         margin: const EdgeInsets.only(bottom: 14),
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: AppColors.field,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.black12),
+                          color: AppColors.card,
+                          border: Border.all(
+                            color: AppColors.border,
+                            width: 0.5,
+                          ),
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: item.imageUrl.isNotEmpty
-                                  ? Image.network(
-                                item.imageUrl,
-                                width: 70,
-                                height: 85,
-                                fit: BoxFit.cover,
-                                errorBuilder:
-                                    (context, error, stackTrace) {
-                                  return Container(
-                                    width: 70,
-                                    height: 85,
-                                    color: AppColors.imagePlaceholder,
-                                    alignment: Alignment.center,
-                                    child: const Icon(
-                                      Icons
-                                          .image_not_supported_outlined,
-                                      color: Colors.black54,
-                                    ),
-                                  );
-                                },
-                              )
-                                  : Container(
-                                width: 70,
-                                height: 85,
-                                color: AppColors.imagePlaceholder,
-                                alignment: Alignment.center,
-                                child: const Icon(
-                                  Icons.image_not_supported_outlined,
-                                  color: Colors.black54,
-                                ),
+                            SizedBox(
+                              width: 70,
+                              child: AspectRatio(
+                                aspectRatio: 4 / 5,
+                                child: item.imageUrl.isNotEmpty
+                                    ? Image.network(
+                                        item.imageUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            color: AppColors.imagePlaceholder,
+                                            alignment: Alignment.center,
+                                            child: const Icon(
+                                              Icons
+                                                  .image_not_supported_outlined,
+                                              color: AppColors.secondaryText,
+                                            ),
+                                          );
+                                        },
+                                      )
+                                    : Container(
+                                        color: AppColors.imagePlaceholder,
+                                        alignment: Alignment.center,
+                                        child: const Icon(
+                                          Icons.image_not_supported_outlined,
+                                          color: AppColors.secondaryText,
+                                        ),
+                                      ),
                               ),
                             ),
                             const SizedBox(width: 14),
@@ -359,34 +349,29 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                                 children: [
                                   Text(
                                     item.title,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                    style: AppTextStyles.labelLarge,
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
                                     item.description,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.black54,
-                                    ),
+                                    style: AppTextStyles.bodySmall,
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
                                     "${AppLocalizations.of(context)!.size} ${item.size}",
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.black87,
-                                    ),
+                                    style: AppTextStyles.bodyMedium,
                                   ),
+                                  if (item.color.trim().isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Colour: ${item.color}',
+                                      style: AppTextStyles.bodyMedium,
+                                    ),
+                                  ],
                                   const SizedBox(height: 4),
                                   Text(
                                     "${AppLocalizations.of(context)!.quantityLabel} ${item.quantity}",
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.black87,
-                                    ),
+                                    style: AppTextStyles.bodyMedium,
                                   ),
                                 ],
                               ),
@@ -394,10 +379,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                             const SizedBox(width: 10),
                             Text(
                               "${item.price.toStringAsFixed(0)} KWD",
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: AppTextStyles.labelLarge,
                             ),
                           ],
                         ),
@@ -408,18 +390,12 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                       children: [
                         Text(
                           AppLocalizations.of(context)!.subtotalNormal,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: AppTextStyles.bodyMedium,
                         ),
                         const Spacer(),
                         Text(
                           "${subtotal.toStringAsFixed(0)} KWD",
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: AppTextStyles.bodyMedium,
                         ),
                       ],
                     ),
@@ -428,18 +404,12 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                       children: [
                         Text(
                           AppLocalizations.of(context)!.total,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: AppTextStyles.headingSmall,
                         ),
                         const Spacer(),
                         Text(
                           "${widget.order.total.toStringAsFixed(0)} KWD",
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: AppTextStyles.headingSmall,
                         ),
                       ],
                     ),
@@ -447,31 +417,32 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                     // Dispute section
                     if (widget.order.status.toLowerCase() == 'delivered') ...[
                       const SizedBox(height: 30),
-                      const Divider(),
+                      const Divider(color: AppColors.border, thickness: 0.5),
                       const SizedBox(height: 16),
                       if (_disputeAlreadySubmitted)
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF8F0E4),
-                            borderRadius: BorderRadius.circular(14),
+                            color: AppColors.selectedSoft,
                             border: Border.all(
-                                color: const Color(0xFFB87D3B)
+                              color: AppColors.border,
+                              width: 0.5,
                             ),
                           ),
                           child: Row(
-                            children: const [
-                              Icon(Icons.info_outline,
-                                  color: Color(0xFFB87D3B), size: 20),
-                              SizedBox(width: 10),
+                            children: [
+                              const Icon(
+                                Icons.info_outline,
+                                color: AppColors.deepAccent,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
                                   'A dispute has already been submitted for this order.',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Color(0xFFB87D3B),
-                                    fontWeight: FontWeight.w500,
+                                  style: AppTextStyles.bodySmall.copyWith(
+                                    color: AppColors.deepAccent,
                                   ),
                                 ),
                               ),
@@ -487,29 +458,32 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                                 : _showDisputeDialog,
                             icon: _isSubmittingDispute
                                 ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.deepAccent,
-                              ),
-                            )
-                                : const Icon(Icons.flag_outlined,
-                                color: AppColors.deepAccent),
-                            label: const Text(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1.5,
+                                      color: AppColors.deepAccent,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.flag_outlined,
+                                    color: AppColors.deepAccent,
+                                  ),
+                            label: Text(
                               'Dispute Order',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
+                              style: AppTextStyles.button.copyWith(
                                 color: AppColors.deepAccent,
                               ),
                             ),
                             style: OutlinedButton.styleFrom(
-                              padding:
-                              const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               side: const BorderSide(
-                                  color: AppColors.deepAccent),
+                                color: AppColors.deepAccent,
+                                width: 0.5,
+                              ),
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
                           ),
                         )
@@ -519,15 +493,14 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: AppColors.field,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: const Text(
-                            'The 7-day dispute window for this order has passed.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.secondaryText,
+                            border: Border.all(
+                              color: AppColors.border,
+                              width: 0.5,
                             ),
+                          ),
+                          child: Text(
+                            'The 7-day dispute window for this order has passed.',
+                            style: AppTextStyles.bodySmall,
                             textAlign: TextAlign.center,
                           ),
                         ),

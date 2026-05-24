@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 class FirestoreService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -188,6 +187,7 @@ class FirestoreService {
     required String title,
     required String description,
     required String size,
+    String color = '',
     required double price,
   }) async {
     final productRef = _firestore
@@ -218,7 +218,10 @@ class FirestoreService {
         .doc(_cartOwnerId)
         .collection('cart_items');
 
-    final docId = '${productId}_$size';
+    final normalizedColor = color.trim();
+    final docId = normalizedColor.isEmpty
+        ? '${productId}_$size'
+        : '${productId}_${size}_$normalizedColor';
     final docRef = cartRef.doc(docId);
     final doc = await docRef.get();
 
@@ -245,6 +248,7 @@ class FirestoreService {
         'title': title,
         'description': description,
         'size': size,
+        if (normalizedColor.isNotEmpty) 'color': normalizedColor,
         'price': price,
         'quantity': 1,
         'createdAt': FieldValue.serverTimestamp(),
@@ -376,16 +380,18 @@ class FirestoreService {
             : int.tryParse(currentQuantityValue.toString()) ?? 1;
 
         final mergedQuantity = currentQuantity + guestQuantity;
-        final safeQuantity =
-        mergedQuantity > currentStock ? currentStock : mergedQuantity;
+        final safeQuantity = mergedQuantity > currentStock
+            ? currentStock
+            : mergedQuantity;
 
         await userCartRef.doc(doc.id).update({
           'quantity': safeQuantity,
           'updatedAt': FieldValue.serverTimestamp(),
         });
       } else {
-        final safeQuantity =
-        guestQuantity > currentStock ? currentStock : guestQuantity;
+        final safeQuantity = guestQuantity > currentStock
+            ? currentStock
+            : guestQuantity;
 
         await userCartRef.doc(doc.id).set({
           ...data,
@@ -415,16 +421,16 @@ class FirestoreService {
     if (user == null) throw Exception("User not logged in");
 
     final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
-    final callable  = functions.httpsCallable('createOrder');
+    final callable = functions.httpsCallable('createOrder');
 
     final result = await callable.call({
-      'items':           items,
-      'deliveryMethod':  deliveryMethod  ?? '',
-      'paymentMethod':   paymentMethod   ?? '',
+      'items': items,
+      'deliveryMethod': deliveryMethod ?? '',
+      'paymentMethod': paymentMethod ?? '',
       'paymentIntentId': paymentIntentId ?? '',
     });
 
-    final data        = Map<String, dynamic>.from(result.data as Map);
+    final data = Map<String, dynamic>.from(result.data as Map);
     final orderNumber = data['orderNumber']?.toString();
 
     if (orderNumber == null || orderNumber.isEmpty) {
@@ -439,8 +445,8 @@ class FirestoreService {
   }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> getOwnerOrdersStream(
-      String boutiqueId,
-      ) {
+    String boutiqueId,
+  ) {
     return _firestore
         .collection('boutiques')
         .doc(boutiqueId)
@@ -462,8 +468,10 @@ class FirestoreService {
     final user = _auth.currentUser;
     if (user == null) return false;
 
-    final doc =
-    await _firestore.collection('boutique_owners').doc(user.uid).get();
+    final doc = await _firestore
+        .collection('boutique_owners')
+        .doc(user.uid)
+        .get();
 
     return doc.exists;
   }
@@ -472,8 +480,10 @@ class FirestoreService {
     final user = _auth.currentUser;
     if (user == null) return false;
 
-    final doc =
-    await _firestore.collection('boutique_owners').doc(user.uid).get();
+    final doc = await _firestore
+        .collection('boutique_owners')
+        .doc(user.uid)
+        .get();
 
     if (!doc.exists) return false;
 
@@ -487,8 +497,10 @@ class FirestoreService {
     final user = _auth.currentUser;
     if (user == null) return null;
 
-    final doc =
-    await _firestore.collection('boutique_owners').doc(user.uid).get();
+    final doc = await _firestore
+        .collection('boutique_owners')
+        .doc(user.uid)
+        .get();
 
     if (!doc.exists) return null;
 
@@ -509,8 +521,10 @@ class FirestoreService {
       throw Exception("User not logged in");
     }
 
-    final ownerDoc =
-    await _firestore.collection('boutique_owners').doc(user.uid).get();
+    final ownerDoc = await _firestore
+        .collection('boutique_owners')
+        .doc(user.uid)
+        .get();
 
     if (!ownerDoc.exists) {
       throw Exception("Owner document not found");
@@ -528,8 +542,10 @@ class FirestoreService {
       throw Exception("No boutiqueId assigned to this owner");
     }
 
-    final boutiqueDoc =
-    await _firestore.collection('boutiques').doc(boutiqueId).get();
+    final boutiqueDoc = await _firestore
+        .collection('boutiques')
+        .doc(boutiqueId)
+        .get();
 
     if (!boutiqueDoc.exists) {
       throw Exception("Boutique document not found");
@@ -539,8 +555,8 @@ class FirestoreService {
   }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> getOwnerProductsStream(
-      String boutiqueId,
-      ) {
+    String boutiqueId,
+  ) {
     return _firestore
         .collection('boutiques')
         .doc(boutiqueId)
@@ -565,6 +581,11 @@ class FirestoreService {
     required List<String> imageUrls,
     required int stock,
     required List<String> sizes,
+    required List<Map<String, dynamic>> sizeEntries,
+    required List<String> category,
+    required List<String> colors,
+    required bool madeToOrder,
+    String? deliveryTimeframe,
   }) async {
     final boutiqueId = await getCurrentOwnerBoutiqueId();
 
@@ -580,16 +601,21 @@ class FirestoreService {
         .doc(boutiqueId)
         .collection('products')
         .add({
-      'title': title,
-      'description': description,
-      'price': price,
-      'imageUrl': imageUrl,
-      'imageUrls': imageUrls,
-      'stock': stock,
-      'sizes': sizes,
-      'boutiqueName': boutiqueName,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+          'title': title,
+          'description': description,
+          'price': price,
+          'imageUrl': imageUrl,
+          'imageUrls': imageUrls,
+          'stock': stock,
+          'sizes': sizes,
+          'sizeEntries': sizeEntries,
+          'category': category,
+          'colors': colors,
+          'madeToOrder': madeToOrder,
+          'deliveryTimeframe': madeToOrder ? deliveryTimeframe : null,
+          'boutiqueName': boutiqueName,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
   }
 
   static Future<DocumentReference<Map<String, dynamic>>?>
@@ -779,25 +805,24 @@ class FirestoreService {
 
   // ================= NOTIFICATIONS =================
 
-static Future<void> saveCurrentUserFcmToken() async {
-  final user = _auth.currentUser;
+  static Future<void> saveCurrentUserFcmToken() async {
+    final user = _auth.currentUser;
 
-  if (user == null) return;
+    if (user == null) return;
 
-  try {
-    final token = await FirebaseMessaging.instance.getToken();
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
 
-    if (token == null || token.isEmpty) return;
+      if (token == null || token.isEmpty) return;
 
-    await _firestore.collection('users').doc(user.uid).set({
-      'fcmToken': token,
-      'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-  } catch (e) {
-    debugPrint('Error saving FCM token: $e');
+      await _firestore.collection('users').doc(user.uid).set({
+        'fcmToken': token,
+        'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Error saving FCM token: $e');
+    }
   }
-}
-
 
   static Future<void> deleteCurrentUserFcmToken() async {
     final user = _auth.currentUser;
@@ -825,10 +850,7 @@ static Future<void> saveCurrentUserFcmToken() async {
         .doc(_uid)
         .collection('notifications')
         .doc(notificationId)
-        .update({
-      'isRead': true,
-      'readAt': FieldValue.serverTimestamp(),
-    });
+        .update({'isRead': true, 'readAt': FieldValue.serverTimestamp()});
   }
 
   static Future<void> markAllNotificationsAsRead() async {

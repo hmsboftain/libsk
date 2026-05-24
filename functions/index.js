@@ -416,7 +416,7 @@ exports.createOrder = onCall(async (request) => {
       const serverPrice = Number(productData.price) || 0;
       verifiedSubtotal += serverPrice * quantity;
 
-      verifiedItems.push({
+      const verifiedItem = {
         productId,
         boutiqueId,
         title:        productData.title        || item.title       || "",
@@ -426,7 +426,12 @@ exports.createOrder = onCall(async (request) => {
         price:        serverPrice,
         quantity,
         boutiqueName: productData.boutiqueName || "",
-      });
+      };
+      const color = String(item.color || "").trim();
+      if (color) {
+        verifiedItem.color = color;
+      }
+      verifiedItems.push(verifiedItem);
     }
 
     const deliveryCost = deliveryMethod === "Regular Delivery" ? 3 : 5;

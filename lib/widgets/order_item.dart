@@ -58,6 +58,7 @@ class OrderItem {
         title: itemMap['title'] ?? '',
         description: itemMap['description'] ?? '',
         size: itemMap['size'] ?? '',
+        color: itemMap['color']?.toString() ?? '',
         price: price,
         quantity: quantity,
       );
@@ -121,25 +122,16 @@ class OrderItemWidget extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
-          color: AppColors.field,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.black12),
+          color: AppColors.card,
+          border: Border.all(color: AppColors.border, width: 0.5),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: const BoxDecoration(
-                color: Colors.transparent,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.shopping_bag_outlined,
-                color: Colors.black,
-                size: 26,
-              ),
+            const Icon(
+              Icons.shopping_bag_outlined,
+              color: AppColors.deepAccent,
+              size: 26,
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -147,35 +139,25 @@ class OrderItemWidget extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Order #$orderNumber",
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
+                    'Order #$orderNumber',
+                    style: AppTextStyles.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     safeDate,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
-                    ),
+                    style: AppTextStyles.bodySmall,
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    "$itemCount item${itemCount == 1 ? "" : "s"}",
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
+                    '$itemCount item${itemCount == 1 ? '' : 's'}',
+                    style: AppTextStyles.bodyMedium,
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    "${total.toStringAsFixed(0)} KWD",
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    '${total.toStringAsFixed(0)} KWD',
+                    style: AppTextStyles.labelLarge,
                   ),
                 ],
               ),
@@ -183,15 +165,14 @@ class OrderItemWidget extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.black12),
+                color: AppColors.field,
+                border: Border.all(color: AppColors.border, width: 0.5),
               ),
               child: Text(
                 status,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                style: AppTextStyles.labelSmall.copyWith(
+                  color: AppColors.primaryText,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),

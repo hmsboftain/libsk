@@ -9,6 +9,7 @@ class CartItem {
   final String title;
   final String description;
   final String size;
+  final String color;
   final double price;
   final int quantity;
 
@@ -20,6 +21,7 @@ class CartItem {
     required this.title,
     required this.description,
     required this.size,
+    this.color = '',
     required this.price,
     required this.quantity,
   });
@@ -33,6 +35,7 @@ class CartItem {
       title: data['title'] ?? '',
       description: data['description'] ?? '',
       size: data['size'] ?? '',
+      color: data['color']?.toString() ?? '',
       price: (data['price'] ?? 0).toDouble(),
       quantity: data['quantity'] ?? 1,
     );
@@ -40,10 +43,14 @@ class CartItem {
 }
 
 class CartItemWidget extends StatelessWidget {
+  static const double _imageWidth = 104;
+  static const double _imageHeight = 130; // 4:5
+
   final String imageUrl;
   final String title;
   final String description;
   final String size;
+  final String color;
   final double price;
   final int quantity;
   final VoidCallback onIncrease;
@@ -56,6 +63,7 @@ class CartItemWidget extends StatelessWidget {
     required this.title,
     required this.description,
     required this.size,
+    this.color = '',
     required this.price,
     required this.quantity,
     required this.onIncrease,
@@ -63,18 +71,46 @@ class CartItemWidget extends StatelessWidget {
     required this.onDelete,
   });
 
+  Widget _productImage() {
+    return Container(
+      width: _imageWidth,
+      height: _imageHeight,
+      decoration: BoxDecoration(
+        color: AppColors.imagePlaceholder,
+        border: Border.all(color: AppColors.border, width: 0.5),
+      ),
+      child: imageUrl.isNotEmpty
+          ? Image.network(
+              imageUrl,
+              width: _imageWidth,
+              height: _imageHeight,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return const Center(
+                  child: Icon(
+                    Icons.image_not_supported_outlined,
+                    color: AppColors.softAccent,
+                    size: 24,
+                  ),
+                );
+              },
+            )
+          : const Center(
+              child: Icon(
+                Icons.image_not_supported_outlined,
+                color: AppColors.softAccent,
+                size: 24,
+              ),
+            ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          "Item",
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.black26,
-          ),
-        ),
+        Text('Item', style: AppTextStyles.capsLabel),
         const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -82,48 +118,13 @@ class CartItemWidget extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: imageUrl.isNotEmpty
-                      ? Image.network(
-                    imageUrl,
-                    width: 130,
-                    height: 150,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 130,
-                        height: 150,
-                        color: AppColors.field,
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.image_not_supported_outlined,
-                          color: Colors.black54,
-                          size: 28,
-                        ),
-                      );
-                    },
-                  )
-                      : Container(
-                    width: 130,
-                    height: 150,
-                    color: AppColors.field,
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.image_not_supported_outlined,
-                      color: Colors.black54,
-                      size: 28,
-                    ),
-                  ),
-                ),
+                _productImage(),
                 const SizedBox(height: 8),
-                Text(
-                  "Size: $size",
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
-                  ),
-                ),
+                Text('Size: $size', style: AppTextStyles.bodyMedium),
+                if (color.trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text('Colour: $color', style: AppTextStyles.bodyMedium),
+                ],
               ],
             ),
             const SizedBox(width: 22),
@@ -133,58 +134,44 @@ class CartItemWidget extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                    style: AppTextStyles.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     description,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.secondaryText,
                       height: 1.35,
                     ),
                   ),
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      _quantityButton(
-                        icon: Icons.remove,
-                        onTap: onDecrease,
-                      ),
+                      _quantityButton(icon: Icons.remove, onTap: onDecrease),
                       const SizedBox(width: 10),
                       Text(
                         quantity.toString(),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: AppTextStyles.labelLarge,
                       ),
                       const SizedBox(width: 10),
-                      _quantityButton(
-                        icon: Icons.add,
-                        onTap: onIncrease,
-                      ),
+                      _quantityButton(icon: Icons.add, onTap: onIncrease),
                       const Spacer(),
                       GestureDetector(
                         onTap: onDelete,
                         child: const Icon(
                           Icons.delete_outline,
-                          size: 26,
-                          color: Colors.black87,
+                          size: 24,
+                          color: AppColors.deepAccent,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    "${price.toStringAsFixed(0)} KWD",
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    '${price.toStringAsFixed(0)} KWD',
+                    style: AppTextStyles.headingSmall,
                   ),
                 ],
               ),
@@ -206,14 +193,9 @@ class CartItemWidget extends StatelessWidget {
         height: 28,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.black26),
-          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: AppColors.border, width: 0.5),
         ),
-        child: Icon(
-          icon,
-          size: 18,
-          color: Colors.black54,
-        ),
+        child: Icon(icon, size: 18, color: AppColors.deepAccent),
       ),
     );
   }

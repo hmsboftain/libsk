@@ -60,7 +60,10 @@ class _CartPageState extends State<CartPage> {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
-                      child: CircularProgressIndicator(color: Colors.black),
+                      child: CircularProgressIndicator(
+                        color: AppColors.deepAccent,
+                        strokeWidth: 1.5,
+                      ),
                     );
                   }
 
@@ -68,7 +71,7 @@ class _CartPageState extends State<CartPage> {
                     return Center(
                       child: Text(
                         AppLocalizations.of(context)!.somethingWentWrong,
-                        style: const TextStyle(color: Colors.black54),
+                        style: AppTextStyles.bodySmall,
                       ),
                     );
                   }
@@ -89,19 +92,14 @@ class _CartPageState extends State<CartPage> {
                       Expanded(
                         child: SingleChildScrollView(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 22,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 22),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const SizedBox(height: 8),
                                 Text(
                                   AppLocalizations.of(context)!.cart,
-                                  style: const TextStyle(
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                                  style: AppTextStyles.headingLarge,
                                 ),
                                 const SizedBox(height: 18),
                                 if (cartItems.isEmpty)
@@ -109,12 +107,13 @@ class _CartPageState extends State<CartPage> {
                                     padding: const EdgeInsets.only(top: 40),
                                     child: Center(
                                       child: Text(
-                                        AppLocalizations.of(context)!
-                                            .yourCartIsEmpty,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          color: Colors.black54,
-                                        ),
+                                        AppLocalizations.of(
+                                          context,
+                                        )!.yourCartIsEmpty,
+                                        style: AppTextStyles.bodyMedium
+                                            .copyWith(
+                                              color: AppColors.secondaryText,
+                                            ),
                                       ),
                                     ),
                                   )
@@ -130,6 +129,7 @@ class _CartPageState extends State<CartPage> {
                                           title: item.title,
                                           description: item.description,
                                           size: item.size,
+                                          color: item.color,
                                           price: item.price,
                                           quantity: item.quantity,
                                           onIncrease: () async {
@@ -160,26 +160,23 @@ class _CartPageState extends State<CartPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Divider(
-                              color: Colors.black12,
-                              thickness: 1,
+                              color: AppColors.border,
+                              thickness: 0.5,
                             ),
                             const SizedBox(height: 18),
                             Row(
                               children: [
                                 Text(
                                   AppLocalizations.of(context)!.subtotal,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.black54,
+                                  style: AppTextStyles.labelLarge.copyWith(
+                                    color: AppColors.secondaryText,
                                   ),
                                 ),
                                 const Spacer(),
                                 Text(
                                   "${subtotal.toStringAsFixed(0)} KWD",
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
+                                  style: AppTextStyles.bodyLarge.copyWith(
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],
@@ -188,11 +185,10 @@ class _CartPageState extends State<CartPage> {
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                AppLocalizations.of(context)!
-                                    .shippingChargesAndDiscountCodesCalculatedAtCheckout,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.black54,
+                                AppLocalizations.of(
+                                  context,
+                                )!.shippingChargesAndDiscountCodesCalculatedAtCheckout,
+                                style: AppTextStyles.bodySmall.copyWith(
                                   height: 1.3,
                                 ),
                               ),
@@ -205,59 +201,56 @@ class _CartPageState extends State<CartPage> {
                                 onPressed: cartItems.isEmpty
                                     ? null
                                     : () async {
-                                  final user =
-                                      FirebaseAuth.instance.currentUser;
+                                        final user =
+                                            FirebaseAuth.instance.currentUser;
 
-                                  if (user == null) {
-                                    final result = await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                        const LoginPage(),
-                                      ),
-                                    );
+                                        if (user == null) {
+                                          final result = await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const LoginPage(),
+                                            ),
+                                          );
 
-                                    if (result == true && context.mounted) {
-                                      await FirestoreService
-                                          .mergeGuestCartToUser();
+                                          if (result == true &&
+                                              context.mounted) {
+                                            await FirestoreService.mergeGuestCartToUser();
 
-                                      if (!context.mounted) return;
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                          const CheckoutPage(),
-                                        ),
-                                      );
-                                    }
-                                  } else {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                        const CheckoutPage(),
-                                      ),
-                                    );
-                                  }
-                                },
+                                            if (!context.mounted) return;
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    const CheckoutPage(),
+                                              ),
+                                            );
+                                          }
+                                        } else {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const CheckoutPage(),
+                                            ),
+                                          );
+                                        }
+                                      },
                                 icon: const Icon(
                                   Icons.shopping_bag_outlined,
                                   size: 28,
                                 ),
                                 label: Text(
                                   AppLocalizations.of(context)!.checkoutButton,
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                  style: AppTextStyles.button,
                                 ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.black,
+                                  backgroundColor: AppColors.deepAccent,
                                   foregroundColor: Colors.white,
-                                  disabledBackgroundColor: Colors.black26,
+                                  disabledBackgroundColor: AppColors.softAccent,
                                   disabledForegroundColor: Colors.white70,
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
                               ),

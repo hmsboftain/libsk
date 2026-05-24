@@ -158,6 +158,11 @@ function isValidProduct() {
       allow delete: if isSuperAdmin();
     }
 
+    match /hero_banners/{bannerId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     match /{path=**}/products/{productId} {
       allow read: if true;
     }

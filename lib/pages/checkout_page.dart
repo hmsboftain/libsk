@@ -95,19 +95,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final navigator = Navigator.of(context);
 
     if (cartItems.isEmpty) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(loc.yourCartIsEmpty),
-        ),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(loc.yourCartIsEmpty)));
       return;
     }
 
     if (!hasAddress) {
       messenger.showSnackBar(
-        SnackBar(
-          content: Text(loc.pleaseAddADeliveryAddress),
-        ),
+        SnackBar(content: Text(loc.pleaseAddADeliveryAddress)),
       );
       return;
     }
@@ -153,7 +147,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       );
 
       final List<Map<String, dynamic>> orderItems = cartItems.map((item) {
-        return {
+        final map = <String, dynamic>{
           'productId': item.productId,
           'boutiqueId': item.boutiqueId,
           'title': item.title,
@@ -163,6 +157,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'price': item.price,
           'quantity': item.quantity,
         };
+        final color = item.color.trim();
+        if (color.isNotEmpty) {
+          map['color'] = color;
+        }
+        return map;
       }).toList();
 
       final orderNumber = await FirestoreService.createOrder(
@@ -182,9 +181,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       navigator.push(
         MaterialPageRoute(
-          builder: (context) => OrderConfirmationPage(
-            orderNumber: orderNumber,
-          ),
+          builder: (context) => OrderConfirmationPage(orderNumber: orderNumber),
         ),
       );
     } on StripeException catch (e) {
@@ -192,9 +189,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       messenger.showSnackBar(
         SnackBar(
-          content: Text(
-            e.error.localizedMessage ?? loc.paymentCancelled,
-          ),
+          content: Text(e.error.localizedMessage ?? loc.paymentCancelled),
         ),
       );
     } catch (e) {
@@ -206,9 +201,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           ? e.toString().replaceFirst('Exception: ', '')
           : 'Something went wrong. Please try again.';
 
-      messenger.showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() => isPlacingOrder = false);
@@ -227,7 +220,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
           child: Center(
             child: Text(
               AppLocalizations.of(context)!.pleaseLogInToContinueToCheckout,
-              style: const TextStyle(fontSize: 16, color: Colors.black54),
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.secondaryText,
+              ),
             ),
           ),
         ),
@@ -235,7 +230,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     }
 
     final fullName =
-    user.displayName != null && user.displayName!.trim().isNotEmpty
+        user.displayName != null && user.displayName!.trim().isNotEmpty
         ? user.displayName!
         : AppLocalizations.of(context)!.user;
 
@@ -249,7 +244,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
           builder: (context, cartSnapshot) {
             if (cartSnapshot.connectionState == ConnectionState.waiting) {
               return const Center(
-                child: CircularProgressIndicator(color: Colors.black),
+                child: CircularProgressIndicator(
+                  color: AppColors.deepAccent,
+                  strokeWidth: 1.5,
+                ),
               );
             }
 
@@ -257,7 +255,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
               return Center(
                 child: Text(
                   "${AppLocalizations.of(context)!.couldNotLoadCart}: ${cartSnapshot.error}",
-                  style: const TextStyle(fontSize: 16, color: Colors.black54),
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.secondaryText,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               );
@@ -295,21 +295,19 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             Center(
                               child: Text(
                                 AppLocalizations.of(context)!.checkout,
-                                style: const TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                                style: AppTextStyles.headingLarge,
                               ),
                             ),
                             const SizedBox(height: 6),
-                            const Divider(),
+                            const Divider(
+                              color: AppColors.border,
+                              thickness: 0.5,
+                            ),
                             const SizedBox(height: 18),
                             Text(
                               AppLocalizations.of(context)!.accountDetails,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.black54,
-                                fontWeight: FontWeight.w600,
+                              style: AppTextStyles.capsLabel.copyWith(
+                                color: AppColors.secondaryText,
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -320,37 +318,31 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                 vertical: 16,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(10),
+                                color: AppColors.field,
+                                border: Border.all(
+                                  color: AppColors.border,
+                                  width: 0.5,
+                                ),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     fullName,
-                                    style: const TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w600,
+                                    style: AppTextStyles.bodyLarge.copyWith(
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  Text(
-                                    email,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.black54,
-                                    ),
-                                  ),
+                                  Text(email, style: AppTextStyles.bodySmall),
                                 ],
                               ),
                             ),
                             const SizedBox(height: 28),
                             Text(
                               AppLocalizations.of(context)!.deliveryAddress,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.black54,
-                                fontWeight: FontWeight.w600,
+                              style: AppTextStyles.capsLabel.copyWith(
+                                color: AppColors.secondaryText,
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -359,7 +351,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 8),
                                 child: Center(
-                                  child: CircularProgressIndicator(),
+                                  child: CircularProgressIndicator(
+                                    color: AppColors.deepAccent,
+                                    strokeWidth: 1.5,
+                                  ),
                                 ),
                               )
                             else if (addressSnapshot.hasError)
@@ -367,9 +362,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                 padding: const EdgeInsets.only(bottom: 16),
                                 child: Text(
                                   "${AppLocalizations.of(context)!.couldNotLoadSavedAddresses}: ${addressSnapshot.error}",
-                                  style: const TextStyle(
-                                    color: Colors.black54,
-                                  ),
+                                  style: AppTextStyles.bodySmall,
                                 ),
                               )
                             else
@@ -385,19 +378,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             const SizedBox(height: 28),
                             Text(
                               AppLocalizations.of(context)!.deliveryMethod,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.black54,
-                                fontWeight: FontWeight.w600,
+                              style: AppTextStyles.capsLabel.copyWith(
+                                color: AppColors.secondaryText,
                               ),
                             ),
                             const SizedBox(height: 12),
                             Container(
-                              padding:
-                              const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(10),
+                                color: AppColors.field,
+                                border: Border.all(
+                                  color: AppColors.border,
+                                  width: 0.5,
+                                ),
                               ),
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String>(
@@ -408,15 +403,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     DropdownMenuItem(
                                       value: "Regular Delivery",
                                       child: Text(
-                                        AppLocalizations.of(context)!
-                                            .regularDelivery,
+                                        AppLocalizations.of(
+                                          context,
+                                        )!.regularDelivery,
                                       ),
                                     ),
                                     DropdownMenuItem(
                                       value: "Same Day Delivery",
                                       child: Text(
-                                        AppLocalizations.of(context)!
-                                            .sameDayDelivery,
+                                        AppLocalizations.of(
+                                          context,
+                                        )!.sameDayDelivery,
                                       ),
                                     ),
                                   ],
@@ -425,7 +422,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       setState(() {
                                         deliveryMethod = value;
                                         deliveryCost =
-                                        value == "Regular Delivery" ? 3 : 5;
+                                            value == "Regular Delivery" ? 3 : 5;
                                       });
                                     }
                                   },
@@ -435,19 +432,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             const SizedBox(height: 28),
                             Text(
                               AppLocalizations.of(context)!.paymentMethod,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.black54,
-                                fontWeight: FontWeight.w600,
+                              style: AppTextStyles.capsLabel.copyWith(
+                                color: AppColors.secondaryText,
                               ),
                             ),
                             const SizedBox(height: 12),
                             Container(
-                              padding:
-                              const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(10),
+                                color: AppColors.field,
+                                border: Border.all(
+                                  color: AppColors.border,
+                                  width: 0.5,
+                                ),
                               ),
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String>(
@@ -473,7 +472,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               ),
                             ),
                             const SizedBox(height: 40),
-                            const Divider(),
+                            const Divider(
+                              color: AppColors.border,
+                              thickness: 0.5,
+                            ),
                             const SizedBox(height: 20),
                             buildTotalRow(
                               AppLocalizations.of(context)!.subtotal,
@@ -485,7 +487,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               "${deliveryCost.toStringAsFixed(0)} KWD",
                             ),
                             const SizedBox(height: 12),
-                            const Divider(),
+                            const Divider(
+                              color: AppColors.border,
+                              thickness: 0.5,
+                            ),
                             const SizedBox(height: 12),
                             buildTotalRow(
                               AppLocalizations.of(context)!.total,
@@ -504,41 +509,35 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         onPressed: isPlacingOrder
                             ? null
                             : () {
-                          _placeOrder(
-                            cartItems: cartItems,
-                            total: total,
-                            hasAddress: hasAddress,
-                          );
-                        },
+                                _placeOrder(
+                                  cartItems: cartItems,
+                                  total: total,
+                                  hasAddress: hasAddress,
+                                );
+                              },
                         icon: isPlacingOrder
                             ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                            : const Icon(
-                          Icons.shopping_bag_outlined,
-                          size: 28,
-                        ),
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.shopping_bag_outlined, size: 28),
                         label: Text(
                           isPlacingOrder
                               ? AppLocalizations.of(context)!.placingOrder
                               : AppLocalizations.of(context)!.placeOrder,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: AppTextStyles.button,
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
+                          backgroundColor: AppColors.deepAccent,
                           foregroundColor: Colors.white,
-                          disabledBackgroundColor: Colors.black54,
+                          disabledBackgroundColor: AppColors.softAccent,
                           disabledForegroundColor: Colors.white,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
                       ),
@@ -558,9 +557,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       onTap: () async {
         await Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => const AddAddressPage(),
-          ),
+          MaterialPageRoute(builder: (context) => const AddAddressPage()),
         );
 
         if (mounted) setState(() {});
@@ -569,8 +566,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
         decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(10),
+          color: AppColors.field,
+          border: Border.all(color: AppColors.border, width: 0.5),
         ),
         child: Row(
           children: [
@@ -578,10 +575,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
               hasAddress
                   ? AppLocalizations.of(context)!.changeDeliveryAddress
                   : AppLocalizations.of(context)!.addDeliveryAddress,
-              style: const TextStyle(fontSize: 15),
+              style: AppTextStyles.bodyMedium,
             ),
             const Spacer(),
-            const Icon(Icons.add),
+            const Icon(Icons.add, color: AppColors.primaryText),
           ],
         ),
       ),
@@ -594,16 +591,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
       children: [
         Text(
           "${address["firstName"]} ${address["lastName"]}",
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 4),
         Text(
           "${AppLocalizations.of(context)!.block} ${address["block"]} "
-              "${AppLocalizations.of(context)!.street} ${address["street"]} "
-              "${AppLocalizations.of(context)!.house} ${address["house"]}",
+          "${AppLocalizations.of(context)!.street} ${address["street"]} "
+          "${AppLocalizations.of(context)!.house} ${address["house"]}",
+          style: AppTextStyles.bodyMedium,
         ),
-        Text("${address["area"]} ${address["governorate"]}"),
-        Text(address["phone"] ?? ""),
+        Text(
+          "${address["area"]} ${address["governorate"]}",
+          style: AppTextStyles.bodyMedium,
+        ),
+        Text(address["phone"] ?? "", style: AppTextStyles.bodyMedium),
       ],
     );
   }
@@ -613,18 +614,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-          ),
+          style: bold
+              ? AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w500)
+              : AppTextStyles.bodyMedium,
         ),
         const Spacer(),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-          ),
+          style: bold
+              ? AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w500)
+              : AppTextStyles.bodyMedium,
         ),
       ],
     );
