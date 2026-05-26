@@ -14,6 +14,14 @@ class SavedAddressesPage extends StatefulWidget {
 }
 
 class _SavedAddressesPageState extends State<SavedAddressesPage> {
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _addressesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _addressesStream = FirestoreService.getSavedAddressesStream();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -31,7 +39,7 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
             const Divider(height: 1, thickness: 0.5),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirestoreService.getSavedAddressesStream(),
+                stream: _addressesStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(

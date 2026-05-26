@@ -1,10 +1,10 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import '../navigation/app_header.dart';
+import '../services/storage_service.dart';
 import '../widgets/theme.dart';
 
 class HeroBannerManagementPage extends StatefulWidget {
@@ -21,6 +21,17 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
   final _ctaController = TextEditingController();
   File? _selectedImage;
   bool isUploading = false;
+
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _bannersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _bannersStream = FirebaseFirestore.instance
+        .collection('hero_banners')
+        .orderBy('order')
+        .snapshots();
+  }
 
   @override
   void dispose() {
@@ -62,6 +73,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
     );
 
     if (croppedFile == null) return;
+    if (!mounted) return;
     setState(() => _selectedImage = File(croppedFile.path));
   }
 
@@ -76,14 +88,10 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
     setState(() => isUploading = true);
 
     try {
-      final fileName = DateTime.now().millisecondsSinceEpoch.toString();
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('hero_banners')
-          .child('$fileName.jpg');
-
-      await ref.putFile(_selectedImage!);
-      final imageUrl = await ref.getDownloadURL();
+      final imageUrl = await StorageService.uploadImage(
+        _selectedImage!,
+        'hero_banners',
+      );
 
       final existing = await FirebaseFirestore.instance
           .collection('hero_banners')
@@ -168,9 +176,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
           .collection('hero_banners')
           .doc(docId)
           .delete();
-      try {
-        await FirebaseStorage.instance.refFromURL(imageUrl).delete();
-      } catch (_) {}
+      await StorageService.deleteImageByUrl(imageUrl);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -235,10 +241,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
 
                     // ── Live preview ────────────────────────────────
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: FirebaseFirestore.instance
-                          .collection('hero_banners')
-                          .orderBy('order')
-                          .snapshots(),
+                      stream: _bannersStream,
                       builder: (context, snapshot) {
                         final banners = (snapshot.data?.docs ?? [])
                             .where((doc) => doc.data()['isActive'] == true)
@@ -277,10 +280,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                     Text('ALL BANNERS', style: AppTextStyles.capsLabel),
                     const SizedBox(height: 10),
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: FirebaseFirestore.instance
-                          .collection('hero_banners')
-                          .orderBy('order')
-                          .snapshots(),
+                      stream: _bannersStream,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {

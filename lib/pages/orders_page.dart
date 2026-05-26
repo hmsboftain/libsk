@@ -7,6 +7,8 @@ import '../services/firestore_service.dart';
 import '../widgets/order_item.dart';
 import 'order_details_page.dart';
 import 'login_page.dart';
+import '../widgets/error_state_widget.dart';
+import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 
 class OrdersPage extends StatefulWidget {
@@ -17,6 +19,17 @@ class OrdersPage extends StatefulWidget {
 }
 
 class _OrdersPageState extends State<OrdersPage> {
+  // Nullable so we can skip the Firestore subscription entirely for guests.
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _ordersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    if (FirebaseAuth.instance.currentUser != null) {
+      _ordersStream = FirestoreService.getOrdersStream();
+    }
+  }
+
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'delivered':
@@ -48,30 +61,21 @@ class _OrdersPageState extends State<OrdersPage> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 32),
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Icon(
                               Icons.receipt_long_outlined,
-                              size: 60,
+                              size: 36,
                               color: AppColors.softAccent,
                             ),
-                            const SizedBox(height: 18),
+                            const SizedBox(height: 16),
                             Text(
-                              AppLocalizations.of(context)!
-                                  .signInToViewYourOrders,
+                              'Sign in to view your orders',
                               textAlign: TextAlign.center,
-                              style: AppTextStyles.bodyLarge.copyWith(
-                                color: AppColors.secondaryText,
-                              ),
+                              style: AppTextStyles.headingSmall,
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              AppLocalizations.of(context)!
-                                  .orderHistoryWillAppearWhenLoggedIn,
-                              textAlign: TextAlign.center,
-                              style: AppTextStyles.bodySmall,
-                            ),
-                            const SizedBox(height: 30),
+                            const SizedBox(height: 24),
                             SizedBox(
                               width: double.infinity,
                               height: 50,
@@ -84,7 +88,10 @@ class _OrdersPageState extends State<OrdersPage> {
                                     ),
                                   );
                                   if (result == true && mounted) {
-                                    setState(() {});
+                                    setState(() {
+                                      _ordersStream = FirestoreService
+                                          .getOrdersStream();
+                                    });
                                   }
                                 },
                                 style: ElevatedButton.styleFrom(
@@ -95,8 +102,8 @@ class _OrdersPageState extends State<OrdersPage> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                child: Text(
-                                  AppLocalizations.of(context)!.signIn,
+                                child: const Text(
+                                  'Sign In',
                                   style: AppTextStyles.button,
                                 ),
                               ),
@@ -106,26 +113,19 @@ class _OrdersPageState extends State<OrdersPage> {
                       ),
                     )
                   : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: FirestoreService.getOrdersStream(),
+                      stream: _ordersStream,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(
-                              color: AppColors.deepAccent,
-                              strokeWidth: 1.5,
-                            ),
-                          );
+                          return const OrdersListSkeleton();
                         }
 
                         if (snapshot.hasError) {
-                          return Center(
-                            child: Text(
-                              AppLocalizations.of(context)!.couldNotLoadOrders,
-                              style: AppTextStyles.bodyMedium.copyWith(
-                                color: AppColors.secondaryText,
-                              ),
-                            ),
+                          return ErrorStateWidget.inline(
+                            title: 'Something went wrong',
+                            message: 'Pull down to retry',
+                            onRetry: () => setState(() {}),
+                            type: ErrorType.network,
                           );
                         }
 

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../core/utils/validators.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
 
@@ -254,16 +255,40 @@ class _SignUpPageState extends State<SignUpPage> {
   Future<void> createAccount() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final firstName = firstNameController.text.trim();
+    final lastName = lastNameController.text.trim();
+    final phone = phoneController.text.trim();
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    // Centralised validation in addition to the per-field validators so the
+    // server never receives values that violate length / format limits.
+    final preflight = Validators.combine(firstName, [
+          (v) => Validators.required(v, 'First name'),
+          (v) => Validators.maxLength(v, 50, 'First name'),
+        ]) ??
+        Validators.combine(lastName, [
+          (v) => Validators.required(v, 'Last name'),
+          (v) => Validators.maxLength(v, 50, 'Last name'),
+        ]) ??
+        Validators.email(email) ??
+        Validators.phone(phone) ??
+        Validators.combine(password, [
+          (v) => Validators.required(v, 'Password'),
+          (v) => Validators.minLength(v, 8, 'Password'),
+        ]);
+    if (preflight != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(preflight)),
+      );
+      return;
+    }
+
     setState(() {
       isLoading = true;
     });
 
     try {
-      final firstName = firstNameController.text.trim();
-      final lastName = lastNameController.text.trim();
-      final phone = phoneController.text.trim();
-      final email = emailController.text.trim();
-      final password = passwordController.text.trim();
       final fullName = '$firstName $lastName'.trim();
 
       // create firebase auth account

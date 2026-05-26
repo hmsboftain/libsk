@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
+import '../services/storage_service.dart';
 import 'package:image_cropper/image_cropper.dart';
 import '../widgets/theme.dart';
 
@@ -52,12 +52,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
 
   Future<void> deleteOldImage(String? imageUrl) async {
     if (imageUrl == null || imageUrl.isEmpty) return;
-
-    try {
-      await FirebaseStorage.instance.refFromURL(imageUrl).delete();
-    } catch (e) {
-      debugPrint('Failed to delete old image: $e');
-    }
+    await StorageService.deleteImageByUrl(imageUrl);
   }
 
   Future<File?> cropBannerImage(String imagePath) async {
@@ -184,22 +179,6 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
     }
   }
 
-  Future<String> uploadImageToStorage({
-    required File imageFile,
-    required String folderName,
-  }) async {
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-    final ref = FirebaseStorage.instance.ref().child(folderName).child(fileName);
-
-    final metadata = SettableMetadata(
-      contentType: 'image/jpeg',
-    );
-
-    await ref.putFile(imageFile, metadata);
-    return await ref.getDownloadURL();
-  }
-
   Future<void> saveBoutiqueChanges() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -215,16 +194,16 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
       final oldBannerUrl = currentBannerUrl;
 
       if (selectedLogoImage != null) {
-        logoUrl = await uploadImageToStorage(
-          imageFile: selectedLogoImage!,
-          folderName: 'boutique_logos',
+        logoUrl = await StorageService.uploadImage(
+          selectedLogoImage!,
+          'boutique_logos',
         );
       }
 
       if (selectedBannerImage != null) {
-        bannerUrl = await uploadImageToStorage(
-          imageFile: selectedBannerImage!,
-          folderName: 'boutique_banners',
+        bannerUrl = await StorageService.uploadImage(
+          selectedBannerImage!,
+          'boutique_banners',
         );
       }
 

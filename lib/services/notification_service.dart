@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import '../firebase_options.dart';
 import 'firestore_service.dart';
 
@@ -40,11 +41,11 @@ class NotificationService {
       // Save device token to Firestore
       try {
         final token = await _messaging.getToken();
-        print('FCM Token: $token');
+        debugPrint('FCM Token: $token');
 
         await FirestoreService.saveCurrentUserFcmToken();
       } catch (e) {
-        print('FCM token error: $e');
+        debugPrint('FCM token error: $e');
       }
 
       // Token refresh listener
@@ -52,7 +53,7 @@ class NotificationService {
         try {
           await FirestoreService.saveCurrentUserFcmToken();
         } catch (e) {
-          print('FCM refresh save error: $e');
+          debugPrint('FCM refresh save error: $e');
         }
       });
 
@@ -74,7 +75,7 @@ class NotificationService {
         // Handle initial message
       }
     } catch (e) {
-      print('Notification service error: $e');
+      debugPrint('Notification service error: $e');
     }
   }
 }

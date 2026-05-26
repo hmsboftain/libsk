@@ -1,12 +1,14 @@
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../core/constants/app_categories.dart';
+import '../core/utils/validators.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
+import '../services/storage_service.dart';
 import '../widgets/theme.dart';
 
 class EditProductPage extends StatefulWidget {
@@ -34,24 +36,6 @@ class _EditProductPageState extends State<EditProductPage> {
       TextEditingController();
   final TextEditingController sizeNameController = TextEditingController();
   final TextEditingController sizeStockController = TextEditingController();
-
-  static const List<String> availableCategories = [
-    'Abaya',
-    'Blazers',
-    'Blouses & Shirts',
-    'Casual Wear',
-    'Coats',
-    'Dresses',
-    "Dra'a",
-    'Gowns',
-    'Jackets',
-    'Jumpsuits',
-    'Office Attire',
-    'Pants',
-    'Shoes',
-    'Skirts',
-    'Tops',
-  ];
 
   bool isLoading = false;
   bool madeToOrder = false;
@@ -177,6 +161,7 @@ class _EditProductPageState extends State<EditProductPage> {
 
       if (images.isEmpty) return;
 
+      if (!mounted) return;
       setState(() {
         selectedNewImages.addAll(images.map((image) => File(image.path)));
       });
@@ -186,36 +171,6 @@ class _EditProductPageState extends State<EditProductPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to pick images')),
       );
-    }
-  }
-
-  Future<String> uploadImageToStorage(File imageFile) async {
-    final fileName = DateTime.now().millisecondsSinceEpoch.toString();
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('product_images')
-        .child('$fileName.jpg');
-
-    await ref.putFile(imageFile);
-    return ref.getDownloadURL();
-  }
-
-  Future<List<String>> uploadImagesToStorage(List<File> images) async {
-    final List<String> urls = [];
-
-    for (final image in images) {
-      final url = await uploadImageToStorage(image);
-      urls.add(url);
-    }
-
-    return urls;
-  }
-
-  Future<void> deleteImageFromStorage(String imageUrl) async {
-    try {
-      await FirebaseStorage.instance.refFromURL(imageUrl).delete();
-    } catch (e) {
-      debugPrint('Failed to delete old product image: $e');
     }
   }
 
@@ -284,6 +239,26 @@ class _EditProductPageState extends State<EditProductPage> {
   Future<void> updateProduct() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final title = titleController.text.trim();
+    final description = descriptionController.text.trim();
+    final priceText = priceController.text.trim();
+
+    final preflight = Validators.combine(title, [
+          (v) => Validators.required(v, 'Title'),
+          (v) => Validators.maxLength(v, 100, 'Title'),
+        ]) ??
+        Validators.combine(description, [
+          (v) => Validators.required(v, 'Description'),
+          (v) => Validators.maxLength(v, 2000, 'Description'),
+        ]) ??
+        Validators.price(priceText);
+    if (preflight != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(preflight)),
+      );
+      return;
+    }
+
     if (currentImageUrls.isEmpty && selectedNewImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please add at least one product image')),
@@ -300,7 +275,7 @@ class _EditProductPageState extends State<EditProductPage> {
 
     if (sizeEntries.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one size with stock')),
+        const SnackBar(content: Text('Please add at least one size')),
       );
       return;
     }
@@ -323,9 +298,7 @@ class _EditProductPageState extends State<EditProductPage> {
         throw Exception('No boutique found for current owner');
       }
 
-      final title = titleController.text.trim();
-      final description = descriptionController.text.trim();
-      final price = double.parse(priceController.text.trim());
+      final price = double.parse(priceText);
 
       final sizes = sizeEntries
           .map((entry) => entry['name']?.toString() ?? '')
@@ -337,7 +310,10 @@ class _EditProductPageState extends State<EditProductPage> {
         (total, entry) => total + ((entry['stock'] as int?) ?? 0),
       );
 
-      final uploadedNewUrls = await uploadImagesToStorage(selectedNewImages);
+      final uploadedNewUrls = await StorageService.uploadImages(
+        selectedNewImages,
+        'product_images',
+      );
       final allImageUrls = [...currentImageUrls, ...uploadedNewUrls];
       final mainImageUrl = allImageUrls.first;
 
@@ -364,7 +340,7 @@ class _EditProductPageState extends State<EditProductPage> {
       });
 
       for (final imageUrl in imagesToDelete) {
-        await deleteImageFromStorage(imageUrl);
+        await StorageService.deleteImageByUrl(imageUrl);
       }
 
       if (!mounted) return;
@@ -640,14 +616,14 @@ class _EditProductPageState extends State<EditProductPage> {
           ),
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: availableCategories.length,
+            itemCount: AppCategories.all.length,
             separatorBuilder: (_, __) => const Divider(
               height: 1,
               thickness: 0.5,
               color: AppColors.border,
             ),
             itemBuilder: (context, index) {
-              final category = availableCategories[index];
+              final category = AppCategories.all[index];
               final isSelected = selectedCategories.contains(category);
 
               return Material(

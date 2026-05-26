@@ -1,10 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../models/product.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
+import '../services/storage_service.dart';
 import 'edit_product_page.dart';
 import '../widgets/theme.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 
 class OwnerProductsPage extends StatefulWidget {
   const OwnerProductsPage({super.key});
@@ -122,11 +123,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
       await productRef.delete();
 
       for (final image in imageUrls) {
-        try {
-          await FirebaseStorage.instance.refFromURL(image).delete();
-        } catch (e) {
-          debugPrint('Failed to delete product image: $e');
-        }
+        await StorageService.deleteImageByUrl(image);
       }
 
       if (!mounted) return;
@@ -261,34 +258,19 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                         itemBuilder: (context, index) {
                                           final doc = docs[index];
                                           final data = doc.data();
+                                          final product =
+                                              Product.fromFirestore(doc);
 
-                                          final title =
-                                              data['title'] ?? 'No title';
+                                          final title = product.title.isNotEmpty
+                                              ? product.title
+                                              : 'No title';
                                           final description =
-                                              data['description'] ??
-                                              'No description';
-                                          final imageUrl =
-                                              data['imageUrl']?.toString() ??
-                                              '';
-                                          final imageUrlsData =
-                                              data['imageUrls'];
-
-                                          final List<String> imageUrls =
-                                              imageUrlsData is List
-                                              ? imageUrlsData
-                                                    .map(
-                                                      (image) =>
-                                                          image.toString(),
-                                                    )
-                                                    .toList()
-                                              : imageUrl.isNotEmpty
-                                              ? [imageUrl]
-                                              : [];
+                                              product.description.isNotEmpty
+                                              ? product.description
+                                              : 'No description';
 
                                           final displayImageUrl =
-                                              imageUrls.isNotEmpty
-                                              ? imageUrls.first
-                                              : imageUrl;
+                                              product.displayImageUrl;
 
                                           final price = data['price'];
                                           final stock = data['stock'];
@@ -416,8 +398,9 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                                                     ),
                                                                   ),
                                                                 );
-                                                                if (!mounted)
+                                                                if (!mounted) {
                                                                   return;
+                                                                }
                                                                 setState(() {});
                                                               },
                                                               child: const Text(

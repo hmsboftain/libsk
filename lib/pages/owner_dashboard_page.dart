@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../models/product.dart';
 import '../services/firestore_service.dart';
 import '../navigation/app_header.dart';
 import 'owner_products_page.dart';
@@ -582,17 +583,12 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                   crossAxisAlignment:
                                   CrossAxisAlignment.start,
                                   children: productDocs.take(3).map((doc) {
-                                    final data = doc.data();
-                                    final title = data['title']
-                                        ?.toString() ??
-                                        'Untitled Product';
-                                    final stockValue = data['stock'] ?? 0;
-
-                                    final int stock = stockValue is int
-                                        ? stockValue
-                                        : int.tryParse(
-                                        stockValue.toString()) ??
-                                        0;
+                                    final product =
+                                        Product.fromFirestore(doc);
+                                    final title = product.title.isNotEmpty
+                                        ? product.title
+                                        : 'Untitled Product';
+                                    final stock = product.stock;
 
                                     String subtitle;
                                     String count;

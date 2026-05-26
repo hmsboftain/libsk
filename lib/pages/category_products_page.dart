@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../models/product.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
 import 'product_page.dart';
@@ -25,8 +26,14 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
 
   // Fetch ALL products — filter client-side to handle both
   // old String format and new List format
-  Stream<QuerySnapshot<Map<String, dynamic>>> get _stream =>
-      FirebaseFirestore.instance.collectionGroup('products').snapshots();
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream =
+        FirebaseFirestore.instance.collectionGroup('products').snapshots();
+  }
 
   bool _matchesCategory(Map<String, dynamic> data) {
     if (widget.category == null) return true; // All
@@ -193,38 +200,8 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                               index,
                             ) {
                               final doc = docs[index];
-                              final data = doc.data();
-                              final productId = doc.id;
-                              final boutiqueId =
-                                  doc.reference.parent.parent?.id ?? '';
-                              final title = data['title']?.toString() ?? '';
-                              final description =
-                                  data['description']?.toString() ?? '';
-                              final boutiqueName =
-                                  data['boutiqueName']?.toString() ?? '';
-                              final imageUrl =
-                                  data['imageUrl']?.toString() ?? '';
-                              final imageUrlsData = data['imageUrls'];
-                              final List<String> imageUrls =
-                                  imageUrlsData is List
-                                  ? imageUrlsData
-                                        .map((e) => e.toString())
-                                        .toList()
-                                  : imageUrl.isNotEmpty
-                                  ? [imageUrl]
-                                  : [];
-                              final displayImageUrl = imageUrls.isNotEmpty
-                                  ? imageUrls.first
-                                  : imageUrl;
-                              final double price = _price(data);
-                              final stockValue = data['stock'] ?? 0;
-                              final int stock = stockValue is int
-                                  ? stockValue
-                                  : int.tryParse(stockValue.toString()) ?? 0;
-                              final sizesData = data['sizes'];
-                              final List<String> sizes = sizesData is List
-                                  ? sizesData.map((e) => e.toString()).toList()
-                                  : [];
+                              final product = Product.fromFirestore(doc);
+                              final displayImageUrl = product.displayImageUrl;
 
                               return GestureDetector(
                                 onTap: () {
@@ -232,16 +209,16 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => ProductPage(
-                                        productId: productId,
-                                        boutiqueId: boutiqueId,
+                                        productId: product.id,
+                                        boutiqueId: product.boutiqueId,
                                         imageUrl: displayImageUrl,
-                                        imageUrls: imageUrls,
-                                        title: title,
-                                        price: price,
-                                        description: description,
-                                        sizes: sizes,
-                                        stock: stock,
-                                        boutiqueName: boutiqueName,
+                                        imageUrls: product.imageUrls,
+                                        title: product.title,
+                                        price: product.price,
+                                        description: product.description,
+                                        sizes: product.sizes,
+                                        stock: product.stock,
+                                        boutiqueName: product.boutiqueName,
                                       ),
                                     ),
                                   );
@@ -287,21 +264,21 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      boutiqueName.toUpperCase(),
+                                      product.boutiqueName.toUpperCase(),
                                       style: AppTextStyles.capsLabel,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
-                                      title,
+                                      product.title,
                                       style: AppTextStyles.headingSmall,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     const SizedBox(height: 5),
                                     Text(
-                                      'KD ${price.toStringAsFixed(0)}',
+                                      'KD ${product.price.toStringAsFixed(0)}',
                                       style: AppTextStyles.labelLarge,
                                     ),
                                     const SizedBox(height: 8),

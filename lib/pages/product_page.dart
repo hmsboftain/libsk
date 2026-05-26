@@ -4,6 +4,7 @@ import 'package:libsk/l10n/app_localizations.dart';
 
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
+import '../widgets/error_state_widget.dart';
 import '../widgets/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -52,18 +53,17 @@ class _ProductPageState extends State<ProductPage> {
   bool liked = false;
   bool isLoadingLike = true;
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>> get _productStream {
-    return _firestore
+  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _productStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _productStream = _firestore
         .collection('boutiques')
         .doc(widget.boutiqueId)
         .collection('products')
         .doc(widget.productId)
         .snapshots();
-  }
-
-  @override
-  void initState() {
-    super.initState();
     loadSavedStatus();
   }
 
@@ -385,13 +385,27 @@ class _ProductPageState extends State<ProductPage> {
           duration: const Duration(seconds: 1),
         ),
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+
+      final loc = AppLocalizations.of(context)!;
+      // Prefer the actual server-side message (e.g. stock unavailable, rate
+      // limited) so the user understands the failure.
+      final detail = e is Exception
+          ? e.toString().replaceFirst('Exception: ', '')
+          : null;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context)!.somethingWentWrong),
-          duration: const Duration(seconds: 1),
+          backgroundColor: AppColors.primaryText,
+          content: Text(
+            (detail == null || detail.isEmpty)
+                ? loc.somethingWentWrong
+                : detail,
+            style: AppTextStyles.bodyMedium
+                .copyWith(color: AppColors.background),
+          ),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -802,16 +816,18 @@ class _ProductPageState extends State<ProductPage> {
             }
 
             if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    AppLocalizations.of(context)!.somethingWentWrong,
-                    style: AppTextStyles.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+              return ErrorStateWidget.inline(
+                title: 'Something went wrong',
+                message: AppLocalizations.of(context)!.somethingWentWrong,
+                onRetry: () => setState(() {}),
+                type: ErrorType.network,
               );
+            }
+
+            // If we have a live snapshot but the document no longer exists,
+            // show the branded 404 page rather than rendering stale prop data.
+            if (snapshot.hasData && !snapshot.data!.exists) {
+              return const NotFoundPage();
             }
 
             final data = _resolveProductData(snapshot.data);

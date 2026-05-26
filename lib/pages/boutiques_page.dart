@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import 'boutique_storefront_page.dart';
+import '../widgets/error_state_widget.dart';
+import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 
 class BoutiquesPage extends StatefulWidget {
@@ -17,6 +19,19 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _boutiquesStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _savedBoutiquesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _boutiquesStream = _firestore
+        .collection('boutiques')
+        .orderBy('name')
+        .snapshots();
+    _savedBoutiquesStream = FirestoreService.getSavedBoutiquesStream();
+  }
 
   @override
   void dispose() {
@@ -79,11 +94,6 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final boutiquesStream = _firestore
-        .collection('boutiques')
-        .orderBy('name')
-        .snapshots();
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -146,30 +156,23 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
             const Divider(height: 1, color: AppColors.border, thickness: 0.5),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirestoreService.getSavedBoutiquesStream(),
+                stream: _savedBoutiquesStream,
                 builder: (context, savedSnapshot) {
                   final savedDocs = savedSnapshot.data?.docs ?? [];
                   final savedBoutiqueIds = _getSavedBoutiqueIds(savedDocs);
 
                   return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: boutiquesStream,
+                    stream: _boutiquesStream,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.deepAccent,
-                            strokeWidth: 1.5,
-                          ),
-                        );
+                        return const BoutiquesListSkeleton();
                       }
                       if (snapshot.hasError) {
-                        return Center(
-                          child: Text(
-                            'Failed to load boutiques',
-                            style: AppTextStyles.bodyMedium.copyWith(
-                              color: AppColors.secondaryText,
-                            ),
-                          ),
+                        return ErrorStateWidget.inline(
+                          title: 'Something went wrong',
+                          message: 'Pull down to retry',
+                          onRetry: () => setState(() {}),
+                          type: ErrorType.network,
                         );
                       }
 

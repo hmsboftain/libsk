@@ -2,11 +2,14 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../models/product.dart';
 import '../navigation/app_header.dart';
 import 'product_page.dart';
 import 'boutique_storefront_page.dart';
 import '../widgets/theme.dart';
 import '../widgets/rotating_hero_banner.dart';
+import '../widgets/error_state_widget.dart';
+import '../widgets/skeleton_loaders.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -18,13 +21,15 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<void> _onRefresh() async {
-    setState(() {});
-  }
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _boutiquesStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>>
+  _featuredProductsStream;
 
   @override
-  Widget build(BuildContext context) {
-    final boutiquesStream = _firestore
+  void initState() {
+    super.initState();
+
+    _boutiquesStream = _firestore
         .collection('boutiques')
         .where('isVisibleOnHome', isEqualTo: true)
         .where('homeExpiresAt', isGreaterThan: Timestamp.now())
@@ -32,14 +37,20 @@ class _HomePageState extends State<HomePage> {
         .orderBy('homeOrder')
         .snapshots();
 
-    final featuredProductsStream = _firestore
+    _featuredProductsStream = _firestore
         .collectionGroup('products')
         .where('isFeaturedOnHome', isEqualTo: true)
         .where('featuredExpiresAt', isGreaterThan: Timestamp.now())
         .orderBy('featuredExpiresAt')
         .orderBy('featuredOrder')
         .snapshots();
+  }
 
+  // Streams are real-time; pull-to-refresh exists only as a UX affordance.
+  Future<void> _onRefresh() async {}
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -66,28 +77,20 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 16),
 
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: featuredProductsStream,
+                  stream: _featuredProductsStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 40),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.deepAccent,
-                            strokeWidth: 1.5,
-                          ),
-                        ),
+                        child: FeaturedProductsGridSkeleton(),
                       );
                     }
                     if (snapshot.hasError) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          AppLocalizations.of(
-                            context,
-                          )!.failedToLoadFeaturedProducts,
-                          style: AppTextStyles.bodySmall,
-                        ),
+                      return ErrorStateWidget.inline(
+                        title: 'Something went wrong',
+                        message: 'Pull down to retry',
+                        onRetry: () => setState(() {}),
+                        type: ErrorType.network,
                       );
                     }
 
@@ -119,57 +122,34 @@ class _HomePageState extends State<HomePage> {
                             ),
                         itemBuilder: (context, index) {
                           final doc = docs[index];
-                          final data = doc.data();
-                          final String productId = doc.id;
-                          final String boutiqueId =
-                              doc.reference.parent.parent!.id;
-                          final String title =
-                              data['title']?.toString() ??
-                              AppLocalizations.of(context)!.untitledProduct;
+                          final product = Product.fromFirestore(doc);
+                          final String title = product.title.isNotEmpty
+                              ? product.title
+                              : AppLocalizations.of(context)!.untitledProduct;
                           final String description =
-                              data['description']?.toString() ??
-                              AppLocalizations.of(context)!.noDescription;
-                          final String imageUrl =
-                              data['imageUrl']?.toString() ?? '';
-                          final imageUrlsData = data['imageUrls'];
-                          final List<String> imageUrls = imageUrlsData is List
-                              ? imageUrlsData.map((e) => e.toString()).toList()
-                              : imageUrl.isNotEmpty
-                              ? [imageUrl]
-                              : [];
-                          final displayImageUrl = imageUrls.isNotEmpty
-                              ? imageUrls.first
-                              : imageUrl;
+                              product.description.isNotEmpty
+                              ? product.description
+                              : AppLocalizations.of(context)!.noDescription;
                           final String boutiqueName =
-                              data['boutiqueName']?.toString() ??
-                              AppLocalizations.of(context)!.boutique;
-                          final priceValue = data['price'] ?? 0;
-                          final double price = priceValue is num
-                              ? priceValue.toDouble()
-                              : double.tryParse(priceValue.toString()) ?? 0;
-                          final stockValue = data['stock'] ?? 0;
-                          final int stock = stockValue is int
-                              ? stockValue
-                              : int.tryParse(stockValue.toString()) ?? 0;
-                          final sizesData = data['sizes'];
-                          final List<String> sizes = sizesData is List
-                              ? sizesData.map((e) => e.toString()).toList()
-                              : [];
+                              product.boutiqueName.isNotEmpty
+                              ? product.boutiqueName
+                              : AppLocalizations.of(context)!.boutique;
+                          final String displayImageUrl = product.displayImageUrl;
 
                           return GestureDetector(
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) => ProductPage(
-                                  productId: productId,
-                                  boutiqueId: boutiqueId,
+                                  productId: product.id,
+                                  boutiqueId: product.boutiqueId,
                                   imageUrl: displayImageUrl,
-                                  imageUrls: imageUrls,
+                                  imageUrls: product.imageUrls,
                                   title: title,
-                                  price: price,
+                                  price: product.price,
                                   description: description,
-                                  sizes: sizes,
-                                  stock: stock,
+                                  sizes: product.sizes,
+                                  stock: product.stock,
                                   boutiqueName: boutiqueName,
                                 ),
                               ),
@@ -265,7 +245,7 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 const SizedBox(height: 5),
                                 Text(
-                                  'KD ${price.toStringAsFixed(0)}',
+                                  'KD ${product.price.toStringAsFixed(0)}',
                                   style: AppTextStyles.labelLarge.copyWith(
                                     fontSize: 16,
                                   ),
@@ -298,26 +278,20 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 16),
 
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: boutiquesStream,
+                  stream: _boutiquesStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 30),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.deepAccent,
-                            strokeWidth: 1.5,
-                          ),
-                        ),
+                        child: BoutiquesListSkeleton(),
                       );
                     }
                     if (snapshot.hasError) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          AppLocalizations.of(context)!.failedToLoadBoutiques,
-                          style: AppTextStyles.bodySmall,
-                        ),
+                      return ErrorStateWidget.inline(
+                        title: 'Something went wrong',
+                        message: 'Pull down to retry',
+                        onRetry: () => setState(() {}),
+                        type: ErrorType.network,
                       );
                     }
 

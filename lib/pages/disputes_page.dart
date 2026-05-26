@@ -21,6 +21,17 @@ class _DisputesPageState extends State<DisputesPage> {
     'Rejected',
   ];
 
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _disputesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _disputesStream = FirebaseFirestore.instance
+        .collection('disputes')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'open':
@@ -465,10 +476,7 @@ class _DisputesPageState extends State<DisputesPage> {
             const AppHeader(showBackButton: true),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('disputes')
-                    .orderBy('createdAt', descending: true)
-                    .snapshots(),
+                stream: _disputesStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(

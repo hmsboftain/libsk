@@ -5,6 +5,7 @@ const {
   onDocumentUpdated,
   onDocumentDeleted,
 } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
@@ -183,6 +184,35 @@ function getBoutiqueIdsFromItems(items) {
   return Array.from(boutiqueIds);
 }
 
+// ================= RATE LIMITING =================
+//
+// Generic sliding-window rate limiter backed by Firestore. Each caller is
+// keyed by `<action>_<uid>`; recent timestamps are persisted on the
+// `rate_limits/<key>` document and pruned to the requested window on every
+// check. Returns false when the limit is exceeded so the caller can throw a
+// `resource-exhausted` HttpsError to the client.
+async function checkRateLimit(key, maxRequests, windowSeconds) {
+  const now = Date.now();
+  const windowStart = now - (windowSeconds * 1000);
+  const ref = db.collection("rate_limits").doc(key);
+
+  return await db.runTransaction(async (tx) => {
+    const doc = await tx.get(ref);
+    const data = doc.exists ? doc.data() : { requests: [] };
+
+    // Filter to requests within the current window
+    const recent = (data.requests || []).filter((ts) => ts > windowStart);
+
+    if (recent.length >= maxRequests) {
+      return false; // Rate limit exceeded
+    }
+
+    recent.push(now);
+    tx.set(ref, { requests: recent, updatedAt: now }, { merge: true });
+    return true;
+  });
+}
+
 // ================= PAYMENTS =================
 
 exports.createPaymentIntent = onCall(async (request) => {
@@ -192,6 +222,18 @@ exports.createPaymentIntent = onCall(async (request) => {
 
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
+    }
+
+    const withinLimit = await checkRateLimit(
+      `payment_${request.auth.uid}`,
+      10,
+      3600,
+    );
+    if (!withinLimit) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Too many requests. Please try again later.",
+      );
     }
 
     logger.info("Callable data received", {data});
@@ -346,6 +388,18 @@ exports.createOrder = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
 
+  const orderRateOk = await checkRateLimit(
+    `order_${request.auth.uid}`,
+    5,
+    3600,
+  );
+  if (!orderRateOk) {
+    throw new HttpsError(
+      "resource-exhausted",
+      "Too many requests. Please try again later.",
+    );
+  }
+
   const uid             = request.auth.uid;
   const data            = request.data || {};
   const items           = data.items;
@@ -468,6 +522,13 @@ exports.createOrder = onCall(async (request) => {
         verifiedItem.color = color;
       }
       verifiedItems.push(verifiedItem);
+    }
+
+    if (verifiedSubtotal > 5000) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Order total cannot exceed KD 5,000.",
+      );
     }
 
     const deliveryCost = deliveryMethod === "Regular Delivery" ? 3 : 5;
@@ -755,6 +816,18 @@ exports.submitDispute = onCall(async (request) => {
       throw new HttpsError("unauthenticated", "You must be logged in.");
     }
 
+    const disputeRateOk = await checkRateLimit(
+      `dispute_${request.auth.uid}`,
+      3,
+      86400,
+    );
+    if (!disputeRateOk) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Too many requests. Please try again later.",
+      );
+    }
+
     const uid = request.auth.uid;
     const data = request.data || {};
 
@@ -921,6 +994,18 @@ exports.sendManualNotification = onCall(async (request) => {
       throw new HttpsError("unauthenticated", "You must be logged in.");
     }
 
+    const notifRateOk = await checkRateLimit(
+      `notification_${request.auth.uid}`,
+      50,
+      3600,
+    );
+    if (!notifRateOk) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Too many requests. Please try again later.",
+      );
+    }
+
     const uid = request.auth.uid;
     const isAdmin = await isAdminUser(uid);
     const isSuperAdmin = await isSuperAdminUser(uid);
@@ -1045,6 +1130,18 @@ exports.inviteBoutiqueOwner = onCall(async (request) => {
   try {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
+    }
+
+    const inviteRateOk = await checkRateLimit(
+      `invite_${request.auth.uid}`,
+      20,
+      3600,
+    );
+    if (!inviteRateOk) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Too many requests. Please try again later.",
+      );
     }
 
     const callerUid = request.auth.uid;
@@ -1303,6 +1400,18 @@ exports.algoliaReindex = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Must be logged in.");
   }
 
+  const reindexRateOk = await checkRateLimit(
+    `reindex_${request.auth.uid}`,
+    1,
+    600,
+  );
+  if (!reindexRateOk) {
+    throw new HttpsError(
+      "resource-exhausted",
+      "Too many requests. Please try again later.",
+    );
+  }
+
   const uid = request.auth.uid;
   const superAdmin = await isSuperAdminUser(uid);
   if (!superAdmin) {
@@ -1361,4 +1470,43 @@ exports.algoliaReindex = onCall(async (request) => {
     boutiquesIndexed: boutiqueRecords.length,
     productsIndexed: productRecords.length,
   };
+});
+
+// ================= SCHEDULED CLEANUPS =================
+
+// Daily sweep of stale rate-limit documents — anything not touched in the
+// past 24 hours is no longer needed for any rolling window we currently use.
+exports.cleanupRateLimits = onSchedule("every 24 hours", async () => {
+  const cutoff = Date.now() - (86400 * 1000);
+  const snap = await db.collection("rate_limits")
+    .where("updatedAt", "<", cutoff)
+    .limit(500)
+    .get();
+  const batch = db.batch();
+  snap.docs.forEach((doc) => batch.delete(doc.ref));
+  await batch.commit();
+});
+
+// Daily sweep of guest cart items older than 30 days. Guest carts live under
+// `users/guest_<id>/cart_items/<itemId>`; we page through the guest user docs
+// 100 at a time and batch-delete any items past the TTL.
+exports.cleanupGuestCarts = onSchedule("every 24 hours", async () => {
+  const cutoff = admin.firestore.Timestamp.fromDate(
+    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+  );
+
+  const guestUsersSnap = await db.collection("users")
+    .where("__name__", ">=", "guest_")
+    .where("__name__", "<", "guest_~")
+    .limit(100)
+    .get();
+
+  for (const userDoc of guestUsersSnap.docs) {
+    const cartSnap = await userDoc.ref.collection("cart_items")
+      .where("createdAt", "<", cutoff)
+      .get();
+    const batch = db.batch();
+    cartSnap.docs.forEach((doc) => batch.delete(doc.ref));
+    if (cartSnap.docs.length > 0) await batch.commit();
+  }
 });

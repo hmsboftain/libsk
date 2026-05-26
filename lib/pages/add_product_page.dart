@@ -1,12 +1,14 @@
 import 'dart:io';
 
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 
+import '../core/constants/app_categories.dart';
+import '../core/utils/validators.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
+import '../services/storage_service.dart';
 import '../widgets/theme.dart';
 
 class AddProductPage extends StatefulWidget {
@@ -27,24 +29,6 @@ class _AddProductPageState extends State<AddProductPage> {
       TextEditingController();
   final TextEditingController sizeNameController = TextEditingController();
   final TextEditingController sizeStockController = TextEditingController();
-
-  static const List<String> availableCategories = [
-    'Abaya',
-    'Blazers',
-    'Blouses & Shirts',
-    'Casual Wear',
-    'Coats',
-    'Dresses',
-    "Dra'a",
-    'Gowns',
-    'Jackets',
-    'Jumpsuits',
-    'Office Attire',
-    'Pants',
-    'Shoes',
-    'Skirts',
-    'Tops',
-  ];
 
   bool isLoading = false;
   bool madeToOrder = false;
@@ -73,6 +57,7 @@ class _AddProductPageState extends State<AddProductPage> {
 
       if (images.isEmpty) return;
 
+      if (!mounted) return;
       setState(() {
         selectedImages.addAll(images.map((image) => File(image.path)));
       });
@@ -85,28 +70,6 @@ class _AddProductPageState extends State<AddProductPage> {
         ),
       );
     }
-  }
-
-  Future<String> uploadImageToStorage(File imageFile) async {
-    final fileName = DateTime.now().millisecondsSinceEpoch.toString();
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('product_images')
-        .child('$fileName.jpg');
-
-    await ref.putFile(imageFile);
-    return ref.getDownloadURL();
-  }
-
-  Future<List<String>> uploadImagesToStorage(List<File> images) async {
-    final List<String> urls = [];
-
-    for (final image in images) {
-      final url = await uploadImageToStorage(image);
-      urls.add(url);
-    }
-
-    return urls;
   }
 
   void removeSelectedImage(int index) {
@@ -212,10 +175,32 @@ class _AddProductPageState extends State<AddProductPage> {
   Future<void> saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final title = titleController.text.trim();
+    final description = descriptionController.text.trim();
+    final priceText = priceController.text.trim();
+
+    // Defence-in-depth: validate again against shared limits before we touch
+    // Storage or Firestore.
+    final preflight = Validators.combine(title, [
+          (v) => Validators.required(v, 'Title'),
+          (v) => Validators.maxLength(v, 100, 'Title'),
+        ]) ??
+        Validators.combine(description, [
+          (v) => Validators.required(v, 'Description'),
+          (v) => Validators.maxLength(v, 2000, 'Description'),
+        ]) ??
+        Validators.price(priceText);
+    if (preflight != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(preflight)),
+      );
+      return;
+    }
+
     if (selectedImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.pleaseSelectImage),
+        const SnackBar(
+          content: Text('Please add at least one product image'),
         ),
       );
       return;
@@ -230,7 +215,7 @@ class _AddProductPageState extends State<AddProductPage> {
 
     if (sizeEntries.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one size with stock')),
+        const SnackBar(content: Text('Please add at least one size')),
       );
       return;
     }
@@ -247,9 +232,7 @@ class _AddProductPageState extends State<AddProductPage> {
     });
 
     try {
-      final title = titleController.text.trim();
-      final description = descriptionController.text.trim();
-      final price = double.parse(priceController.text.trim());
+      final price = double.parse(priceText);
 
       final sizes = sizeEntries
           .map((entry) => entry['name']?.toString() ?? '')
@@ -261,7 +244,10 @@ class _AddProductPageState extends State<AddProductPage> {
         (total, entry) => total + ((entry['stock'] as int?) ?? 0),
       );
 
-      final imageUrls = await uploadImagesToStorage(selectedImages);
+      final imageUrls = await StorageService.uploadImages(
+        selectedImages,
+        'product_images',
+      );
       final imageUrl = imageUrls.first;
 
       await FirestoreService.addProductForCurrentOwner(
@@ -389,14 +375,14 @@ class _AddProductPageState extends State<AddProductPage> {
           ),
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: availableCategories.length,
+            itemCount: AppCategories.all.length,
             separatorBuilder: (_, __) => const Divider(
               height: 1,
               thickness: 0.5,
               color: AppColors.border,
             ),
             itemBuilder: (context, index) {
-              final category = availableCategories[index];
+              final category = AppCategories.all[index];
               final isSelected = selectedCategories.contains(category);
 
               return Material(

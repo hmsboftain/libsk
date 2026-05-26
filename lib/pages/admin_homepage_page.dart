@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../models/product.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
 
@@ -353,13 +354,16 @@ class AdminHomepagePage extends StatelessWidget {
                         return Column(
                           children: docs.map((doc) {
                             final data = doc.data();
-                            final productId = doc.id;
+                            final product = Product.fromFirestore(doc);
+                            final productId = product.id;
                             final boutiqueId = doc.reference.parent.parent!.id;
 
-                            final title =
-                                data['title']?.toString() ?? 'Untitled Product';
-                            final boutiqueName =
-                                data['boutiqueName']?.toString() ?? 'Boutique';
+                            final title = product.title.isNotEmpty
+                                ? product.title
+                                : 'Untitled Product';
+                            final boutiqueName = product.boutiqueName.isNotEmpty
+                                ? product.boutiqueName
+                                : 'Boutique';
                             final isFeaturedOnHome =
                                 data['isFeaturedOnHome'] == true;
                             final featuredOrder =

@@ -114,6 +114,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
       final userDoc = userQuery.docs.first;
       final userData = userDoc.data();
 
+      if (!mounted) return;
       setState(() {
         _foundUid = userDoc.id;
         _foundEmail = email;

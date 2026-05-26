@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../core/utils/validators.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
 
@@ -176,9 +177,18 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     final email = _emailController.text.trim();
     final message = _messageController.text.trim();
 
-    if (name.isEmpty || email.isEmpty || message.isEmpty) {
+    final preflight = Validators.combine(name, [
+          (v) => Validators.required(v, 'Name'),
+          (v) => Validators.maxLength(v, 100, 'Name'),
+        ]) ??
+        Validators.email(email) ??
+        Validators.combine(message, [
+          (v) => Validators.required(v, 'Message'),
+          (v) => Validators.maxLength(v, 1000, 'Message'),
+        ]);
+    if (preflight != null) {
       setState(() {
-        _errorMessage = 'Please fill in all fields.';
+        _errorMessage = preflight;
         _successMessage = null;
       });
       return;
@@ -204,12 +214,14 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
 
       _messageController.clear();
 
+      if (!mounted) return;
       setState(() {
         _isSending = false;
         _successMessage =
         'Your message has been sent. We will get back to you shortly.';
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isSending = false;
         _errorMessage = 'Something went wrong. Please try again.';

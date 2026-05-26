@@ -28,6 +28,18 @@ class SuperAdminDashboardPage extends StatefulWidget {
 class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
   bool _isReindexing = false;
 
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _usersStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _boutiquesStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _ordersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _usersStream = FirestoreService.getAllUsersStream();
+    _boutiquesStream = FirestoreService.getAllBoutiquesStream();
+    _ordersStream = FirestoreService.getAllBoutiqueOrdersStream();
+  }
+
   int _countRecentlyActiveUsers(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
   ) {
@@ -196,13 +208,13 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
             const AppHeader(showBackButton: true),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirestoreService.getAllUsersStream(),
+                stream: _usersStream,
                 builder: (context, usersSnapshot) {
                   return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: FirestoreService.getAllBoutiquesStream(),
+                    stream: _boutiquesStream,
                     builder: (context, boutiquesSnapshot) {
                       return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: FirestoreService.getAllBoutiqueOrdersStream(),
+                        stream: _ordersStream,
                         builder: (context, ordersSnapshot) {
                           if (usersSnapshot.connectionState ==
                                   ConnectionState.waiting ||

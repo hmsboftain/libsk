@@ -18,11 +18,34 @@ class CheckoutPage extends StatefulWidget {
   State<CheckoutPage> createState() => _CheckoutPageState();
 }
 
+// Branded snackbar used for action failures on checkout — ink-on-cream so it
+// matches the rest of the design system rather than the default material dark
+// pill.
+SnackBar _brandedErrorSnackBar(String message) {
+  return SnackBar(
+    backgroundColor: AppColors.primaryText,
+    content: Text(
+      message,
+      style: AppTextStyles.bodyMedium.copyWith(color: AppColors.background),
+    ),
+  );
+}
+
 class _CheckoutPageState extends State<CheckoutPage> {
   String deliveryMethod = "Same Day Delivery";
   String paymentMethod = "Card";
   double deliveryCost = 5;
   bool isPlacingOrder = false;
+
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _cartStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _addressesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _cartStream = FirestoreService.getCartItemsStream();
+    _addressesStream = FirestoreService.getSavedAddressesStream();
+  }
 
   Future<Map<String, String>> _createPaymentIntent({
     required List<CartItem> cartItems,
@@ -188,8 +211,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
       if (!mounted) return;
 
       messenger.showSnackBar(
-        SnackBar(
-          content: Text(e.error.localizedMessage ?? loc.paymentCancelled),
+        _brandedErrorSnackBar(
+          e.error.localizedMessage ?? loc.paymentCancelled,
         ),
       );
     } catch (e) {
@@ -197,11 +220,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       if (!mounted) return;
 
-      final message = e is Exception
-          ? e.toString().replaceFirst('Exception: ', '')
-          : 'Something went wrong. Please try again.';
+      // Surface the actual Cloud Function / Firestore message when present so
+      // the user understands why placing the order failed (e.g. rate limit,
+      // stock unavailable). Fall back to a generic line otherwise.
+      final raw = e is FirebaseFunctionsException
+          ? (e.message ?? e.code)
+          : e is Exception
+              ? e.toString().replaceFirst('Exception: ', '')
+              : 'Something went wrong. Please try again.';
 
-      messenger.showSnackBar(SnackBar(content: Text(message)));
+      messenger.showSnackBar(_brandedErrorSnackBar(raw));
     } finally {
       if (mounted) {
         setState(() => isPlacingOrder = false);
@@ -240,7 +268,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirestoreService.getCartItemsStream(),
+          stream: _cartStream,
           builder: (context, cartSnapshot) {
             if (cartSnapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -277,7 +305,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             final double total = subtotal + deliveryCost;
 
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirestoreService.getSavedAddressesStream(),
+              stream: _addressesStream,
               builder: (context, addressSnapshot) {
                 final addressDocs = addressSnapshot.data?.docs ?? [];
                 final hasAddress = addressDocs.isNotEmpty;

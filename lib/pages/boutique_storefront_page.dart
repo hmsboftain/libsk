@@ -1,9 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../models/product.dart';
 import '../navigation/app_header.dart';
 import 'product_page.dart';
 import '../widgets/boutique_logo_avatar.dart';
+import '../widgets/error_state_widget.dart';
+import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 
 enum SortOption { newest, oldest, priceLow, priceHigh }
@@ -18,6 +21,20 @@ class BoutiqueStorefrontPage extends StatefulWidget {
 
 class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
   SortOption _sortOption = SortOption.newest;
+
+  late final DocumentReference<Map<String, dynamic>> _boutiqueRef;
+  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _boutiqueStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _productsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _boutiqueRef = FirebaseFirestore.instance
+        .collection('boutiques')
+        .doc(widget.boutiqueId);
+    _boutiqueStream = _boutiqueRef.snapshots();
+    _productsStream = _boutiqueRef.collection('products').snapshots();
+  }
 
   Future<void> _onRefresh() async => setState(() {});
 
@@ -124,15 +141,11 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
 
   @override
   Widget build(BuildContext context) {
-    final boutiqueRef = FirebaseFirestore.instance
-        .collection('boutiques')
-        .doc(widget.boutiqueId);
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: boutiqueRef.snapshots(),
+          stream: _boutiqueStream,
           builder: (context, boutiqueSnapshot) {
             if (boutiqueSnapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -142,9 +155,21 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                 ),
               );
             }
-            if (boutiqueSnapshot.hasError ||
-                !boutiqueSnapshot.hasData ||
+            if (boutiqueSnapshot.hasError) {
+              return ErrorStateWidget.inline(
+                title: 'Something went wrong',
+                message: 'Pull down to retry',
+                onRetry: () => setState(() {}),
+                type: ErrorType.network,
+              );
+            }
+            if (boutiqueSnapshot.hasData &&
                 !boutiqueSnapshot.data!.exists) {
+              return const NotFoundPage(
+                message: 'This boutique is no longer available.',
+              );
+            }
+            if (!boutiqueSnapshot.hasData) {
               return Center(
                 child: Text(
                   'Boutique not found',
@@ -269,18 +294,13 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
 
                     // Products
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: boutiqueRef.collection('products').snapshots(),
+                      stream: _productsStream,
                       builder: (context, productsSnapshot) {
                         if (productsSnapshot.connectionState ==
                             ConnectionState.waiting) {
                           return const Padding(
                             padding: EdgeInsets.symmetric(vertical: 40),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                color: AppColors.deepAccent,
-                                strokeWidth: 1.5,
-                              ),
-                            ),
+                            child: FeaturedProductsGridSkeleton(),
                           );
                         }
 
@@ -323,54 +343,30 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                                     ),
                                 itemBuilder: (context, index) {
                                   final doc = docs[index];
-                                  final data = doc.data();
-                                  final productId = doc.id;
-                                  final title =
-                                      data['title']?.toString() ??
-                                      'Untitled Product';
+                                  final product = Product.fromFirestore(doc);
+                                  final title = product.title.isNotEmpty
+                                      ? product.title
+                                      : 'Untitled Product';
                                   final description =
-                                      data['description']?.toString() ??
-                                      'No description';
-                                  final imageUrl =
-                                      data['imageUrl']?.toString() ?? '';
-                                  final imageUrlsData = data['imageUrls'];
-                                  final List<String> imageUrls =
-                                      imageUrlsData is List
-                                      ? imageUrlsData
-                                            .map((e) => e.toString())
-                                            .toList()
-                                      : imageUrl.isNotEmpty
-                                      ? [imageUrl]
-                                      : [];
-                                  final displayImageUrl = imageUrls.isNotEmpty
-                                      ? imageUrls.first
-                                      : imageUrl;
-                                  final double price = _p(data);
-                                  final stockValue = data['stock'] ?? 0;
-                                  final int stock = stockValue is int
-                                      ? stockValue
-                                      : int.tryParse(stockValue.toString()) ??
-                                            0;
-                                  final sizesData = data['sizes'];
-                                  final List<String> sizes = sizesData is List
-                                      ? sizesData
-                                            .map((s) => s.toString())
-                                            .toList()
-                                      : [];
+                                      product.description.isNotEmpty
+                                      ? product.description
+                                      : 'No description';
+                                  final displayImageUrl = product.displayImageUrl;
+                                  final stock = product.stock;
 
                                   return GestureDetector(
                                     onTap: () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => ProductPage(
-                                          productId: productId,
+                                          productId: product.id,
                                           boutiqueId: widget.boutiqueId,
                                           imageUrl: displayImageUrl,
-                                          imageUrls: imageUrls,
+                                          imageUrls: product.imageUrls,
                                           title: title,
-                                          price: price,
+                                          price: product.price,
                                           description: description,
-                                          sizes: sizes,
+                                          sizes: product.sizes,
                                           stock: stock,
                                           boutiqueName: boutiqueName,
                                         ),
@@ -474,7 +470,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          '${price.toStringAsFixed(0)} KWD',
+                                          '${product.price.toStringAsFixed(0)} KWD',
                                           style: AppTextStyles.labelLarge,
                                         ),
                                       ],

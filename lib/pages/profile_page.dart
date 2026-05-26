@@ -293,7 +293,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       onTap: () async {
                         final navigator = Navigator.of(context);
 
-                        await FirestoreService.deleteCurrentUserFcmToken();
+                        try {
+                          await FirestoreService.deleteCurrentUserFcmToken();
+                        } catch (_) {}
                         await FirestoreService.setCurrentUserOffline();
                         await FirebaseAuth.instance.signOut();
 

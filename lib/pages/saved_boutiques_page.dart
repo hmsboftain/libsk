@@ -14,6 +14,14 @@ class SavedBoutiquesPage extends StatefulWidget {
 }
 
 class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _savedBoutiquesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _savedBoutiquesStream = FirestoreService.getSavedBoutiquesStream();
+  }
+
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
@@ -27,7 +35,7 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
             const AppHeader(showBackButton: true),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirestoreService.getSavedBoutiquesStream(),
+                stream: _savedBoutiquesStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(

@@ -18,6 +18,14 @@ class SavedItemsPage extends StatefulWidget {
 class _SavedItemsPageState extends State<SavedItemsPage> {
   SavedSortOption _sort = SavedSortOption.newest;
 
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _savedItemsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _savedItemsStream = FirestoreService.getSavedItemsStream();
+  }
+
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _sortDocs(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
   ) {
@@ -69,7 +77,7 @@ class _SavedItemsPageState extends State<SavedItemsPage> {
             const AppHeader(showBackButton: true),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirestoreService.getSavedItemsStream(),
+                stream: _savedItemsStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(

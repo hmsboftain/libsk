@@ -16,6 +16,14 @@ class AdminAnalyticsPage extends StatefulWidget {
 class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
   AnalyticsFilter selectedFilter = AnalyticsFilter.allTime;
 
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _ordersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _ordersStream = FirestoreService.getAllBoutiqueOrdersStream();
+  }
+
   double _parseTotal(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value.toString()) ?? 0;
@@ -240,7 +248,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
             const AppHeader(showBackButton: true),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirestoreService.getAllBoutiqueOrdersStream(),
+                stream: _ordersStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(

@@ -17,6 +17,14 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
   bool showSearch = false;
   String searchQuery = '';
 
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _ordersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _ordersStream = FirestoreService.getGlobalOrdersStream();
+  }
+
   @override
   void dispose() {
     searchController.dispose();
@@ -244,7 +252,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
             const AppHeader(showBackButton: true),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirestoreService.getGlobalOrdersStream(),
+                stream: _ordersStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(

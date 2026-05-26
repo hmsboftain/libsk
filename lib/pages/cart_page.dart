@@ -17,6 +17,14 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _cartStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _cartStream = FirestoreService.getCartItemsStream();
+  }
+
   Future<void> increaseQuantity(CartItem item) async {
     await FirestoreService.updateCartItemQuantity(
       docId: item.id,
@@ -56,7 +64,7 @@ class _CartPageState extends State<CartPage> {
             const AppHeader(showBackButton: true, isCartPage: true),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirestoreService.getCartItemsStream(),
+                stream: _cartStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(

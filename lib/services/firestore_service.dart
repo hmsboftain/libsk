@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/admin_permissions.dart';
+
 class FirestoreService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -724,59 +726,48 @@ class FirestoreService {
     return doc.data();
   }
 
-  static Future<bool> isCurrentUserAdmin() async {
-    final adminData = await getCurrentAdminData();
-    if (adminData == null) return false;
+  /// Fetches the current admin doc once and bundles every permission flag
+  /// into an [AdminPermissions]. Prefer this over calling the individual
+  /// `isCurrentUser*` / `canCurrentUser*` methods in sequence — each of those
+  /// issues its own Firestore read, while this method issues exactly one.
+  static Future<AdminPermissions> getCurrentUserPermissions() async {
+    final data = await getCurrentAdminData();
+    return AdminPermissions.fromMap(data);
+  }
 
-    return adminData['isApproved'] == true;
+  static Future<bool> isCurrentUserAdmin() async {
+    final permissions = await getCurrentUserPermissions();
+    return permissions.isApproved;
   }
 
   static Future<bool> isCurrentUserSuperAdmin() async {
-    final adminData = await getCurrentAdminData();
-    if (adminData == null) return false;
-
-    return adminData['isApproved'] == true &&
-        adminData['role'] == 'super_admin';
+    final permissions = await getCurrentUserPermissions();
+    return permissions.isSuperAdmin;
   }
 
   static Future<bool> canCurrentUserManageUsers() async {
-    final adminData = await getCurrentAdminData();
-    if (adminData == null) return false;
-
-    return adminData['isApproved'] == true &&
-        adminData['canManageUsers'] == true;
+    final permissions = await getCurrentUserPermissions();
+    return permissions.canManageUsers;
   }
 
   static Future<bool> canCurrentUserManageBoutiques() async {
-    final adminData = await getCurrentAdminData();
-    if (adminData == null) return false;
-
-    return adminData['isApproved'] == true &&
-        adminData['canManageBoutiques'] == true;
+    final permissions = await getCurrentUserPermissions();
+    return permissions.canManageBoutiques;
   }
 
   static Future<bool> canCurrentUserManageOrders() async {
-    final adminData = await getCurrentAdminData();
-    if (adminData == null) return false;
-
-    return adminData['isApproved'] == true &&
-        adminData['canManageOrders'] == true;
+    final permissions = await getCurrentUserPermissions();
+    return permissions.canManageOrders;
   }
 
   static Future<bool> canCurrentUserManageHomepage() async {
-    final adminData = await getCurrentAdminData();
-    if (adminData == null) return false;
-
-    return adminData['isApproved'] == true &&
-        adminData['canManageHomepage'] == true;
+    final permissions = await getCurrentUserPermissions();
+    return permissions.canManageHomepage;
   }
 
   static Future<bool> canCurrentUserViewAnalytics() async {
-    final adminData = await getCurrentAdminData();
-    if (adminData == null) return false;
-
-    return adminData['isApproved'] == true &&
-        adminData['canViewAnalytics'] == true;
+    final permissions = await getCurrentUserPermissions();
+    return permissions.canViewAnalytics;
   }
 
   // ================= ADMIN DASHBOARD STREAMS =================

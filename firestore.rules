@@ -11,16 +11,18 @@ service cloud.firestore {
     }
 
     function isAdmin() {
+      let adminDoc = get(/databases/$(database)/documents/admin_users/$(request.auth.uid));
       return isSignedIn() &&
-        exists(/databases/$(database)/documents/admin_users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.isApproved == true;
+        adminDoc != null &&
+        adminDoc.data.isApproved == true;
     }
 
     function isSuperAdmin() {
+      let adminDoc = get(/databases/$(database)/documents/admin_users/$(request.auth.uid));
       return isSignedIn() &&
-        exists(/databases/$(database)/documents/admin_users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.isApproved == true &&
-        get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.role == 'super_admin';
+        adminDoc != null &&
+        adminDoc.data.isApproved == true &&
+        adminDoc.data.role == 'super_admin';
     }
 
     function isBoutiqueOwnerOf(boutiqueId) {
@@ -164,6 +166,10 @@ service cloud.firestore {
 
     match /pending_invites/{inviteId} {
       allow read, write: if isSuperAdmin();
+    }
+
+    match /rate_limits/{docId} {
+      allow read, write: if false; // server-only
     }
 
     match /{path=**}/products/{productId} {
