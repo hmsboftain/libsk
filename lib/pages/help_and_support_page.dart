@@ -241,19 +241,12 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     const SizedBox(height: 12),
                     const Text(
                       'Help & Support',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryText,
-                      ),
+                      style: AppTextStyles.headingLarge,
                     ),
                     const SizedBox(height: 4),
                     const Text(
                       'How can we help you today?',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.secondaryText,
-                      ),
+                      style: AppTextStyles.bodyMedium,
                     ),
                     const SizedBox(height: 24),
                     GridView.builder(
@@ -283,11 +276,11 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                               color: isSelected
                                   ? AppColors.selectedSoft
                                   : AppColors.card,
-                              borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                 color: isSelected
                                     ? AppColors.deepAccent
                                     : AppColors.border,
+                                width: 0.5,
                               ),
                             ),
                             child: Column(
@@ -301,9 +294,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                                 const SizedBox(height: 8),
                                 Text(
                                   topic['label'] as String,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
+                                  style: AppTextStyles.labelSmall.copyWith(
+                                    fontWeight: FontWeight.w500,
                                     color: isSelected
                                         ? AppColors.deepAccent
                                         : AppColors.primaryText,
@@ -320,10 +312,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       const SizedBox(height: 20),
                       Text(
                         _topics[_expandedTopic!]['label'] as String,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primaryText,
+                        style: AppTextStyles.bodyLarge.copyWith(
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -340,19 +330,17 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                           margin: const EdgeInsets.only(bottom: 8),
                           decoration: BoxDecoration(
                             color: AppColors.card,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppColors.border),
+                            border: Border.all(
+                              color: AppColors.border,
+                              width: 0.5,
+                            ),
                           ),
                           child: Column(
                             children: [
                               ListTile(
                                 title: Text(
                                   faq['q']!,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.primaryText,
-                                  ),
+                                  style: AppTextStyles.labelLarge,
                                 ),
                                 trailing: Icon(
                                   isOpen
@@ -372,8 +360,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                                   const EdgeInsets.fromLTRB(16, 0, 16, 14),
                                   child: Text(
                                     faq['a']!,
-                                    style: const TextStyle(
-                                      fontSize: 13,
+                                    style: AppTextStyles.bodyMedium.copyWith(
                                       color: AppColors.secondaryText,
                                       height: 1.6,
                                     ),
@@ -387,11 +374,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     const SizedBox(height: 30),
                     const Text(
                       'CONTACT US',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.secondaryText,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTextStyles.capsLabel,
                     ),
                     const SizedBox(height: 12),
                     _contactTile(
@@ -410,19 +393,17 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     const SizedBox(height: 30),
                     const Text(
                       'SEND A MESSAGE',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.secondaryText,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTextStyles.capsLabel,
                     ),
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: AppColors.card,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppColors.border),
+                        border: Border.all(
+                          color: AppColors.border,
+                          width: 0.5,
+                        ),
                       ),
                       child: Column(
                         children: [
@@ -451,9 +432,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                               padding: const EdgeInsets.only(bottom: 10),
                               child: Text(
                                 _errorMessage!,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.red,
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  color: AppColors.deepAccent,
                                 ),
                               ),
                             ),
@@ -462,9 +442,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                               padding: const EdgeInsets.only(bottom: 10),
                               child: Text(
                                 _successMessage!,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.green,
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  color: AppColors.primaryText,
                                 ),
                               ),
                             ),
@@ -473,11 +452,12 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                             child: ElevatedButton(
                               onPressed: _isSending ? null : _sendMessage,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.black,
+                                backgroundColor: AppColors.deepAccent,
+                                foregroundColor: Colors.white,
                                 padding:
                                 const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
                               child: _isSending
@@ -486,16 +466,12 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                                 width: 18,
                                 child: CircularProgressIndicator(
                                   color: Colors.white,
-                                  strokeWidth: 2,
+                                  strokeWidth: 1.5,
                                 ),
                               )
                                   : const Text(
                                 'Send Message',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: AppTextStyles.button,
                               ),
                             ),
                           ),
@@ -525,8 +501,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppColors.card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: AppColors.border, width: 0.5),
         ),
         child: Row(
           children: [
@@ -537,17 +512,12 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryText,
-                  ),
+                  style: AppTextStyles.labelLarge,
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    fontSize: 13,
+                  style: AppTextStyles.bodyMedium.copyWith(
                     color: AppColors.secondaryText,
                   ),
                 ),
@@ -557,7 +527,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
             const Icon(
               Icons.arrow_forward_ios,
               size: 14,
-              color: Colors.black38,
+              color: AppColors.secondaryText,
             ),
           ],
         ),
@@ -576,18 +546,28 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       controller: controller,
       keyboardType: keyboardType,
       maxLines: maxLines,
-      style: const TextStyle(fontSize: 14),
+      style: AppTextStyles.bodyMedium,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
+        hintStyle: AppTextStyles.bodyMedium.copyWith(
+          color: AppColors.secondaryText,
+        ),
         prefixIcon: maxLines == 1
             ? Icon(icon, color: AppColors.deepAccent, size: 20)
             : null,
         filled: true,
         fillColor: AppColors.field,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(4),
+          borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(4),
+          borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(4),
+          borderSide: const BorderSide(color: AppColors.deepAccent, width: 1),
         ),
         contentPadding: EdgeInsets.symmetric(
           horizontal: 14,

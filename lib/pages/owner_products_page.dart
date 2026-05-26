@@ -68,19 +68,14 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: AppColors.background,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          shape: const RoundedRectangleBorder(),
           title: const Text(
             'Delete Product',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryText,
-            ),
+            style: AppTextStyles.headingSmall,
           ),
-          content: const Text(
+          content: Text(
             'Are you sure you want to delete this product?',
-            style: TextStyle(
+            style: AppTextStyles.bodyMedium.copyWith(
               color: AppColors.secondaryText,
               height: 1.4,
             ),
@@ -88,24 +83,15 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text(
+              child: Text(
                 'Cancel',
-                style: TextStyle(
+                style: AppTextStyles.labelLarge.copyWith(
                   color: AppColors.deepAccent,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
               child: const Text('Delete'),
             ),
           ],
@@ -145,15 +131,15 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Product deleted')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Product deleted')));
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to delete product')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to delete product')));
     }
   }
 
@@ -168,274 +154,308 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
             Expanded(
               child: isLoading
                   ? const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.deepAccent,
-                ),
-              )
-                  : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(20, 12, 20, 8),
-                    child: Text(
-                      'MY PRODUCTS',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryText,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: errorMessage != null
-                        ? RefreshIndicator(
-                      onRefresh: _onRefresh,
-                      child: ListView(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(
-                              errorMessage!,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                color: AppColors.secondaryText,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
+                      child: CircularProgressIndicator(
+                        color: AppColors.deepAccent,
                       ),
                     )
-                        : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: FirestoreService.getOwnerProductsStream(
-                        boutiqueId!,
-                      ),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(
-                              color: AppColors.deepAccent,
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                          child: Text(
+                            'MY PRODUCTS',
+                            style: AppTextStyles.headingMedium.copyWith(
+                              letterSpacing: 0.2,
                             ),
-                          );
-                        }
-
-                        if (snapshot.hasError) {
-                          return const Center(
-                            child: Text(
-                              'Failed to load products',
-                              style: TextStyle(
-                                color: AppColors.secondaryText,
-                              ),
-                            ),
-                          );
-                        }
-
-                        final docs = snapshot.data?.docs ?? [];
-
-                        if (docs.isEmpty) {
-                          return RefreshIndicator(
-                            onRefresh: _onRefresh,
-                            child: const SingleChildScrollView(
-                              physics: AlwaysScrollableScrollPhysics(),
-                              child: SizedBox(
-                                height: 400,
-                                child: Center(
-                                  child: Text(
-                                    'No products yet',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: AppColors.secondaryText,
-                                    ),
+                          ),
+                        ),
+                        Expanded(
+                          child: errorMessage != null
+                              ? RefreshIndicator(
+                                  color: AppColors.deepAccent,
+                                  onRefresh: _onRefresh,
+                                  child: ListView(
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.all(24),
+                                        child: Text(
+                                          errorMessage!,
+                                          style: AppTextStyles.bodyMedium
+                                              .copyWith(
+                                                color: AppColors.secondaryText,
+                                              ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }
+                                )
+                              : StreamBuilder<
+                                  QuerySnapshot<Map<String, dynamic>>
+                                >(
+                                  stream:
+                                      FirestoreService.getOwnerProductsStream(
+                                        boutiqueId!,
+                                      ),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return const Center(
+                                        child: CircularProgressIndicator(
+                                          color: AppColors.deepAccent,
+                                        ),
+                                      );
+                                    }
 
-                        return RefreshIndicator(
-                          onRefresh: _onRefresh,
-                          child: ListView.builder(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                            itemCount: docs.length,
-                            itemBuilder: (context, index) {
-                              final doc = docs[index];
-                              final data = doc.data();
+                                    if (snapshot.hasError) {
+                                      return Center(
+                                        child: Text(
+                                          'Failed to load products',
+                                          style: AppTextStyles.bodyMedium
+                                              .copyWith(
+                                                color: AppColors.secondaryText,
+                                              ),
+                                        ),
+                                      );
+                                    }
 
-                              final title = data['title'] ?? 'No title';
-                              final description = data['description'] ?? 'No description';
-                              final imageUrl = data['imageUrl']?.toString() ?? '';
-                              final imageUrlsData = data['imageUrls'];
+                                    final docs = snapshot.data?.docs ?? [];
 
-                              final List<String> imageUrls = imageUrlsData is List
-                                  ? imageUrlsData.map((image) => image.toString()).toList()
-                                  : imageUrl.isNotEmpty
-                                  ? [imageUrl]
-                                  : [];
+                                    if (docs.isEmpty) {
+                                      return RefreshIndicator(
+                                        onRefresh: _onRefresh,
+                                        child: SingleChildScrollView(
+                                          physics:
+                                              const AlwaysScrollableScrollPhysics(),
+                                          child: SizedBox(
+                                            height: 400,
+                                            child: Center(
+                                              child: Text(
+                                                'No products yet',
+                                                style: AppTextStyles.bodyMedium
+                                                    .copyWith(
+                                                      color: AppColors
+                                                          .secondaryText,
+                                                    ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
 
-                              final displayImageUrl = imageUrls.isNotEmpty
-                                  ? imageUrls.first
-                                  : imageUrl;
+                                    return RefreshIndicator(
+                                      color: AppColors.deepAccent,
+                                      onRefresh: _onRefresh,
+                                      child: ListView.builder(
+                                        physics:
+                                            const AlwaysScrollableScrollPhysics(),
+                                        padding: const EdgeInsets.fromLTRB(
+                                          20,
+                                          8,
+                                          20,
+                                          24,
+                                        ),
+                                        itemCount: docs.length,
+                                        itemBuilder: (context, index) {
+                                          final doc = docs[index];
+                                          final data = doc.data();
 
-                              final price = data['price'];
-                              final stock = data['stock'];
+                                          final title =
+                                              data['title'] ?? 'No title';
+                                          final description =
+                                              data['description'] ??
+                                              'No description';
+                                          final imageUrl =
+                                              data['imageUrl']?.toString() ??
+                                              '';
+                                          final imageUrlsData =
+                                              data['imageUrls'];
 
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 14),
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: AppColors.card,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: AppColors.border),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(14),
-                                      child: displayImageUrl.isNotEmpty
-                                          ? Image.network(
-                                        displayImageUrl,
-                                        width: 82,
-                                        height: 100,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
+                                          final List<String> imageUrls =
+                                              imageUrlsData is List
+                                              ? imageUrlsData
+                                                    .map(
+                                                      (image) =>
+                                                          image.toString(),
+                                                    )
+                                                    .toList()
+                                              : imageUrl.isNotEmpty
+                                              ? [imageUrl]
+                                              : [];
+
+                                          final displayImageUrl =
+                                              imageUrls.isNotEmpty
+                                              ? imageUrls.first
+                                              : imageUrl;
+
+                                          final price = data['price'];
+                                          final stock = data['stock'];
+
                                           return Container(
-                                            width: 82,
-                                            height: 100,
-                                            color: AppColors.field,
-                                            child: const Icon(
-                                              Icons.image_not_supported_outlined,
-                                              color: AppColors.deepAccent,
+                                            margin: const EdgeInsets.only(
+                                              bottom: 14,
+                                            ),
+                                            padding: const EdgeInsets.all(14),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.card,
+                                              border: Border.all(
+                                                color: AppColors.border,
+                                                width: 0.5,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Container(
+                                                  width: 80,
+                                                  height: 100,
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors
+                                                        .imagePlaceholder,
+                                                    border: Border.all(
+                                                      color: AppColors.border,
+                                                      width: 0.5,
+                                                    ),
+                                                  ),
+                                                  child:
+                                                      displayImageUrl.isNotEmpty
+                                                      ? Image.network(
+                                                          displayImageUrl,
+                                                          width: 80,
+                                                          height: 100,
+                                                          fit: BoxFit.cover,
+                                                          errorBuilder:
+                                                              (
+                                                                context,
+                                                                error,
+                                                                stackTrace,
+                                                              ) {
+                                                                return const Center(
+                                                                  child: Icon(
+                                                                    Icons
+                                                                        .image_not_supported_outlined,
+                                                                    color: AppColors
+                                                                        .softAccent,
+                                                                    size: 24,
+                                                                  ),
+                                                                );
+                                                              },
+                                                        )
+                                                      : const Center(
+                                                          child: Icon(
+                                                            Icons
+                                                                .image_not_supported_outlined,
+                                                            color: AppColors
+                                                                .softAccent,
+                                                            size: 24,
+                                                          ),
+                                                        ),
+                                                ),
+                                                const SizedBox(width: 14),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        title,
+                                                        style: AppTextStyles
+                                                            .bodyLarge
+                                                            .copyWith(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
+                                                            ),
+                                                      ),
+                                                      const SizedBox(height: 6),
+                                                      Text(
+                                                        description,
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: AppTextStyles
+                                                            .bodySmall
+                                                            .copyWith(
+                                                              height: 1.4,
+                                                            ),
+                                                      ),
+                                                      const SizedBox(
+                                                        height: 10,
+                                                      ),
+                                                      Text(
+                                                        '${price ?? 0} KWD',
+                                                        style: AppTextStyles
+                                                            .labelLarge,
+                                                      ),
+                                                      const SizedBox(height: 6),
+                                                      Text(
+                                                        'Stock: ${stock ?? 0}',
+                                                        style: AppTextStyles
+                                                            .bodySmall,
+                                                      ),
+                                                      const SizedBox(
+                                                        height: 12,
+                                                      ),
+                                                      Row(
+                                                        children: [
+                                                          Expanded(
+                                                            child: OutlinedButton(
+                                                              onPressed: () async {
+                                                                await Navigator.push(
+                                                                  context,
+                                                                  MaterialPageRoute(
+                                                                    builder: (context) => EditProductPage(
+                                                                      productId:
+                                                                          doc.id,
+                                                                      productData:
+                                                                          data,
+                                                                    ),
+                                                                  ),
+                                                                );
+                                                                if (!mounted)
+                                                                  return;
+                                                                setState(() {});
+                                                              },
+                                                              child: const Text(
+                                                                'Edit',
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 10,
+                                                          ),
+                                                          Expanded(
+                                                            child: ElevatedButton(
+                                                              onPressed: () {
+                                                                deleteProduct(
+                                                                  doc.id,
+                                                                );
+                                                              },
+                                                              child: const Text(
+                                                                'Delete',
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           );
                                         },
-                                      )
-                                          : Container(
-                                        width: 82,
-                                        height: 100,
-                                        color: AppColors.field,
-                                        child: const Icon(
-                                          Icons.image_not_supported_outlined,
-                                          color: AppColors.deepAccent,
-                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            title,
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w700,
-                                              color: AppColors.primaryText,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            description,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: AppColors.secondaryText,
-                                              height: 1.4,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 10),
-                                          Text(
-                                            '${price ?? 0} KWD',
-                                            style: const TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w700,
-                                              color: AppColors.primaryText,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            'Stock: ${stock ?? 0}',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: AppColors.secondaryText,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 12),
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: OutlinedButton(
-                                                  onPressed: () async {
-                                                    await Navigator.push(
-                                                      context,
-                                                      MaterialPageRoute(
-                                                        builder: (context) => EditProductPage(
-                                                          productId: doc.id,
-                                                          productData: data,
-                                                        ),
-                                                      ),
-                                                    );
-                                                    if (!mounted) return;
-                                                    setState(() {});
-                                                  },
-                                                  style: OutlinedButton.styleFrom(
-                                                    foregroundColor: AppColors.deepAccent,
-                                                    backgroundColor: AppColors.softAccent.withValues(alpha: 0.08),
-                                                    side: const BorderSide(color: AppColors.deepAccent),
-                                                    elevation: 0,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(12),
-                                                    ),
-                                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                                  ),
-                                                  child: const Text(
-                                                    'Edit',
-                                                    style: TextStyle(fontWeight: FontWeight.w600),
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 10),
-                                              Expanded(
-                                                child: ElevatedButton(
-                                                  onPressed: () {
-                                                    deleteProduct(doc.id);
-                                                  },
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: Colors.black,
-                                                    foregroundColor: Colors.white,
-                                                    elevation: 0,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(12),
-                                                    ),
-                                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                                  ),
-                                                  child: const Text(
-                                                    'Delete',
-                                                    style: TextStyle(fontWeight: FontWeight.w600),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                                    );
+                                  },
                                 ),
-                              );
-                            },
-                          ),
-                        );
-                      },
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),

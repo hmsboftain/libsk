@@ -105,7 +105,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
     required String itemCount,
   }) {
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.zero,
       onTap: () {
         Navigator.push(
           context,
@@ -123,8 +123,8 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.card,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.zero,
+          border: Border.all(color: AppColors.border, width: 0.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,19 +140,15 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                 Expanded(
                   child: Text(
                     orderNumber,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryText,
+                    style: AppTextStyles.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
                 Text(
                   total,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryText,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -160,43 +156,29 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
             const SizedBox(height: 10),
             Text(
               customerName,
-              style: const TextStyle(
-                fontSize: 14,
+              style: AppTextStyles.bodyMedium.copyWith(
                 fontWeight: FontWeight.w600,
-                color: AppColors.primaryText,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               customerEmail,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.secondaryText,
-              ),
+              style: AppTextStyles.bodySmall,
             ),
             const SizedBox(height: 10),
             Text(
               'Status: $status',
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.secondaryText,
-              ),
+              style: AppTextStyles.bodySmall,
             ),
             const SizedBox(height: 4),
             Text(
               'Date: $date',
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.secondaryText,
-              ),
+              style: AppTextStyles.bodySmall,
             ),
             const SizedBox(height: 4),
             Text(
               'Items: $itemCount',
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.secondaryText,
-              ),
+              style: AppTextStyles.bodySmall,
             ),
           ],
         ),
@@ -215,10 +197,10 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
           });
         },
         decoration: InputDecoration(
-          prefixIcon: const Icon(Icons.search),
+          prefixIcon: const Icon(Icons.search, color: AppColors.deepAccent),
           suffixIcon: searchQuery.isNotEmpty
               ? IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(Icons.close, color: AppColors.deepAccent),
             onPressed: () {
               setState(() {
                 searchController.clear();
@@ -229,17 +211,23 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
               : null,
           filled: true,
           fillColor: AppColors.field,
+          hintStyle: AppTextStyles.bodyMedium.copyWith(
+            color: AppColors.secondaryText,
+          ),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: AppColors.border, width: 0.5),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: AppColors.border),
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: AppColors.border, width: 0.5),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Colors.black),
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(
+              color: AppColors.deepAccent,
+              width: 1,
+            ),
           ),
         ),
       ),
@@ -270,7 +258,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                     return const Center(
                       child: Text(
                         'Failed to load orders',
-                        style: TextStyle(color: AppColors.secondaryText),
+                        style: AppTextStyles.bodyMedium,
                       ),
                     );
                   }
@@ -290,18 +278,14 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                             const Expanded(
                               child: Text(
                                 'GLOBAL ORDERS',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primaryText,
-                                ),
+                                style: AppTextStyles.displayMedium,
                               ),
                             ),
                             IconButton(
                               onPressed: _toggleSearch,
                               icon: Icon(
                                 showSearch ? Icons.close : Icons.search,
-                                color: Colors.black,
+                                color: AppColors.primaryText,
                               ),
                             ),
                           ],
@@ -309,8 +293,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                         const SizedBox(height: 8),
                         Text(
                           '${orderDocs.length} global orders',
-                          style: const TextStyle(
-                            fontSize: 14,
+                          style: AppTextStyles.bodyMedium.copyWith(
                             color: AppColors.secondaryText,
                           ),
                         ),
@@ -322,17 +305,17 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                             padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
                               color: AppColors.card,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: AppColors.border),
+                              borderRadius: BorderRadius.zero,
+                              border: Border.all(
+                                color: AppColors.border,
+                                width: 0.5,
+                              ),
                             ),
                             child: Text(
                               searchQuery.isEmpty
                                   ? 'No orders found.'
                                   : 'No matching orders found.',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: AppColors.secondaryText,
-                              ),
+                              style: AppTextStyles.bodyMedium,
                             ),
                           )
                         else

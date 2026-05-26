@@ -23,136 +23,171 @@ class AppHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          showBackButton
-              ? IconButton(
-            icon: const Icon(Icons.arrow_back, size: 30),
-            onPressed: () {
-              Navigator.pop(context);
-            },
-          )
-              : GestureDetector(
-            onTap: () async {
-              if (user == null) {
-                final result = await Navigator.push(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
+      ),
+      child: SizedBox(
+        height: 44,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Logo — absolutely centered
+            GestureDetector(
+              onTap: () {
+                Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const LoginPage(),
+                    builder: (context) =>
+                        MainNavigationPage(onLanguageChange: (_) {}),
                   ),
+                  (route) => false,
                 );
-
-                if (result == true && context.mounted) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ProfilePage(),
-                    ),
-                  );
-                }
-              } else {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ProfilePage(),
-                  ),
-                );
-              }
-            },
-            child: const Icon(Icons.account_circle_outlined, size: 30),
-          ),
-
-          Expanded(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.only(left: 50),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => MainNavigationPage(
-                          onLanguageChange: (_) {},
-                        ),
-                      ),
-                          (route) => false,
-                    );
-                  },
-                  child: Image.asset(
-                    "assets/libsk_logo.png",
-                    height: 60,
-                    fit: BoxFit.contain,
-                  ),
-                ),
+              },
+              child: Image.asset(
+                "assets/libsk_logo.png",
+                height: 44,
+                fit: BoxFit.contain,
               ),
             ),
-          ),
 
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.shopping_bag_outlined, size: 30),
-                onPressed: isCartPage
-                    ? null
-                    : () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CartPage(),
+            // Left — profile or back
+            Align(
+              alignment: Alignment.centerLeft,
+              child: showBackButton
+                  ? GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        size: 26,
+                        color: AppColors.primaryText,
+                      ),
+                    )
+                  : GestureDetector(
+                      onTap: () async {
+                        if (user == null) {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const LoginPage(),
+                            ),
+                          );
+                          if (result == true && context.mounted) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ProfilePage(),
+                              ),
+                            );
+                          }
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ProfilePage(),
+                            ),
+                          );
+                        }
+                      },
+                      child: const Icon(
+                        Icons.account_circle_outlined,
+                        size: 26,
+                        color: AppColors.primaryText,
+                      ),
                     ),
-                  );
-                },
-              ),
-              if (user != null)
-                Positioned(
-                  right: 2,
-                  top: 2,
-                  child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: FirestoreService.getCartItemsStream(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return const SizedBox();
-                      }
+            ),
 
-                      final count = snapshot.data!.docs.length;
-
-                      return Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: AppColors.primaryText,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Text(
-                          count.toString(),
-                          style: const TextStyle(
-                            color: AppColors.card,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+            // Right — cart + search
+            Align(
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    children: [
+                      GestureDetector(
+                        onTap: isCartPage
+                            ? null
+                            : () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const CartPage(),
+                                  ),
+                                );
+                              },
+                        child: const Padding(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(
+                            Icons.shopping_bag_outlined,
+                            size: 28,
+                            color: AppColors.primaryText,
                           ),
+                        ),
+                      ),
+                      if (user != null)
+                        Positioned(
+                          right: 2,
+                          top: 2,
+                          child:
+                              StreamBuilder<
+                                QuerySnapshot<Map<String, dynamic>>
+                              >(
+                                stream: FirestoreService.getCartItemsStream(),
+                                builder: (context, snapshot) {
+                                  if (!snapshot.hasData ||
+                                      snapshot.data!.docs.isEmpty) {
+                                    return const SizedBox();
+                                  }
+                                  final count = snapshot.data!.docs.length;
+                                  return Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.primaryText,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        count.toString(),
+                                        style: AppTextStyles.bodySmall.copyWith(
+                                          color: AppColors.background,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                        ),
+                    ],
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SearchPage(),
                         ),
                       );
                     },
+                    child: const Padding(
+                      padding: EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.search,
+                        size: 28,
+                        color: AppColors.primaryText,
+                      ),
+                    ),
                   ),
-                ),
-            ],
-          ),
-
-          const SizedBox(width: 12),
-
-          IconButton(
-            icon: const Icon(Icons.search, size: 30),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SearchPage(),
-                ),
-              );
-            },
-          ),
-        ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

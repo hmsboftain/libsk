@@ -87,14 +87,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
             const Text(
               "Forgot Password",
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w700,
-              ),
+              style: AppTextStyles.headingLarge,
             ),
 
             const SizedBox(height: 16),
-            const Divider(height: 1, thickness: 1),
+            const Divider(height: 1, thickness: 0.5),
 
             Expanded(
               child: SingleChildScrollView(
@@ -108,22 +105,14 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
                       const Text(
                         "Enter your email address and we will send you a password reset link.",
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: Colors.black54,
-                          height: 1.5,
-                        ),
+                        style: AppTextStyles.bodyMedium,
                       ),
 
                       const SizedBox(height: 28),
 
                       const Text(
                         "EMAIL ADDRESS",
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: AppTextStyles.capsLabel,
                       ),
 
                       const SizedBox(height: 8),
@@ -136,11 +125,25 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           filled: true,
                           fillColor: AppColors.field,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide: const BorderSide(
+                              color: AppColors.border,
+                              width: 0.5,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide: const BorderSide(
+                              color: AppColors.border,
+                              width: 0.5,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.black),
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide: const BorderSide(
+                              color: AppColors.deepAccent,
+                              width: 1,
+                            ),
                           ),
                         ),
                         validator: (value) {
@@ -165,7 +168,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               child: ElevatedButton(
                 onPressed: isLoading ? null : sendResetEmail,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
+                  backgroundColor: AppColors.deepAccent,
+                  foregroundColor: Colors.white,
                   shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero,
                   ),
@@ -175,17 +179,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   height: 22,
                   width: 22,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
+                    strokeWidth: 1.5,
                     color: Colors.white,
                   ),
                 )
                     : const Text(
                   "SEND RESET LINK",
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppTextStyles.button,
                 ),
               ),
             ),

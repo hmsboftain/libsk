@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
@@ -51,10 +52,7 @@ class _HomePageState extends State<HomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const AppHeader(),
-
-                // ── Hero Banner (Firestore / Hero Banner Management)
                 const RotatingHeroBanner(),
-
                 const SizedBox(height: 32),
 
                 // ── Featured Pieces ──────────────────────────────────────
@@ -65,7 +63,6 @@ class _HomePageState extends State<HomePage> {
                     style: AppTextStyles.headingLarge,
                   ),
                 ),
-
                 const SizedBox(height: 16),
 
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -82,24 +79,26 @@ class _HomePageState extends State<HomePage> {
                         ),
                       );
                     }
-
                     if (snapshot.hasError) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
-                          AppLocalizations.of(context)!.failedToLoadFeaturedProducts,
+                          AppLocalizations.of(
+                            context,
+                          )!.failedToLoadFeaturedProducts,
                           style: AppTextStyles.bodySmall,
                         ),
                       );
                     }
 
                     final docs = snapshot.data?.docs ?? [];
-
                     if (docs.isEmpty) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
-                          AppLocalizations.of(context)!.noFeaturedProductsAvailable,
+                          AppLocalizations.of(
+                            context,
+                          )!.noFeaturedProductsAvailable,
                           style: AppTextStyles.bodySmall,
                         ),
                       );
@@ -113,34 +112,37 @@ class _HomePageState extends State<HomePage> {
                         itemCount: docs.length,
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 0.62,
-                        ),
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: 0.62,
+                            ),
                         itemBuilder: (context, index) {
                           final doc = docs[index];
                           final data = doc.data();
-
                           final String productId = doc.id;
                           final String boutiqueId =
                               doc.reference.parent.parent!.id;
-                          final String title = data['title']?.toString() ??
+                          final String title =
+                              data['title']?.toString() ??
                               AppLocalizations.of(context)!.untitledProduct;
                           final String description =
                               data['description']?.toString() ??
-                                  AppLocalizations.of(context)!.noDescription;
+                              AppLocalizations.of(context)!.noDescription;
                           final String imageUrl =
                               data['imageUrl']?.toString() ?? '';
                           final imageUrlsData = data['imageUrls'];
                           final List<String> imageUrls = imageUrlsData is List
                               ? imageUrlsData.map((e) => e.toString()).toList()
-                              : imageUrl.isNotEmpty ? [imageUrl] : [];
-                          final displayImageUrl =
-                              imageUrls.isNotEmpty ? imageUrls.first : imageUrl;
+                              : imageUrl.isNotEmpty
+                              ? [imageUrl]
+                              : [];
+                          final displayImageUrl = imageUrls.isNotEmpty
+                              ? imageUrls.first
+                              : imageUrl;
                           final String boutiqueName =
                               data['boutiqueName']?.toString() ??
-                                  AppLocalizations.of(context)!.boutique;
+                              AppLocalizations.of(context)!.boutique;
                           final priceValue = data['price'] ?? 0;
                           final double price = priceValue is num
                               ? priceValue.toDouble()
@@ -155,25 +157,23 @@ class _HomePageState extends State<HomePage> {
                               : [];
 
                           return GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ProductPage(
-                                    productId: productId,
-                                    boutiqueId: boutiqueId,
-                                    imageUrl: displayImageUrl,
-                                    imageUrls: imageUrls,
-                                    title: title,
-                                    price: price,
-                                    description: description,
-                                    sizes: sizes,
-                                    stock: stock,
-                                    boutiqueName: boutiqueName,
-                                  ),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ProductPage(
+                                  productId: productId,
+                                  boutiqueId: boutiqueId,
+                                  imageUrl: displayImageUrl,
+                                  imageUrls: imageUrls,
+                                  title: title,
+                                  price: price,
+                                  description: description,
+                                  sizes: sizes,
+                                  stock: stock,
+                                  boutiqueName: boutiqueName,
                                 ),
-                              );
-                            },
+                              ),
+                            ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -190,28 +190,39 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                         ),
                                         child: displayImageUrl.isNotEmpty
-                                            ? Image.network(
-                                                displayImageUrl,
+                                            ? CachedNetworkImage(
+                                                imageUrl: displayImageUrl,
                                                 fit: BoxFit.cover,
                                                 width: double.infinity,
-                                                errorBuilder: (_, __, ___) =>
-                                                    const Center(
-                                                  child: Icon(
-                                                    Icons.image_not_supported_outlined,
-                                                    size: 24,
-                                                    color: AppColors.softAccent,
-                                                  ),
-                                                ),
+                                                placeholder: (context, url) =>
+                                                    Container(
+                                                      color: AppColors
+                                                          .imagePlaceholder,
+                                                    ),
+                                                errorWidget:
+                                                    (
+                                                      context,
+                                                      url,
+                                                      error,
+                                                    ) => const Center(
+                                                      child: Icon(
+                                                        Icons
+                                                            .image_not_supported_outlined,
+                                                        size: 24,
+                                                        color: AppColors
+                                                            .softAccent,
+                                                      ),
+                                                    ),
                                               )
                                             : const Center(
                                                 child: Icon(
-                                                  Icons.image_not_supported_outlined,
+                                                  Icons
+                                                      .image_not_supported_outlined,
                                                   size: 24,
                                                   color: AppColors.softAccent,
                                                 ),
                                               ),
                                       ),
-                                      // FEATURED tag
                                       Positioned(
                                         bottom: 10,
                                         left: 10,
@@ -270,12 +281,10 @@ class _HomePageState extends State<HomePage> {
                 ),
 
                 const SizedBox(height: 36),
-
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Divider(color: AppColors.border, thickness: 0.5),
                 ),
-
                 const SizedBox(height: 28),
 
                 // ── Top Boutiques ────────────────────────────────────────
@@ -286,7 +295,6 @@ class _HomePageState extends State<HomePage> {
                     style: AppTextStyles.headingLarge,
                   ),
                 ),
-
                 const SizedBox(height: 16),
 
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -303,7 +311,6 @@ class _HomePageState extends State<HomePage> {
                         ),
                       );
                     }
-
                     if (snapshot.hasError) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -315,7 +322,6 @@ class _HomePageState extends State<HomePage> {
                     }
 
                     final docs = snapshot.data?.docs ?? [];
-
                     if (docs.isEmpty) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -333,17 +339,16 @@ class _HomePageState extends State<HomePage> {
                         final logoUrl = data['logoPath']?.toString() ?? '';
                         final boutiqueName =
                             data['name']?.toString() ?? 'Boutique';
-                                                return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => BoutiqueStorefrontPage(
-                                  boutiqueId: boutiqueId,
-                                ),
+
+                        return GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => BoutiqueStorefrontPage(
+                                boutiqueId: boutiqueId,
                               ),
-                            );
-                          },
+                            ),
+                          ),
                           child: Container(
                             margin: const EdgeInsets.symmetric(
                               horizontal: 16,
@@ -364,17 +369,25 @@ class _HomePageState extends State<HomePage> {
                                   height: 52,
                                   color: AppColors.imagePlaceholder,
                                   child: logoUrl.isNotEmpty
-                                      ? Image.network(
-                                          logoUrl,
+                                      ? CachedNetworkImage(
+                                          imageUrl: logoUrl,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => Center(
-                                            child: Text(
-                                              boutiqueName.isNotEmpty
-                                                  ? boutiqueName[0].toUpperCase()
-                                                  : 'B',
-                                              style: AppTextStyles.headingMedium,
-                                            ),
-                                          ),
+                                          placeholder: (context, url) =>
+                                              Container(
+                                                color:
+                                                    AppColors.imagePlaceholder,
+                                              ),
+                                          errorWidget: (context, url, error) =>
+                                              Center(
+                                                child: Text(
+                                                  boutiqueName.isNotEmpty
+                                                      ? boutiqueName[0]
+                                                            .toUpperCase()
+                                                      : 'B',
+                                                  style: AppTextStyles
+                                                      .headingMedium,
+                                                ),
+                                              ),
                                         )
                                       : Center(
                                           child: Text(
@@ -387,15 +400,9 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        boutiqueName,
-                                        style: AppTextStyles.bodyLarge,
-                                      ),
-                                                                          ],
+                                  child: Text(
+                                    boutiqueName,
+                                    style: AppTextStyles.bodyLarge,
                                   ),
                                 ),
                                 const Icon(

@@ -43,15 +43,15 @@ class AllUsersPage extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.zero,
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 22,
-            backgroundColor: AppColors.softAccent..withValues(alpha: 0.22),
+            backgroundColor: AppColors.softAccent.withValues(alpha: 0.22),
             child: const Icon(
               Icons.person_outline,
               color: AppColors.deepAccent,
@@ -65,27 +65,19 @@ class AllUsersPage extends StatelessWidget {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryText,
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   email,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.secondaryText,
-                  ),
+                  style: AppTextStyles.bodySmall,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   phone,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.secondaryText,
-                  ),
+                  style: AppTextStyles.bodySmall,
                 ),
               ],
             ),
@@ -119,7 +111,7 @@ class AllUsersPage extends StatelessWidget {
                     return const Center(
                       child: Text(
                         'Failed to load users',
-                        style: TextStyle(color: AppColors.secondaryText),
+                        style: AppTextStyles.bodyMedium,
                       ),
                     );
                   }
@@ -133,17 +125,12 @@ class AllUsersPage extends StatelessWidget {
                       children: [
                         const Text(
                           'ALL USERS',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryText,
-                          ),
+                          style: AppTextStyles.displayMedium,
                         ),
                         const SizedBox(height: 8),
                         Text(
                           '${userDocs.length} registered users',
-                          style: const TextStyle(
-                            fontSize: 14,
+                          style: AppTextStyles.bodyMedium.copyWith(
                             color: AppColors.secondaryText,
                           ),
                         ),
@@ -154,15 +141,15 @@ class AllUsersPage extends StatelessWidget {
                             padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
                               color: AppColors.card,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: AppColors.border),
+                              borderRadius: BorderRadius.zero,
+                              border: Border.all(
+                                color: AppColors.border,
+                                width: 0.5,
+                              ),
                             ),
                             child: const Text(
                               'No users found.',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppColors.secondaryText,
-                              ),
+                              style: AppTextStyles.bodyMedium,
                             ),
                           )
                         else

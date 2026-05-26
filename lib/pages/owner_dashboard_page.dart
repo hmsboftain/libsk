@@ -155,7 +155,6 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
     final backgroundColor = AppColors.background;
     final cardColor = AppColors.card;
     final borderColor = AppColors.border;
-    final primaryText = AppColors.primaryText;
     final secondaryText = AppColors.secondaryText;
     final softAccent = AppColors.softAccent;
     final deepAccent = AppColors.deepAccent;
@@ -175,6 +174,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
               )
                   : loadError != null
                   ? RefreshIndicator(
+                color: deepAccent,
                 onRefresh: _onRefresh,
                 child: ListView(
                   children: [
@@ -182,8 +182,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                       padding: const EdgeInsets.all(24),
                       child: Text(
                         'Failed to load dashboard\n\n$loadError',
-                        style: TextStyle(
-                          fontSize: 15,
+                        style: AppTextStyles.bodyMedium.copyWith(
                           color: secondaryText,
                         ),
                         textAlign: TextAlign.center,
@@ -194,6 +193,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
               )
                   : boutiqueId == null
                   ? RefreshIndicator(
+                color: deepAccent,
                 onRefresh: _onRefresh,
                 child: ListView(
                   children: [
@@ -201,8 +201,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                       padding: const EdgeInsets.all(24),
                       child: Text(
                         'No boutique found for this owner.',
-                        style: TextStyle(
-                          fontSize: 15,
+                        style: AppTextStyles.bodyMedium.copyWith(
                           color: secondaryText,
                         ),
                         textAlign: TextAlign.center,
@@ -227,6 +226,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
 
                   if (snapshot.hasError) {
                     return RefreshIndicator(
+                      color: deepAccent,
                       onRefresh: _onRefresh,
                       child: ListView(
                         children: [
@@ -234,8 +234,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                             padding: const EdgeInsets.all(24),
                             child: Text(
                               'Failed to load products\n\n${snapshot.error}',
-                              style: TextStyle(
-                                fontSize: 15,
+                              style: AppTextStyles.bodyMedium.copyWith(
                                 color: secondaryText,
                               ),
                               textAlign: TextAlign.center,
@@ -273,6 +272,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
 
                       if (orderSnapshot.hasError) {
                         return RefreshIndicator(
+                          color: deepAccent,
                           onRefresh: _onRefresh,
                           child: ListView(
                             children: [
@@ -280,8 +280,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                 padding: const EdgeInsets.all(24),
                                 child: Text(
                                   'Failed to load orders\n\n${orderSnapshot.error}',
-                                  style: TextStyle(
-                                    fontSize: 15,
+                                  style: AppTextStyles.bodyMedium.copyWith(
                                     color: secondaryText,
                                   ),
                                   textAlign: TextAlign.center,
@@ -298,6 +297,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                       final orderCount = orderDocs.length;
 
                       return RefreshIndicator(
+                        color: deepAccent,
                         onRefresh: _onRefresh,
                         child: SingleChildScrollView(
                           physics: const AlwaysScrollableScrollPhysics(),
@@ -307,26 +307,17 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                             children: [
                               Text(
                                 'Welcome back,',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: secondaryText,
-                                ),
+                                style: AppTextStyles.capsLabel,
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 ownerData?['Name']?.toString() ?? 'Owner',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w700,
-                                  color: primaryText,
-                                ),
+                                style: AppTextStyles.displayMedium,
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 boutiqueData?['name']?.toString() ?? 'Boutique',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
+                                style: AppTextStyles.bodyLarge.copyWith(
                                   color: secondaryText,
                                 ),
                               ),
@@ -334,8 +325,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                               Text(
                                 boutiqueData?['description']?.toString() ??
                                     'Manage your boutique, products, and sales from one place.',
-                                style: TextStyle(
-                                  fontSize: 14,
+                                style: AppTextStyles.bodyMedium.copyWith(
                                   height: 1.5,
                                   color: secondaryText,
                                 ),
@@ -422,9 +412,9 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                 padding: const EdgeInsets.all(18),
                                 decoration: BoxDecoration(
                                   color: cardColor,
-                                  borderRadius: BorderRadius.circular(22),
                                   border: Border.all(
                                     color: borderColor,
+                                    width: 0.5,
                                   ),
                                 ),
                                 child: Column(
@@ -436,10 +426,8 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                       children: [
                                         Text(
                                           'Weekly Sales',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: primaryText,
+                                          style: AppTextStyles.bodyLarge.copyWith(
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
                                         Text(
@@ -449,19 +437,14 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                                   (total, value) => total + value,
                                             ),
                                           ),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: secondaryText,
-                                          ),
+                                          style: AppTextStyles.bodySmall,
                                         ),
                                       ],
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
                                       'Based on real order totals from the last 7 days.',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: secondaryText,
+                                      style: AppTextStyles.bodySmall.copyWith(
                                         height: 1.4,
                                       ),
                                     ),
@@ -482,55 +465,13 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                       mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Text(
-                                          'Mon',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: secondaryText,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Tue',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: secondaryText,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Wed',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: secondaryText,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Thu',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: secondaryText,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Fri',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: secondaryText,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Sat',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: secondaryText,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Sun',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: secondaryText,
-                                          ),
-                                        ),
+                                        Text('Mon', style: AppTextStyles.bodySmall),
+                                        Text('Tue', style: AppTextStyles.bodySmall),
+                                        Text('Wed', style: AppTextStyles.bodySmall),
+                                        Text('Thu', style: AppTextStyles.bodySmall),
+                                        Text('Fri', style: AppTextStyles.bodySmall),
+                                        Text('Sat', style: AppTextStyles.bodySmall),
+                                        Text('Sun', style: AppTextStyles.bodySmall),
                                       ],
                                     ),
                                   ],
@@ -625,16 +566,15 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                 padding: const EdgeInsets.all(18),
                                 decoration: BoxDecoration(
                                   color: cardColor,
-                                  borderRadius: BorderRadius.circular(22),
                                   border: Border.all(
                                     color: borderColor,
+                                    width: 0.5,
                                   ),
                                 ),
                                 child: productDocs.isEmpty
                                     ? Text(
                                   'No product notes yet.',
-                                  style: TextStyle(
-                                    fontSize: 14,
+                                  style: AppTextStyles.bodyMedium.copyWith(
                                     color: secondaryText,
                                   ),
                                 )
@@ -701,11 +641,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
   Widget buildSectionTitle(String title) {
     return Text(
       title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-        color: AppColors.primaryText,
-      ),
+      style: AppTextStyles.headingSmall,
     );
   }
 
@@ -724,8 +660,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: borderColor, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -738,27 +673,21 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
           const SizedBox(height: 14),
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 13,
+            style: AppTextStyles.labelLarge.copyWith(
               color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryText,
-            ),
+            style: AppTextStyles.headingLarge,
           ),
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: TextStyle(
-              fontSize: 12,
+            style: AppTextStyles.labelSmall.copyWith(
               color: subtitleColor,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -776,14 +705,12 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
     required VoidCallback onTap,
   }) {
     return InkWell(
-      borderRadius: BorderRadius.circular(22),
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: cardColor,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: borderColor),
+          border: Border.all(color: borderColor, width: 0.5),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -793,21 +720,15 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
             const SizedBox(height: 15),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primaryText,
+              style: AppTextStyles.bodyLarge.copyWith(
+                fontWeight: FontWeight.w500,
                 height: 1.1,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               subtitle,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.secondaryText,
-                height: 1.35,
-              ),
+              style: AppTextStyles.bodySmall.copyWith(height: 1.35),
             ),
           ],
         ),
@@ -836,8 +757,8 @@ class InventoryRow extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: AppColors.softAccent.withValues(alpha:0.25),
-            borderRadius: BorderRadius.circular(14),
+            color: AppColors.softAccent.withValues(alpha: 0.25),
+            border: Border.all(color: AppColors.border, width: 0.5),
           ),
           child: const Icon(
             Icons.checkroom_outlined,
@@ -851,29 +772,23 @@ class InventoryRow extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primaryText,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 3),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.secondaryText,
-                ),
+                style: AppTextStyles.bodySmall,
               ),
             ],
           ),
         ),
         Text(
           count,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
+          style: AppTextStyles.labelSmall.copyWith(
             color: AppColors.deepAccent,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],

@@ -19,27 +19,29 @@ class AdminBoutiquesPage extends StatelessWidget {
             const AppHeader(showBackButton: true),
             const SizedBox(height: 12),
             const Text(
-              "All Boutiques",
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w600,
-              ),
+              'All Boutiques',
+              style: AppTextStyles.headingLarge,
             ),
             const SizedBox(height: 16),
-            const Divider(height: 1, thickness: 1),
+            const Divider(height: 1, thickness: 0.5, color: AppColors.border),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                 stream: FirestoreService.getAllBoutiquesStream(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
-                      child: CircularProgressIndicator(),
+                      child: CircularProgressIndicator(
+                        color: AppColors.deepAccent,
+                      ),
                     );
                   }
 
                   if (snapshot.hasError) {
                     return const Center(
-                      child: Text("Failed to load boutiques"),
+                      child: Text(
+                        'Failed to load boutiques',
+                        style: AppTextStyles.bodyMedium,
+                      ),
                     );
                   }
 
@@ -47,7 +49,10 @@ class AdminBoutiquesPage extends StatelessWidget {
 
                   if (docs.isEmpty) {
                     return const Center(
-                      child: Text("No boutiques available"),
+                      child: Text(
+                        'No boutiques available',
+                        style: AppTextStyles.bodyMedium,
+                      ),
                     );
                   }
 

@@ -187,20 +187,15 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 70),
                 Text(
                   AppLocalizations.of(context)!.welcomeBack,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: AppTextStyles.headingLarge,
                 ),
                 const SizedBox(height: 40),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     AppLocalizations.of(context)!.emailAddress,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
-                      fontWeight: FontWeight.w600,
+                    style: AppTextStyles.labelLarge.copyWith(
+                      color: AppColors.secondaryText,
                     ),
                   ),
                 ),
@@ -213,11 +208,25 @@ class _LoginPageState extends State<LoginPage> {
                     filled: true,
                     fillColor: AppColors.field,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(
+                        color: AppColors.border,
+                        width: 0.5,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(
+                        color: AppColors.border,
+                        width: 0.5,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.black),
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(
+                        color: AppColors.deepAccent,
+                        width: 1,
+                      ),
                     ),
                   ),
                   validator: (value) {
@@ -235,10 +244,8 @@ class _LoginPageState extends State<LoginPage> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     AppLocalizations.of(context)!.password,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
-                      fontWeight: FontWeight.w600,
+                    style: AppTextStyles.labelLarge.copyWith(
+                      color: AppColors.secondaryText,
                     ),
                   ),
                 ),
@@ -251,11 +258,25 @@ class _LoginPageState extends State<LoginPage> {
                     filled: true,
                     fillColor: AppColors.field,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(
+                        color: AppColors.border,
+                        width: 0.5,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(
+                        color: AppColors.border,
+                        width: 0.5,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.black),
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(
+                        color: AppColors.deepAccent,
+                        width: 1,
+                      ),
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -293,10 +314,7 @@ class _LoginPageState extends State<LoginPage> {
                     },
                     child: Text(
                       AppLocalizations.of(context)!.forgotPassword,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTextStyles.labelLarge,
                     ),
                   ),
                 ),
@@ -307,10 +325,10 @@ class _LoginPageState extends State<LoginPage> {
                   child: ElevatedButton(
                     onPressed: isLoading ? null : signInUser,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
+                      backgroundColor: AppColors.deepAccent,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                     child: isLoading
@@ -318,16 +336,13 @@ class _LoginPageState extends State<LoginPage> {
                       height: 22,
                       width: 22,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
+                        strokeWidth: 1.5,
                         color: Colors.white,
                       ),
                     )
                         : Text(
                       AppLocalizations.of(context)!.signIn,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: AppTextStyles.button,
                     ),
                   ),
                 ),
@@ -337,7 +352,9 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     Text(
                       AppLocalizations.of(context)!.dontHaveAnAccount,
-                      style: const TextStyle(color: Colors.black54),
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.secondaryText,
+                      ),
                     ),
                     GestureDetector(
                       onTap: () async {
@@ -353,9 +370,7 @@ class _LoginPageState extends State<LoginPage> {
                       },
                       child: Text(
                         AppLocalizations.of(context)!.signUp,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: AppTextStyles.labelLarge,
                       ),
                     ),
                   ],
@@ -368,9 +383,8 @@ class _LoginPageState extends State<LoginPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 18),
                       child: Text(
                         AppLocalizations.of(context)!.or,
-                        style: const TextStyle(
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w600,
+                        style: AppTextStyles.labelLarge.copyWith(
+                          color: AppColors.secondaryText,
                         ),
                       ),
                     ),
@@ -385,8 +399,10 @@ class _LoginPageState extends State<LoginPage> {
                     height: 54,
                     decoration: BoxDecoration(
                       color: AppColors.card,
-                      border: Border.all(color: Colors.black12),
-                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.border,
+                        width: 0.5,
+                      ),
                     ),
                     child: isGoogleLoading
                         ? const Center(
@@ -394,22 +410,24 @@ class _LoginPageState extends State<LoginPage> {
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.black,
+                          strokeWidth: 1.5,
+                          color: AppColors.deepAccent,
                         ),
                       ),
                     )
                         : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.g_mobiledata, size: 28),
+                        const Icon(
+                          Icons.g_mobiledata,
+                          size: 28,
+                          color: AppColors.primaryText,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           AppLocalizations.of(context)!
                               .continueWithGoogle,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: AppTextStyles.labelLarge,
                         ),
                       ],
                     ),

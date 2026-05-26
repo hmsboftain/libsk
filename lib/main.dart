@@ -10,22 +10,19 @@ import 'services/firestore_service.dart';
 import 'navigation/main_navigation_bar.dart';
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
+import 'widgets/theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await FirestoreService.prepareGuestCartId();
 
-  FirebaseMessaging.onBackgroundMessage(
-    firebaseMessagingBackgroundHandler,
-  );
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   Stripe.publishableKey =
-  'pk_test_51TOOjvCTdAUQnhiZ4ArRKUYtg2TIuKEc3j0LeMDk036JhqGoPlsVV6ZdO4resgC8XJg5C8fZBhkhMROon5Go9Flf00SX2GiCmu';
+      'pk_test_51TOOjvCTdAUQnhiZ4ArRKUYtg2TIuKEc3j0LeMDk036JhqGoPlsVV6ZdO4resgC8XJg5C8fZBhkhMROon5Go9Flf00SX2GiCmu';
   await Stripe.instance.applySettings();
 
   runApp(const LibskApp());
@@ -64,11 +61,9 @@ class _LibskAppState extends State<LibskApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
       locale: _locale,
-      supportedLocales: const [
-        Locale('en'),
-        Locale('ar'),
-      ],
+      supportedLocales: const [Locale('en'), Locale('ar')],
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -82,7 +77,6 @@ class _LibskAppState extends State<LibskApp> {
           if (snapshot.hasData) {
             FirestoreService.saveCurrentUserFcmToken();
           }
-
           return PermissionGatePage(onLanguageChange: changeLanguage);
         },
       ),
@@ -93,10 +87,7 @@ class _LibskAppState extends State<LibskApp> {
 class PermissionGatePage extends StatefulWidget {
   final Function(Locale) onLanguageChange;
 
-  const PermissionGatePage({
-    super.key,
-    required this.onLanguageChange,
-  });
+  const PermissionGatePage({super.key, required this.onLanguageChange});
 
   @override
   State<PermissionGatePage> createState() => _PermissionGatePageState();
@@ -118,7 +109,6 @@ class _PermissionGatePageState extends State<PermissionGatePage> {
     } catch (e) {
       debugPrint('Permission request failed: $e');
     } finally {
-      // always move forward even if permissions fail
       if (mounted) {
         setState(() {
           _permissionsHandled = true;
@@ -130,16 +120,28 @@ class _PermissionGatePageState extends State<PermissionGatePage> {
   @override
   Widget build(BuildContext context) {
     if (!_permissionsHandled) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFFFFDF8),
+      return Scaffold(
+        backgroundColor: AppColors.background,
         body: Center(
-          child: CircularProgressIndicator(color: Colors.black),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/libsk_logo.png',
+                height: 48,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 32),
+              const CircularProgressIndicator(
+                color: AppColors.deepAccent,
+                strokeWidth: 1.5,
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return MainNavigationPage(
-      onLanguageChange: widget.onLanguageChange,
-    );
+    return MainNavigationPage(onLanguageChange: widget.onLanguageChange);
   }
 }

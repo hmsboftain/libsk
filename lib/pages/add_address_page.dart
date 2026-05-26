@@ -65,11 +65,16 @@ class _AddAddressPageState extends State<AddAddressPage> {
       filled: true,
       fillColor: AppColors.field,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(4),
+        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(4),
+        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.black),
+        borderRadius: BorderRadius.circular(4),
+        borderSide: const BorderSide(color: AppColors.deepAccent, width: 1),
       ),
     );
   }
@@ -87,10 +92,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
 
             Text(
               AppLocalizations.of(context)!.addDeliveryAddress,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
+              style: AppTextStyles.headingMedium,
             ),
 
             const SizedBox(height: 8),
@@ -112,10 +114,8 @@ class _AddAddressPageState extends State<AddAddressPage> {
 
                       Text(
                         AppLocalizations.of(context)!.deliveryAddress,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w600,
+                        style: AppTextStyles.labelLarge.copyWith(
+                          color: AppColors.secondaryText,
                         ),
                       ),
 
@@ -333,18 +333,15 @@ class _AddAddressPageState extends State<AddAddressPage> {
                   }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
+                  backgroundColor: AppColors.deepAccent,
+                  foregroundColor: Colors.white,
                   shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero,
                   ),
                 ),
                 child: Text(
                   AppLocalizations.of(context)!.addNow,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppTextStyles.button.copyWith(fontSize: 16),
                 ),
               ),
             ),

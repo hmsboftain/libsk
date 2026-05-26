@@ -147,11 +147,7 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
   Widget buildLabel(String text) {
     return Text(
       text,
-      style: const TextStyle(
-        fontSize: 13,
-        color: Colors.black54,
-        fontWeight: FontWeight.w600,
-      ),
+      style: AppTextStyles.capsLabel,
     );
   }
 
@@ -164,11 +160,16 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
       filled: true,
       fillColor: isDisabled ? AppColors.disabledField : AppColors.field,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(4),
+        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(4),
+        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.black),
+        borderRadius: BorderRadius.circular(4),
+        borderSide: const BorderSide(color: AppColors.deepAccent, width: 1),
       ),
     );
   }
@@ -184,17 +185,17 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
             const SizedBox(height: 12),
             Text(
               AppLocalizations.of(context)!.accountInformation,
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.headingLarge,
             ),
             const SizedBox(height: 16),
-            const Divider(height: 1, thickness: 1),
+            const Divider(height: 1, thickness: 0.5),
             Expanded(
               child: isLoading
                   ? const Center(
-                child: CircularProgressIndicator(),
+                child: CircularProgressIndicator(
+                  color: AppColors.deepAccent,
+                  strokeWidth: 1.5,
+                ),
               )
                   : RefreshIndicator(
                 onRefresh: _onRefresh,
@@ -239,10 +240,7 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
                         const SizedBox(height: 10),
                         Text(
                           AppLocalizations.of(context)!.emailNotEditable,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
+                          style: AppTextStyles.bodySmall,
                         ),
                         const SizedBox(height: 24),
                         buildLabel(AppLocalizations.of(context)!.phoneNumber),
@@ -275,7 +273,8 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
               child: ElevatedButton(
                 onPressed: isSaving ? null : saveChanges,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
+                  backgroundColor: AppColors.deepAccent,
+                  foregroundColor: Colors.white,
                   shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero,
                   ),
@@ -285,17 +284,13 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
                   height: 22,
                   width: 22,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
+                    strokeWidth: 1.5,
                     color: Colors.white,
                   ),
                 )
                     : Text(
                   AppLocalizations.of(context)!.saveChanges,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppTextStyles.button.copyWith(fontSize: 16),
                 ),
               ),
             ),

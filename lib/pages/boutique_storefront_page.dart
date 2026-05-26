@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../navigation/app_header.dart';
@@ -9,11 +10,7 @@ enum SortOption { newest, oldest, priceLow, priceHigh }
 
 class BoutiqueStorefrontPage extends StatefulWidget {
   final String boutiqueId;
-
-  const BoutiqueStorefrontPage({
-    super.key,
-    required this.boutiqueId,
-  });
+  const BoutiqueStorefrontPage({super.key, required this.boutiqueId});
 
   @override
   State<BoutiqueStorefrontPage> createState() => _BoutiqueStorefrontPageState();
@@ -22,64 +19,45 @@ class BoutiqueStorefrontPage extends StatefulWidget {
 class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
   SortOption _sortOption = SortOption.newest;
 
-  Future<void> _onRefresh() async {
-    setState(() {});
-  }
+  Future<void> _onRefresh() async => setState(() {});
 
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _sortDocs(
-      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
-      ) {
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
     final sorted = List.of(docs);
-
     switch (_sortOption) {
       case SortOption.newest:
         sorted.sort((a, b) {
-          final aTime = a.data()['createdAt'];
-          final bTime = b.data()['createdAt'];
-          if (aTime is Timestamp && bTime is Timestamp) {
-            return bTime.compareTo(aTime);
-          }
+          final aT = a.data()['createdAt'];
+          final bT = b.data()['createdAt'];
+          if (aT is Timestamp && bT is Timestamp) return bT.compareTo(aT);
           return 0;
         });
         break;
       case SortOption.oldest:
         sorted.sort((a, b) {
-          final aTime = a.data()['createdAt'];
-          final bTime = b.data()['createdAt'];
-          if (aTime is Timestamp && bTime is Timestamp) {
-            return aTime.compareTo(bTime);
-          }
+          final aT = a.data()['createdAt'];
+          final bT = b.data()['createdAt'];
+          if (aT is Timestamp && bT is Timestamp) return aT.compareTo(bT);
           return 0;
         });
         break;
       case SortOption.priceLow:
-        sorted.sort((a, b) {
-          final aPrice = (a.data()['price'] ?? 0) is num
-              ? (a.data()['price'] as num).toDouble()
-              : double.tryParse(a.data()['price'].toString()) ?? 0;
-          final bPrice = (b.data()['price'] ?? 0) is num
-              ? (b.data()['price'] as num).toDouble()
-              : double.tryParse(b.data()['price'].toString()) ?? 0;
-          return aPrice.compareTo(bPrice);
-        });
+        sorted.sort((a, b) => _p(a.data()).compareTo(_p(b.data())));
         break;
       case SortOption.priceHigh:
-        sorted.sort((a, b) {
-          final aPrice = (a.data()['price'] ?? 0) is num
-              ? (a.data()['price'] as num).toDouble()
-              : double.tryParse(a.data()['price'].toString()) ?? 0;
-          final bPrice = (b.data()['price'] ?? 0) is num
-              ? (b.data()['price'] as num).toDouble()
-              : double.tryParse(b.data()['price'].toString()) ?? 0;
-          return bPrice.compareTo(aPrice);
-        });
+        sorted.sort((a, b) => _p(b.data()).compareTo(_p(a.data())));
         break;
     }
-
     return sorted;
   }
 
-  Widget _buildSortBar(int productCount) {
+  double _p(Map<String, dynamic> data) {
+    final v = data['price'] ?? 0;
+    return v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0;
+  }
+
+  Widget _buildSortBar(int count) {
     const options = [
       (SortOption.newest, 'Newest'),
       (SortOption.oldest, 'Oldest'),
@@ -92,12 +70,8 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
       child: Row(
         children: [
           Text(
-            '$productCount ${productCount == 1 ? 'product' : 'products'}',
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.secondaryText,
-              fontWeight: FontWeight.w500,
-            ),
+            '$count ${count == 1 ? 'product' : 'products'}',
+            style: AppTextStyles.capsLabel,
           ),
           const Spacer(),
           SizedBox(
@@ -110,29 +84,29 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
               itemBuilder: (context, index) {
                 final option = options[index];
                 final isSelected = _sortOption == option.$1;
-
                 return GestureDetector(
                   onTap: () => setState(() => _sortOption = option.$1),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? AppColors.deepAccent
                           : AppColors.field,
-                      borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isSelected
                             ? AppColors.deepAccent
                             : AppColors.border,
+                        width: 0.5,
                       ),
                     ),
                     child: Text(
                       option.$2,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                      style: AppTextStyles.labelSmall.copyWith(
+                        fontWeight: FontWeight.w500,
                         color: isSelected
                             ? Colors.white
                             : AppColors.secondaryText,
@@ -150,8 +124,9 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
 
   @override
   Widget build(BuildContext context) {
-    final boutiqueRef =
-    FirebaseFirestore.instance.collection('boutiques').doc(widget.boutiqueId);
+    final boutiqueRef = FirebaseFirestore.instance
+        .collection('boutiques')
+        .doc(widget.boutiqueId);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -163,34 +138,28 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
               return const Center(
                 child: CircularProgressIndicator(
                   color: AppColors.deepAccent,
+                  strokeWidth: 1.5,
                 ),
               );
             }
-
-            if (boutiqueSnapshot.hasError) {
-              return const Center(
-                child: Text(
-                  'Failed to load boutique',
-                  style: TextStyle(color: AppColors.secondaryText),
-                ),
-              );
-            }
-
-            if (!boutiqueSnapshot.hasData || !boutiqueSnapshot.data!.exists) {
-              return const Center(
+            if (boutiqueSnapshot.hasError ||
+                !boutiqueSnapshot.hasData ||
+                !boutiqueSnapshot.data!.exists) {
+              return Center(
                 child: Text(
                   'Boutique not found',
-                  style: TextStyle(color: AppColors.secondaryText),
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.secondaryText,
+                  ),
                 ),
               );
             }
 
             final boutiqueData = boutiqueSnapshot.data!.data() ?? {};
-            final boutiqueName =
-                boutiqueData['name']?.toString() ?? 'Boutique';
+            final boutiqueName = boutiqueData['name']?.toString() ?? 'Boutique';
             final boutiqueDescription =
                 boutiqueData['description']?.toString() ??
-                    'No description available.';
+                'No description available.';
             final logoPath = boutiqueData['logoPath']?.toString() ?? '';
             final bannerPath = boutiqueData['bannerPath']?.toString() ?? '';
 
@@ -202,27 +171,32 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const AppHeader(showBackButton: true),
+
+                    // Banner + logo
                     Stack(
                       clipBehavior: Clip.none,
                       alignment: Alignment.center,
                       children: [
                         bannerPath.isNotEmpty
-                            ? Image.network(
-                          bannerPath,
-                          height: 220,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
+                            ? CachedNetworkImage(
+                                imageUrl: bannerPath,
                                 height: 220,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Container(
+                                  height: 220,
+                                  color: AppColors.field,
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  height: 220,
+                                  color: AppColors.field,
+                                ),
+                              )
+                            : Container(
+                                height: 220,
+                                width: double.infinity,
                                 color: AppColors.field,
                               ),
-                        )
-                            : Container(
-                          height: 220,
-                          width: double.infinity,
-                          color: AppColors.field,
-                        ),
                         Positioned(
                           bottom: 0,
                           left: 0,
@@ -235,7 +209,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                                 end: Alignment.bottomCenter,
                                 colors: [
                                   Colors.transparent,
-                                  AppColors.background.withValues(alpha:0.9),
+                                  AppColors.background.withValues(alpha: 0.9),
                                 ],
                               ),
                             ),
@@ -252,38 +226,32 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha:0.08),
+                                  color: Colors.black.withValues(alpha: 0.08),
                                   blurRadius: 12,
                                   offset: const Offset(0, 4),
                                 ),
                               ],
                             ),
-                            child:
-                            BoutiqueLogoAvatar(imageUrl: logoPath, size: 80),
+                            child: BoutiqueLogoAvatar(
+                              imageUrl: logoPath,
+                              size: 80,
+                            ),
                           ),
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 48),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            boutiqueName,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primaryText,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
+                          Text(boutiqueName, style: AppTextStyles.headingLarge),
                           const SizedBox(height: 6),
                           Text(
                             boutiqueDescription,
-                            style: const TextStyle(
-                              fontSize: 14,
+                            style: AppTextStyles.bodyMedium.copyWith(
                               color: AppColors.secondaryText,
                               height: 1.5,
                             ),
@@ -291,12 +259,15 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                         ],
                       ),
                     ),
+
                     const SizedBox(height: 20),
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24),
-                      child: Divider(),
+                      child: Divider(color: AppColors.border, thickness: 0.5),
                     ),
                     const SizedBox(height: 14),
+
+                    // Products
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                       stream: boutiqueRef.collection('products').snapshots(),
                       builder: (context, productsSnapshot) {
@@ -307,35 +278,20 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                             child: Center(
                               child: CircularProgressIndicator(
                                 color: AppColors.deepAccent,
-                              ),
-                            ),
-                          );
-                        }
-
-                        if (productsSnapshot.hasError) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 40),
-                            child: Center(
-                              child: Text(
-                                'Failed to load products',
-                                style: TextStyle(
-                                  color: AppColors.secondaryText,
-                                ),
+                                strokeWidth: 1.5,
                               ),
                             ),
                           );
                         }
 
                         final rawDocs = productsSnapshot.data?.docs ?? [];
-
                         if (rawDocs.isEmpty) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 60),
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 60),
                             child: Center(
                               child: Text(
                                 'No products available yet',
-                                style: TextStyle(
-                                  fontSize: 15,
+                                style: AppTextStyles.bodyMedium.copyWith(
                                   color: AppColors.secondaryText,
                                 ),
                               ),
@@ -351,160 +307,154 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                             _buildSortBar(docs.length),
                             const SizedBox(height: 16),
                             Padding(
-                              padding:
-                              const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               child: GridView.builder(
                                 itemCount: docs.length,
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
                                 gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  crossAxisSpacing: 14,
-                                  mainAxisSpacing: 20,
-                                  childAspectRatio: 0.62,
-                                ),
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 2,
+                                      crossAxisSpacing: 14,
+                                      mainAxisSpacing: 20,
+                                      childAspectRatio: 0.58,
+                                    ),
                                 itemBuilder: (context, index) {
                                   final doc = docs[index];
                                   final data = doc.data();
-
                                   final productId = doc.id;
-                                  final title = data['title']?.toString() ??
+                                  final title =
+                                      data['title']?.toString() ??
                                       'Untitled Product';
                                   final description =
                                       data['description']?.toString() ??
-                                          'No description';
-
+                                      'No description';
                                   final imageUrl =
                                       data['imageUrl']?.toString() ?? '';
                                   final imageUrlsData = data['imageUrls'];
-
                                   final List<String> imageUrls =
-                                  imageUrlsData is List
+                                      imageUrlsData is List
                                       ? imageUrlsData
-                                      .map((image) => image.toString())
-                                      .toList()
+                                            .map((e) => e.toString())
+                                            .toList()
                                       : imageUrl.isNotEmpty
                                       ? [imageUrl]
                                       : [];
-
                                   final displayImageUrl = imageUrls.isNotEmpty
                                       ? imageUrls.first
                                       : imageUrl;
-
-                                  final priceValue = data['price'] ?? 0;
+                                  final double price = _p(data);
                                   final stockValue = data['stock'] ?? 0;
-                                  final sizesData = data['sizes'];
-
-                                  final double price = priceValue is num
-                                      ? priceValue.toDouble()
-                                      : double.tryParse(
-                                    priceValue.toString(),
-                                  ) ??
-                                      0;
-
                                   final int stock = stockValue is int
                                       ? stockValue
                                       : int.tryParse(stockValue.toString()) ??
-                                      0;
-
+                                            0;
+                                  final sizesData = data['sizes'];
                                   final List<String> sizes = sizesData is List
                                       ? sizesData
-                                      .map((s) => s.toString())
-                                      .toList()
+                                            .map((s) => s.toString())
+                                            .toList()
                                       : [];
 
                                   return GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => ProductPage(
-                                            productId: productId,
-                                            boutiqueId: widget.boutiqueId,
-                                            imageUrl: displayImageUrl,
-                                            imageUrls: imageUrls,
-                                            title: title,
-                                            price: price,
-                                            description: description,
-                                            sizes: sizes,
-                                            stock: stock,
-                                            boutiqueName: boutiqueName,
-                                          ),
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ProductPage(
+                                          productId: productId,
+                                          boutiqueId: widget.boutiqueId,
+                                          imageUrl: displayImageUrl,
+                                          imageUrls: imageUrls,
+                                          title: title,
+                                          price: price,
+                                          description: description,
+                                          sizes: sizes,
+                                          stock: stock,
+                                          boutiqueName: boutiqueName,
                                         ),
-                                      );
-                                    },
+                                      ),
+                                    ),
                                     child: Column(
                                       crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Stack(
                                           children: [
-                                            ClipRRect(
-                                              borderRadius:
-                                              BorderRadius.circular(16),
+                                            AspectRatio(
+                                              aspectRatio: 4 / 5,
                                               child: displayImageUrl.isNotEmpty
-                                                  ? Image.network(
-                                                displayImageUrl,
-                                                height: 210,
-                                                width: double.infinity,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (context,
-                                                    error,
-                                                    stackTrace) =>
-                                                    Container(
-                                                      height: 210,
-                                                      color: AppColors.field,
+                                                  ? CachedNetworkImage(
+                                                      imageUrl: displayImageUrl,
+                                                      width: double.infinity,
+                                                      fit: BoxFit.cover,
+                                                      placeholder:
+                                                          (
+                                                            context,
+                                                            url,
+                                                          ) => Container(
+                                                            color: AppColors
+                                                                .imagePlaceholder,
+                                                          ),
+                                                      errorWidget:
+                                                          (
+                                                            context,
+                                                            url,
+                                                            error,
+                                                          ) => Container(
+                                                            color: AppColors
+                                                                .imagePlaceholder,
+                                                            alignment: Alignment
+                                                                .center,
+                                                            child: const Icon(
+                                                              Icons
+                                                                  .image_not_supported_outlined,
+                                                              color: AppColors
+                                                                  .secondaryText,
+                                                              size: 30,
+                                                            ),
+                                                          ),
+                                                    )
+                                                  : Container(
+                                                      color: AppColors
+                                                          .imagePlaceholder,
                                                       alignment:
-                                                      Alignment.center,
+                                                          Alignment.center,
                                                       child: const Icon(
                                                         Icons
                                                             .image_not_supported_outlined,
                                                         color: AppColors
-                                                            .deepAccent,
+                                                            .secondaryText,
                                                         size: 30,
                                                       ),
                                                     ),
-                                              )
-                                                  : Container(
-                                                height: 210,
-                                                color: AppColors.field,
-                                                alignment:
-                                                Alignment.center,
-                                                child: const Icon(
-                                                  Icons
-                                                      .image_not_supported_outlined,
-                                                  color: AppColors
-                                                      .deepAccent,
-                                                  size: 30,
-                                                ),
-                                              ),
                                             ),
                                             if (stock <= 0)
                                               Positioned(
                                                 top: 10,
                                                 left: 10,
                                                 child: Container(
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 4,
-                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4,
+                                                      ),
                                                   decoration: BoxDecoration(
-                                                    color: Colors.black.withValues(alpha:0.65),
-                                                    borderRadius:
-                                                    BorderRadius.circular(
-                                                      8,
+                                                    color: AppColors.deepAccent
+                                                        .withValues(alpha: 0.9),
+                                                    border: Border.all(
+                                                      color: AppColors.border,
+                                                      width: 0.5,
                                                     ),
                                                   ),
-                                                  child: const Text(
+                                                  child: Text(
                                                     'Sold Out',
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 11,
-                                                      fontWeight:
-                                                      FontWeight.w600,
-                                                    ),
+                                                    style: AppTextStyles
+                                                        .labelSmall
+                                                        .copyWith(
+                                                          color: Colors.white,
+                                                        ),
                                                   ),
                                                 ),
                                               ),
@@ -515,28 +465,17 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                                           title,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.primaryText,
-                                          ),
+                                          style: AppTextStyles.labelLarge,
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
                                           boutiqueName,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: AppColors.secondaryText,
-                                          ),
+                                          style: AppTextStyles.bodySmall,
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
                                           '${price.toStringAsFixed(0)} KWD',
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.primaryText,
-                                          ),
+                                          style: AppTextStyles.labelLarge,
                                         ),
                                       ],
                                     ),

@@ -82,8 +82,7 @@ class BoutiqueOversightPage extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,27 +99,20 @@ class BoutiqueOversightPage extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 13,
+            style: AppTextStyles.labelLarge.copyWith(
               color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryText,
-            ),
+            style: AppTextStyles.headingLarge,
           ),
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.secondaryText,
-              fontWeight: FontWeight.w600,
+            style: AppTextStyles.labelSmall.copyWith(
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -138,28 +130,21 @@ class BoutiqueOversightPage extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+            style: AppTextStyles.labelLarge.copyWith(
               color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value.isEmpty ? '-' : value,
-            style: const TextStyle(
-              fontSize: 15,
-              color: AppColors.primaryText,
-              height: 1.4,
-            ),
+            style: AppTextStyles.bodyMedium.copyWith(height: 1.4),
           ),
         ],
       ),
@@ -169,11 +154,7 @@ class BoutiqueOversightPage extends StatelessWidget {
   Widget buildSectionTitle(String title) {
     return Text(
       title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-        color: AppColors.primaryText,
-      ),
+      style: AppTextStyles.headingSmall,
     );
   }
 
@@ -220,10 +201,12 @@ class BoutiqueOversightPage extends StatelessWidget {
             }
 
             if (snapshot.hasError) {
-              return const Center(
+              return Center(
                 child: Text(
                   'Failed to load boutique overview',
-                  style: TextStyle(color: AppColors.secondaryText),
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.secondaryText,
+                  ),
                 ),
               );
             }
@@ -262,17 +245,12 @@ class BoutiqueOversightPage extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(
                     boutiqueName,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryText,
-                    ),
+                    style: AppTextStyles.displayMedium,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     boutiqueDescription,
-                    style: const TextStyle(
-                      fontSize: 14,
+                    style: AppTextStyles.bodyMedium.copyWith(
                       color: AppColors.secondaryText,
                       height: 1.4,
                     ),
@@ -287,8 +265,9 @@ class BoutiqueOversightPage extends StatelessWidget {
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: AppColors.border,
+                            width: 0.5,
                           ),
-                          color: AppColors.field,
+                          color: AppColors.imagePlaceholder,
                         ),
                         child: ClipOval(
                           child: Image.network(
@@ -364,21 +343,7 @@ class BoutiqueOversightPage extends StatelessWidget {
                           ),
                         );
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Text(
-                        'Open Storefront',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      child: const Text('Open Storefront'),
                     ),
                   ),
                 ],

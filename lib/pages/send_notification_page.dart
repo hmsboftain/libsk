@@ -101,24 +101,27 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
   InputDecoration inputDecoration(String hint) {
     return InputDecoration(
       hintText: hint,
+      hintStyle: AppTextStyles.bodyMedium.copyWith(
+        color: AppColors.secondaryText,
+      ),
       filled: true,
       fillColor: AppColors.field,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
+        borderRadius: BorderRadius.circular(4),
+        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: AppColors.border),
+        borderRadius: BorderRadius.circular(4),
+        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(4),
         borderSide: const BorderSide(
           color: AppColors.deepAccent,
-          width: 1.2,
+          width: 1,
         ),
       ),
-      contentPadding: const EdgeInsets.all(16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 
@@ -138,30 +141,18 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
                   children: [
                     const Text(
                       'SEND NOTIFICATION',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryText,
-                      ),
+                      style: AppTextStyles.displayMedium,
                     ),
                     const SizedBox(height: 8),
                     const Text(
                       'Send a custom notification to users, boutique owners, or admins.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.secondaryText,
-                        height: 1.4,
-                      ),
+                      style: AppTextStyles.bodyMedium,
                     ),
                     const SizedBox(height: 22),
 
                     const Text(
                       'Target',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryText,
-                      ),
+                      style: AppTextStyles.labelLarge,
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
@@ -184,11 +175,7 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
                     const SizedBox(height: 18),
                     const Text(
                       'Title',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryText,
-                      ),
+                      style: AppTextStyles.labelLarge,
                     ),
                     const SizedBox(height: 8),
                     TextField(
@@ -199,11 +186,7 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
                     const SizedBox(height: 18),
                     const Text(
                       'Message',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryText,
-                      ),
+                      style: AppTextStyles.labelLarge,
                     ),
                     const SizedBox(height: 8),
                     TextField(
@@ -221,12 +204,12 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
                       child: ElevatedButton(
                         onPressed: isLoading ? null : sendNotification,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
+                          backgroundColor: AppColors.deepAccent,
                           foregroundColor: Colors.white,
                           disabledBackgroundColor: AppColors.softAccent,
                           elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.zero,
                           ),
                         ),
                         child: isLoading
@@ -240,10 +223,7 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
                         )
                             : const Text(
                           'Send Notification',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: AppTextStyles.button,
                         ),
                       ),
                     ),

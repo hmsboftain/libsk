@@ -76,22 +76,14 @@ class AdminHomepagePage extends StatelessWidget {
   Widget buildSectionTitle(String title) {
     return Text(
       title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-        color: AppColors.primaryText,
-      ),
+      style: AppTextStyles.headingSmall,
     );
   }
 
   Widget buildInfoText(String text) {
     return Text(
       text,
-      style: const TextStyle(
-        fontSize: 13,
-        color: AppColors.secondaryText,
-        height: 1.4,
-      ),
+      style: AppTextStyles.bodySmall.copyWith(height: 1.4),
     );
   }
 
@@ -99,19 +91,18 @@ class AdminHomepagePage extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.zero,
         onTap: onTap,
         child: Ink(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: AppColors.softAccent.withValues(alpha: 0.25),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.zero,
+            border: Border.all(color: AppColors.border, width: 0.5),
           ),
           child: Text(
             text,
-            style: const TextStyle(
-              fontSize: 12,
+            style: AppTextStyles.labelSmall.copyWith(
               fontWeight: FontWeight.w600,
               color: AppColors.deepAccent,
             ),
@@ -136,8 +127,8 @@ class AdminHomepagePage extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.zero,
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,7 +138,7 @@ class AdminHomepagePage extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: AppColors.softAccent..withValues(alpha: 0.22),
+                backgroundColor: AppColors.softAccent.withValues(alpha: 0.22),
                 child: const Icon(
                   Icons.tune_rounded,
                   color: AppColors.deepAccent,
@@ -161,20 +152,14 @@ class AdminHomepagePage extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryText,
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.secondaryText,
-                        height: 1.4,
-                      ),
+                      style: AppTextStyles.bodySmall.copyWith(height: 1.4),
                     ),
                   ],
                 ),
@@ -225,11 +210,7 @@ class AdminHomepagePage extends StatelessWidget {
                   children: [
                     const Text(
                       'HOMEPAGE CONTROL',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryText,
-                      ),
+                      style: AppTextStyles.displayMedium,
                     ),
                     const SizedBox(height: 8),
                     buildInfoText(
@@ -260,7 +241,7 @@ class AdminHomepagePage extends StatelessWidget {
                         if (snapshot.hasError) {
                           return const Text(
                             'Failed to load boutiques',
-                            style: TextStyle(color: AppColors.secondaryText),
+                            style: AppTextStyles.bodyMedium,
                           );
                         }
 
@@ -276,7 +257,7 @@ class AdminHomepagePage extends StatelessWidget {
                         if (docs.isEmpty) {
                           return const Text(
                             'No boutiques found.',
-                            style: TextStyle(color: AppColors.secondaryText),
+                            style: AppTextStyles.bodyMedium,
                           );
                         }
 
@@ -349,7 +330,7 @@ class AdminHomepagePage extends StatelessWidget {
                         if (snapshot.hasError) {
                           return const Text(
                             'Failed to load products',
-                            style: TextStyle(color: AppColors.secondaryText),
+                            style: AppTextStyles.bodyMedium,
                           );
                         }
 
@@ -365,7 +346,7 @@ class AdminHomepagePage extends StatelessWidget {
                         if (docs.isEmpty) {
                           return const Text(
                             'No products found.',
-                            style: TextStyle(color: AppColors.secondaryText),
+                            style: AppTextStyles.bodyMedium,
                           );
                         }
 

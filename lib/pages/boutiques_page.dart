@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../navigation/app_header.dart';
@@ -78,8 +79,10 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final boutiquesStream =
-        _firestore.collection('boutiques').orderBy('name').snapshots();
+    final boutiquesStream = _firestore
+        .collection('boutiques')
+        .orderBy('name')
+        .snapshots();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -88,14 +91,9 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const AppHeader(),
-
-            // ── Page Title ───────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-              child: Text(
-                'Boutiques',
-                style: AppTextStyles.displayMedium,
-              ),
+              child: Text('Boutiques', style: AppTextStyles.displayMedium),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -104,8 +102,6 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                 style: AppTextStyles.bodySmall,
               ),
             ),
-
-            // ── Search ───────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
@@ -146,12 +142,8 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
             const Divider(height: 1, color: AppColors.border, thickness: 0.5),
-
-            // ── Boutiques List ───────────────────────────────────────────
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                 stream: FirestoreService.getSavedBoutiquesStream(),
@@ -170,7 +162,6 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                           ),
                         );
                       }
-
                       if (snapshot.hasError) {
                         return Center(
                           child: Text(
@@ -183,13 +174,11 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                       }
 
                       var docs = snapshot.data?.docs ?? [];
-
-                      // Apply search filter
                       if (_searchQuery.isNotEmpty) {
                         docs = docs.where((doc) {
                           final name =
                               doc.data()['name']?.toString().toLowerCase() ??
-                                  '';
+                              '';
                           return name.contains(_searchQuery);
                         }).toList();
                       }
@@ -214,13 +203,11 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                         itemBuilder: (context, index) {
                           final doc = docs[index];
                           final data = doc.data();
-
                           final boutiqueId = doc.id;
                           final logoUrl = data['logoPath']?.toString() ?? '';
                           final boutiqueName =
                               data['name']?.toString() ?? 'Boutique';
-                          final isLiked =
-                              savedBoutiqueIds.contains(boutiqueId);
+                          final isLiked = savedBoutiqueIds.contains(boutiqueId);
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 16),
@@ -234,7 +221,6 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Logo banner
                                 Container(
                                   width: double.infinity,
                                   height: 110,
@@ -242,12 +228,17 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                                   child: Stack(
                                     children: [
                                       if (logoUrl.isNotEmpty)
-                                        Image.network(
-                                          logoUrl,
+                                        CachedNetworkImage(
+                                          imageUrl: logoUrl,
                                           width: double.infinity,
                                           height: 110,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) =>
+                                          placeholder: (context, url) =>
+                                              Container(
+                                                color:
+                                                    AppColors.imagePlaceholder,
+                                              ),
+                                          errorWidget: (context, url, error) =>
                                               const SizedBox(),
                                         ),
                                       Positioned(
@@ -274,8 +265,6 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                                     ],
                                   ),
                                 ),
-
-                                // Info row
                                 Padding(
                                   padding: const EdgeInsets.fromLTRB(
                                     14,
@@ -294,9 +283,8 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                                         ),
                                       ),
                                       GestureDetector(
-                                        onTap: () => _openBoutiqueStorefront(
-                                          boutiqueId,
-                                        ),
+                                        onTap: () =>
+                                            _openBoutiqueStorefront(boutiqueId),
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 18,
@@ -312,9 +300,9 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                                             'VISIT',
                                             style: AppTextStyles.capsLabel
                                                 .copyWith(
-                                              fontSize: 11,
-                                              color: AppColors.primaryText,
-                                            ),
+                                                  fontSize: 11,
+                                                  color: AppColors.primaryText,
+                                                ),
                                           ),
                                         ),
                                       ),

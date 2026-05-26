@@ -89,15 +89,15 @@ class _SignUpPageState extends State<SignUpPage> {
     switch (strength) {
       case 0:
       case 1:
-        return const Color(0xFFE53935); // red
+        return AppColors.secondaryText;
       case 2:
-        return const Color(0xFFFB8C00); // orange
+        return AppColors.softAccent;
       case 3:
-        return const Color(0xFFFDD835); // yellow
+        return AppColors.deepAccent;
       case 4:
-        return const Color(0xFF43A047); // green
+        return AppColors.primaryText;
       default:
-        return Colors.transparent;
+        return AppColors.border;
     }
   }
 
@@ -124,8 +124,8 @@ class _SignUpPageState extends State<SignUpPage> {
                   margin: EdgeInsets.only(right: index < 3 ? 5 : 0),
                   height: 5,
                   decoration: BoxDecoration(
-                    color: filled ? color : Colors.black12,
-                    borderRadius: BorderRadius.circular(10),
+                    color: filled ? color : AppColors.border,
+                    borderRadius: BorderRadius.zero,
                   ),
                 ),
               );
@@ -149,9 +149,8 @@ class _SignUpPageState extends State<SignUpPage> {
                 child: Text(
                   label,
                   key: ValueKey(label),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                  style: AppTextStyles.bodySmall.copyWith(
+                    fontWeight: FontWeight.w500,
                     color: color,
                   ),
                 ),
@@ -176,19 +175,19 @@ class _SignUpPageState extends State<SignUpPage> {
       margin: const EdgeInsets.only(right: 5),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: met ? const Color(0xFF43A047).withOpacity(0.12) : Colors.black.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(20),
+        color: met
+            ? AppColors.selectedSoft
+            : AppColors.field,
         border: Border.all(
-          color: met ? const Color(0xFF43A047) : Colors.black12,
-          width: 1,
+          color: met ? AppColors.deepAccent : AppColors.border,
+          width: 0.5,
         ),
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: met ? const Color(0xFF43A047) : Colors.black38,
+        style: AppTextStyles.labelSmall.copyWith(
+          fontWeight: FontWeight.w500,
+          color: met ? AppColors.deepAccent : AppColors.secondaryText,
         ),
       ),
     );
@@ -209,10 +208,8 @@ class _SignUpPageState extends State<SignUpPage> {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 14,
-            color: Colors.black54,
-            fontWeight: FontWeight.w600,
+          style: AppTextStyles.labelLarge.copyWith(
+            color: AppColors.secondaryText,
           ),
         ),
         const SizedBox(height: 8),
@@ -224,11 +221,25 @@ class _SignUpPageState extends State<SignUpPage> {
             filled: true,
             fillColor: AppColors.field,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(
+                color: AppColors.border,
+                width: 0.5,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(
+                color: AppColors.border,
+                width: 0.5,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.black),
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(
+                color: AppColors.deepAccent,
+                width: 1,
+              ),
             ),
             suffixIcon: suffixIcon,
           ),
@@ -398,7 +409,7 @@ class _SignUpPageState extends State<SignUpPage> {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          icon: const Icon(Icons.arrow_back_ios, color: AppColors.primaryText),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -422,10 +433,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
                 Text(
                   AppLocalizations.of(context)!.signUp,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: AppTextStyles.headingLarge,
                 ),
                 const SizedBox(height: 36),
 
@@ -568,10 +576,10 @@ class _SignUpPageState extends State<SignUpPage> {
                   child: ElevatedButton(
                     onPressed: isLoading ? null : createAccount,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
+                      backgroundColor: AppColors.deepAccent,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                     child: isLoading
@@ -579,16 +587,13 @@ class _SignUpPageState extends State<SignUpPage> {
                       height: 22,
                       width: 22,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
+                        strokeWidth: 1.5,
                         color: Colors.white,
                       ),
                     )
                         : Text(
                       AppLocalizations.of(context)!.createAccount,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: AppTextStyles.button,
                     ),
                   ),
                 ),
@@ -601,9 +606,8 @@ class _SignUpPageState extends State<SignUpPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 18),
                       child: Text(
                         AppLocalizations.of(context)!.or,
-                        style: const TextStyle(
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w600,
+                        style: AppTextStyles.labelLarge.copyWith(
+                          color: AppColors.secondaryText,
                         ),
                       ),
                     ),
@@ -620,8 +624,10 @@ class _SignUpPageState extends State<SignUpPage> {
                     height: 54,
                     decoration: BoxDecoration(
                       color: AppColors.card,
-                      border: Border.all(color: Colors.black12),
-                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.border,
+                        width: 0.5,
+                      ),
                     ),
                     child: isGoogleLoading
                         ? const Center(
@@ -629,22 +635,24 @@ class _SignUpPageState extends State<SignUpPage> {
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.black,
+                          strokeWidth: 1.5,
+                          color: AppColors.deepAccent,
                         ),
                       ),
                     )
                         : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.g_mobiledata, size: 28),
+                        const Icon(
+                          Icons.g_mobiledata,
+                          size: 28,
+                          color: AppColors.primaryText,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           AppLocalizations.of(context)!
                               .continueWithGoogle,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: AppTextStyles.labelLarge,
                         ),
                       ],
                     ),

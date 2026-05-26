@@ -122,13 +122,10 @@ class _EditPersonalInformationPageState
             const SizedBox(height: 12),
             const Text(
               "Edit Personal Information",
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.headingLarge,
             ),
             const SizedBox(height: 16),
-            const Divider(height: 1, thickness: 1),
+            const Divider(height: 1, thickness: 0.5),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -140,11 +137,7 @@ class _EditPersonalInformationPageState
                       const SizedBox(height: 24),
                       const Text(
                         "FULL NAME",
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: AppTextStyles.capsLabel,
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
@@ -154,7 +147,25 @@ class _EditPersonalInformationPageState
                           filled: true,
                           fillColor: AppColors.field,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide: const BorderSide(
+                              color: AppColors.border,
+                              width: 0.5,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide: const BorderSide(
+                              color: AppColors.border,
+                              width: 0.5,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide: const BorderSide(
+                              color: AppColors.deepAccent,
+                              width: 1,
+                            ),
                           ),
                         ),
                         validator: (value) {
@@ -167,11 +178,7 @@ class _EditPersonalInformationPageState
                       const SizedBox(height: 24),
                       const Text(
                         "EMAIL ADDRESS",
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: AppTextStyles.capsLabel,
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
@@ -183,35 +190,39 @@ class _EditPersonalInformationPageState
                           filled: true,
                           fillColor: AppColors.disabledField,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide: const BorderSide(
+                              color: AppColors.border,
+                              width: 0.5,
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(height: 10),
                       const Text(
                         "Email cannot be changed here.",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
+                        style: AppTextStyles.bodySmall,
                       ),
                       const SizedBox(height: 30),
                       const Text(
                         "SECURITY",
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: AppTextStyles.capsLabel,
                       ),
                       const SizedBox(height: 8),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.lock_outline),
-                        title: const Text("Change Password"),
+                        leading: const Icon(
+                          Icons.lock_outline,
+                          color: AppColors.primaryText,
+                        ),
+                        title: const Text(
+                          "Change Password",
+                          style: AppTextStyles.bodyLarge,
+                        ),
                         trailing: const Icon(
                           Icons.arrow_forward_ios,
                           size: 16,
+                          color: AppColors.secondaryText,
                         ),
                         onTap: openChangePasswordPage,
                       ),
@@ -228,7 +239,8 @@ class _EditPersonalInformationPageState
               child: ElevatedButton(
                 onPressed: isLoading ? null : saveChanges,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
+                  backgroundColor: AppColors.deepAccent,
+                  foregroundColor: Colors.white,
                   shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero,
                   ),
@@ -238,17 +250,13 @@ class _EditPersonalInformationPageState
                   height: 22,
                   width: 22,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
+                    strokeWidth: 1.5,
                     color: Colors.white,
                   ),
                 )
                     : const Text(
                   "SAVE CHANGES",
-                  style: TextStyle(
-                    fontSize: 20,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppTextStyles.button,
                 ),
               ),
             ),

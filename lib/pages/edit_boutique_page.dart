@@ -268,36 +268,9 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
   InputDecoration buildInputDecoration(String hintText) {
     return InputDecoration(
       hintText: hintText,
-      hintStyle: const TextStyle(
+      hintStyle: AppTextStyles.bodyMedium.copyWith(
         color: AppColors.secondaryText,
-        fontSize: 14,
       ),
-      filled: true,
-      fillColor: AppColors.field,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: AppColors.border),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(
-          color: AppColors.deepAccent,
-          width: 1.2,
-        ),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Colors.redAccent),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Colors.redAccent),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
   }
 
@@ -306,11 +279,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppColors.primaryText,
-        ),
+        style: AppTextStyles.labelLarge,
       ),
     );
   }
@@ -321,8 +290,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: child,
     );
@@ -349,9 +317,8 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
           return Center(
             child: Text(
               errorText,
-              style: const TextStyle(
+              style: AppTextStyles.bodyMedium.copyWith(
                 color: AppColors.secondaryText,
-                fontSize: 14,
               ),
             ),
           );
@@ -367,9 +334,8 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
           return Center(
             child: Text(
               errorText,
-              style: const TextStyle(
+              style: AppTextStyles.bodyMedium.copyWith(
                 color: AppColors.secondaryText,
-                fontSize: 14,
               ),
             ),
           );
@@ -380,9 +346,8 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
         child: Text(
           emptyText,
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: AppTextStyles.bodyMedium.copyWith(
             color: AppColors.secondaryText,
-            fontSize: 14,
           ),
         ),
       );
@@ -397,8 +362,8 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
             height: 140,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.field,
-              border: Border.all(color: AppColors.border),
+              color: AppColors.imagePlaceholder,
+              border: Border.all(color: AppColors.border, width: 0.5),
             ),
             child: ClipOval(
               child: imageContent,
@@ -414,14 +379,10 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
         width: double.infinity,
         height: height,
         decoration: BoxDecoration(
-          color: AppColors.field,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border),
+          color: AppColors.imagePlaceholder,
+          border: Border.all(color: AppColors.border, width: 0.5),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: imageContent,
-        ),
+        child: imageContent,
       ),
     );
   }
@@ -442,19 +403,14 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'EDIT BOUTIQUE',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primaryText,
-                        ),
+                        style: AppTextStyles.headingMedium,
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Update your boutique details and images.',
-                        style: TextStyle(
-                          fontSize: 14,
+                        style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.secondaryText,
                           height: 1.4,
                         ),
@@ -523,16 +479,6 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
                         height: 56,
                         child: ElevatedButton(
                           onPressed: isLoading ? null : saveBoutiqueChanges,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.black,
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: AppColors.softAccent,
-                            disabledForegroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
                           child: isLoading
                               ? const SizedBox(
                             width: 22,
@@ -542,13 +488,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
                               color: Colors.white,
                             ),
                           )
-                              : const Text(
-                            'Save Changes',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                              : const Text('Save Changes'),
                         ),
                       ),
                     ],

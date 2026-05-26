@@ -138,16 +138,15 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.deepAccent : AppColors.field,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: isSelected ? AppColors.deepAccent : AppColors.border,
+            width: 0.5,
           ),
         ),
         child: Text(
           _filterLabel(filter),
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+          style: AppTextStyles.labelLarge.copyWith(
             color: isSelected ? Colors.white : AppColors.secondaryText,
           ),
         ),
@@ -184,8 +183,8 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.zero,
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Row(
         children: [
@@ -205,10 +204,8 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 13,
+                  style: AppTextStyles.labelLarge.copyWith(
                     color: AppColors.secondaryText,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 5),
@@ -216,20 +213,13 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryText,
-                  ),
+                  style: AppTextStyles.headingMedium,
                 ),
                 if (subtitle != null) ...[
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.secondaryText,
-                    ),
+                    style: AppTextStyles.bodySmall,
                   ),
                 ],
               ],
@@ -264,7 +254,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
                     return const Center(
                       child: Text(
                         'Failed to load analytics',
-                        style: TextStyle(color: AppColors.secondaryText),
+                        style: AppTextStyles.bodyMedium,
                       ),
                     );
                   }
@@ -302,20 +292,12 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
                       children: [
                         const Text(
                           'ANALYTICS',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryText,
-                          ),
+                          style: AppTextStyles.displayMedium,
                         ),
                         const SizedBox(height: 8),
                         const Text(
                           'Marketplace performance overview.',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.secondaryText,
-                            height: 1.4,
-                          ),
+                          style: AppTextStyles.bodyMedium,
                         ),
                         const SizedBox(height: 18),
                         _filterBar(),
@@ -351,11 +333,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
                         const SizedBox(height: 24),
                         const Text(
                           'Order Status',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryText,
-                          ),
+                          style: AppTextStyles.headingSmall,
                         ),
                         const SizedBox(height: 12),
                         _analyticsCard(

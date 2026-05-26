@@ -25,20 +25,20 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
             const SizedBox(height: 12),
             Text(
               AppLocalizations.of(context)!.savedAddresses,
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.displayMedium,
             ),
             const SizedBox(height: 16),
-            const Divider(height: 1, thickness: 1),
+            const Divider(height: 1, thickness: 0.5),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                 stream: FirestoreService.getSavedAddressesStream(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
-                      child: CircularProgressIndicator(),
+                      child: CircularProgressIndicator(
+                        color: AppColors.deepAccent,
+                        strokeWidth: 1.5,
+                      ),
                     );
                   }
 
@@ -47,7 +47,9 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                       child: Text(
                         AppLocalizations.of(context)!
                             .somethingWentWrongWhileLoadingAddresses,
-                        style: const TextStyle(color: Colors.black54),
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.secondaryText,
+                        ),
                       ),
                     );
                   }
@@ -71,9 +73,8 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                                 AppLocalizations.of(context)!
                                     .noSavedAddressesYet,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.black54,
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  color: AppColors.secondaryText,
                                 ),
                               ),
                             ),
@@ -100,8 +101,10 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: AppColors.card,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.border),
+                            border: Border.all(
+                              color: AppColors.border,
+                              width: 0.5,
+                            ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,9 +114,8 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                                   Expanded(
                                     child: Text(
                                       "${address["firstName"]} ${address["lastName"]}",
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
+                                      style: AppTextStyles.bodyLarge.copyWith(
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ),
@@ -140,31 +142,34 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                               const SizedBox(height: 8),
                               Text(
                                 "${address["governorate"]}, ${address["area"]}",
+                                style: AppTextStyles.bodyMedium,
                               ),
                               Text(
                                 "${AppLocalizations.of(context)!.block} ${address["block"]}, ${AppLocalizations.of(context)!.street} ${address["street"]}",
+                                style: AppTextStyles.bodyMedium,
                               ),
                               Text(
                                 "${AppLocalizations.of(context)!.houseBuilding}: ${address["house"]}",
+                                style: AppTextStyles.bodyMedium,
                               ),
                               if ((address["floor"] ?? "")
                                   .toString()
                                   .isNotEmpty)
                                 Text(
                                   "${AppLocalizations.of(context)!.floor}: ${address["floor"]}",
+                                  style: AppTextStyles.bodyMedium,
                                 ),
                               if ((address["apartment"] ?? "")
                                   .toString()
                                   .isNotEmpty)
                                 Text(
                                   "${AppLocalizations.of(context)!.apartment}: ${address["apartment"]}",
+                                  style: AppTextStyles.bodyMedium,
                                 ),
                               const SizedBox(height: 8),
                               Text(
                                 "${AppLocalizations.of(context)!.phone}: ${address["phone"]}",
-                                style: const TextStyle(
-                                  color: Colors.black54,
-                                ),
+                                style: AppTextStyles.bodySmall,
                               ),
                             ],
                           ),
@@ -188,18 +193,15 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
+                  backgroundColor: AppColors.deepAccent,
+                  foregroundColor: Colors.white,
                   shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero,
                   ),
                 ),
                 child: Text(
                   AppLocalizations.of(context)!.addNewAddress,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppTextStyles.button.copyWith(fontSize: 16),
                 ),
               ),
             ),

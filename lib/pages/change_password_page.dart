@@ -109,11 +109,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 13,
-            color: Colors.black54,
-            fontWeight: FontWeight.w600,
-          ),
+          style: AppTextStyles.capsLabel,
         ),
         const SizedBox(height: 8),
         TextFormField(
@@ -123,11 +119,25 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             filled: true,
             fillColor: AppColors.field,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(
+                color: AppColors.border,
+                width: 0.5,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(
+                color: AppColors.border,
+                width: 0.5,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.black),
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(
+                color: AppColors.deepAccent,
+                width: 1,
+              ),
             ),
             suffixIcon: IconButton(
               icon: Icon(
@@ -155,13 +165,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             const SizedBox(height: 12),
             Text(
               AppLocalizations.of(context)!.changePassword,
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.headingLarge,
             ),
             const SizedBox(height: 16),
-            const Divider(height: 1, thickness: 1),
+            const Divider(height: 1, thickness: 0.5),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -249,7 +256,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               child: ElevatedButton(
                 onPressed: isLoading ? null : changePassword,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
+                  backgroundColor: AppColors.deepAccent,
+                  foregroundColor: Colors.white,
                   shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero,
                   ),
@@ -259,17 +267,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   height: 22,
                   width: 22,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
+                    strokeWidth: 1.5,
                     color: Colors.white,
                   ),
                 )
                     : Text(
                   AppLocalizations.of(context)!.updatePassword,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppTextStyles.button.copyWith(fontSize: 16),
                 ),
               ),
             ),

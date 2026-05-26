@@ -8,10 +8,7 @@ import '../widgets/theme.dart';
 class OrderConfirmationPage extends StatelessWidget {
   final String orderNumber;
 
-  const OrderConfirmationPage({
-    super.key,
-    required this.orderNumber,
-  });
+  const OrderConfirmationPage({super.key, required this.orderNumber});
 
   @override
   Widget build(BuildContext context) {
@@ -33,71 +30,54 @@ class OrderConfirmationPage extends StatelessWidget {
               const SizedBox(height: 20),
               Text(
                 AppLocalizations.of(context)!.orderConfirmation,
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: AppTextStyles.headingLarge,
               ),
               const SizedBox(height: 10),
-              const Divider(),
+              const Divider(color: AppColors.border, thickness: 0.5),
               const SizedBox(height: 80),
               Container(
                 width: 120,
                 height: 120,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.black87,
-                    width: 8,
-                  ),
+                  border: Border.all(color: AppColors.deepAccent, width: 0.5),
                 ),
                 child: const Center(
                   child: Icon(
                     Icons.check,
                     size: 70,
-                    color: Colors.black87,
+                    color: AppColors.deepAccent,
                   ),
                 ),
               ),
               const SizedBox(height: 40),
               Text(
                 AppLocalizations.of(context)!.yourPaymentWasSuccessful,
-                style: const TextStyle(
-                  fontSize: 18,
+                style: AppTextStyles.bodyLarge.copyWith(
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 18),
               Text(
                 "${AppLocalizations.of(context)!.orderNumberLabel} #$orderNumber",
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: Colors.black45,
-                ),
+                style: AppTextStyles.bodySmall,
               ),
               const SizedBox(height: 8),
               Text(
                 "${AppLocalizations.of(context)!.dateLabel} $date",
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.black45,
-                ),
+                style: AppTextStyles.bodySmall,
               ),
               const SizedBox(height: 25),
               Text(
                 "${AppLocalizations.of(context)!.thankYou}, $name",
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black54,
+                style: AppTextStyles.headingSmall.copyWith(
+                  color: AppColors.secondaryText,
                 ),
               ),
               const SizedBox(height: 55),
               Container(
                 height: 48,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: Colors.black38),
+                  border: Border.all(color: AppColors.border, width: 0.5),
                 ),
                 child: Row(
                   children: [
@@ -107,29 +87,18 @@ class OrderConfirmationPage extends StatelessWidget {
                           Navigator.pushAndRemoveUntil(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => MainNavigationPage(
-                                onLanguageChange: (_) {},
-                              ),
+                              builder: (context) =>
+                                  MainNavigationPage(onLanguageChange: (_) {}),
                             ),
-                                (route) => false,
+                            (route) => false,
                           );
                         },
                         child: Container(
-                          decoration: const BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(28),
-                              bottomLeft: Radius.circular(28),
-                            ),
-                          ),
+                          color: AppColors.deepAccent,
                           child: Center(
                             child: Text(
                               AppLocalizations.of(context)!.backToHome,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: AppTextStyles.button,
                             ),
                           ),
                         ),
@@ -143,17 +112,13 @@ class OrderConfirmationPage extends StatelessWidget {
                             MaterialPageRoute(
                               builder: (context) => const OrdersPage(),
                             ),
-                                (route) => false,
+                            (route) => false,
                           );
                         },
                         child: Center(
                           child: Text(
                             AppLocalizations.of(context)!.orders,
-                            style: const TextStyle(
-                              color: Colors.black87,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: AppTextStyles.labelLarge,
                           ),
                         ),
                       ),

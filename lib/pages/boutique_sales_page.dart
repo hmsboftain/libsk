@@ -68,7 +68,6 @@ class BoutiqueSalesPage extends StatelessWidget {
     final barWidth = maxSales > 0 ? (totalSales / maxSales) : 0.0;
 
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
       onTap: () {
         Navigator.push(
           context,
@@ -86,7 +85,6 @@ class BoutiqueSalesPage extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.card,
-          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: AppColors.border, width: 0.5),
         ),
         child: Row(
@@ -96,9 +94,7 @@ class BoutiqueSalesPage extends StatelessWidget {
               backgroundColor: AppColors.selectedSoft,
               child: Text(
                 initials,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                style: AppTextStyles.labelLarge.copyWith(
                   color: AppColors.deepAccent,
                 ),
               ),
@@ -110,19 +106,14 @@ class BoutiqueSalesPage extends StatelessWidget {
                 children: [
                   Text(
                     boutiqueName,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primaryText,
+                    style: AppTextStyles.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     '$totalOrders orders',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.secondaryText,
-                    ),
+                    style: AppTextStyles.bodySmall,
                   ),
                   const SizedBox(height: 8),
                   ClipRRect(
@@ -142,11 +133,7 @@ class BoutiqueSalesPage extends StatelessWidget {
             const SizedBox(width: 14),
             Text(
               '${totalSales.toStringAsFixed(0)} KWD',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primaryText,
-              ),
+              style: AppTextStyles.labelLarge,
             ),
           ],
         ),
@@ -175,10 +162,12 @@ class BoutiqueSalesPage extends StatelessWidget {
                   }
 
                   if (snapshot.hasError) {
-                    return const Center(
+                    return Center(
                       child: Text(
                         'Failed to load boutique sales',
-                        style: TextStyle(color: AppColors.secondaryText),
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.secondaryText,
+                        ),
                       ),
                     );
                   }
@@ -192,10 +181,12 @@ class BoutiqueSalesPage extends StatelessWidget {
                   }).toList();
 
                   if (orderDocs.isEmpty) {
-                    return const Center(
+                    return Center(
                       child: Text(
                         'No boutique sales found.',
-                        style: TextStyle(color: AppColors.secondaryText),
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.secondaryText,
+                        ),
                       ),
                     );
                   }
@@ -256,19 +247,14 @@ class BoutiqueSalesPage extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'BOUTIQUE SALES',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primaryText,
-                              ),
+                              style: AppTextStyles.displayMedium,
                             ),
                             const SizedBox(height: 8),
                             Text(
                               '${boutiqueIds.length} boutiques with sales',
-                              style: const TextStyle(
-                                fontSize: 14,
+                              style: AppTextStyles.bodyMedium.copyWith(
                                 color: AppColors.secondaryText,
                               ),
                             ),

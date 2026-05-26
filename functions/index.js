@@ -3,18 +3,54 @@ const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const {
   onDocumentCreated,
   onDocumentUpdated,
+  onDocumentDeleted,
 } = require("firebase-functions/v2/firestore");
 
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { defineString } = require("firebase-functions/params");
 const stripeSecret = defineString("STRIPE_SECRET_KEY");
+const algoliaAppId = defineString("ALGOLIA_APP_ID");
+const algoliaAdminKey = defineString("ALGOLIA_ADMIN_KEY");
 
 admin.initializeApp();
 
 const db = admin.firestore();
 
 setGlobalOptions({maxInstances: 10});
+
+const {algoliasearch} = require("algoliasearch");
+
+const PRODUCTS_INDEX = "products";
+const BOUTIQUES_INDEX = "boutiques";
+
+let algoliaClient;
+
+function getAlgoliaClient() {
+  if (!algoliaClient) {
+    const appId = algoliaAppId.value();
+    const adminKey = algoliaAdminKey.value();
+    if (!appId || !adminKey) {
+      throw new Error(
+        "Algolia is not configured. Set ALGOLIA_APP_ID and ALGOLIA_ADMIN_KEY.",
+      );
+    }
+    algoliaClient = algoliasearch(appId, adminKey);
+  }
+  return algoliaClient;
+}
+
+async function saveAlgoliaObject(indexName, body) {
+  await getAlgoliaClient().saveObject({indexName, body});
+}
+
+async function deleteAlgoliaObject(indexName, objectID) {
+  await getAlgoliaClient().deleteObject({indexName, objectID});
+}
+
+async function saveAlgoliaObjects(indexName, objects) {
+  await getAlgoliaClient().saveObjects({indexName, objects});
+}
 
 // ================= HELPERS =================
 
@@ -1001,4 +1037,328 @@ exports.sendManualNotification = onCall(async (request) => {
       error.message || "Failed to send manual notification.",
     );
   }
+});
+
+// ================= BOUTIQUE OWNER INVITE =================
+
+exports.inviteBoutiqueOwner = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "You must be logged in.");
+    }
+
+    const callerUid = request.auth.uid;
+    const isSuperAdmin = await isSuperAdminUser(callerUid);
+
+    if (!isSuperAdmin) {
+      throw new HttpsError(
+        "permission-denied",
+        "Only super admins can onboard boutique owners."
+      );
+    }
+
+    const data = request.data || {};
+    const fullName = String(data.fullName || "").trim();
+    const email = String(data.email || "").trim().toLowerCase();
+    const phone = String(data.phone || "").trim();
+    const boutiqueName = String(data.boutiqueName || "").trim();
+    const boutiqueDescription = String(data.boutiqueDescription || "").trim();
+    const tier = String(data.tier || "basic").trim().toLowerCase();
+
+    if (!fullName || !email || !phone || !boutiqueName) {
+      throw new HttpsError(
+        "invalid-argument",
+        "fullName, email, phone, and boutiqueName are required."
+      );
+    }
+
+    const allowedTiers = ["basic", "pro", "elite"];
+    if (!allowedTiers.includes(tier)) {
+      throw new HttpsError("invalid-argument", "Invalid tier.");
+    }
+
+    // Step 1 — Create Firebase Auth account with a random temp password
+    const tempPassword = Math.random().toString(36).slice(-10) +
+      Math.random().toString(36).toUpperCase().slice(-4) + "!1";
+
+    let userRecord;
+    try {
+      userRecord = await admin.auth().createUser({
+        email,
+        password: tempPassword,
+        displayName: fullName,
+      });
+    } catch (authError) {
+      if (authError.code === "auth/email-already-exists") {
+        throw new HttpsError(
+          "already-exists",
+          "An account with this email already exists."
+        );
+      }
+      throw authError;
+    }
+
+    const uid = userRecord.uid;
+
+    // Step 2 — Create boutique document
+    const boutiqueRef = await db.collection("boutiques").add({
+      name: boutiqueName,
+      description: boutiqueDescription,
+      tier,
+      isActive: true,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const boutiqueId = boutiqueRef.id;
+
+    // Step 3 — Create boutique_owners document using Auth UID as doc ID
+    await db.collection("boutique_owners").doc(uid).set({
+      uid,
+      fullName,
+      email,
+      phone,
+      boutiqueId,
+      boutiqueName,
+      tier,
+      role: "boutique_owner",
+      isApproved: true,
+      mustChangePassword: true,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Step 4 — Update boutique with ownerUid
+    await boutiqueRef.update({ ownerUid: uid });
+
+    // Step 5 — Generate password reset link (owner uses this to set their password)
+    const resetLink = await admin.auth().generatePasswordResetLink(email);
+
+    // Step 6 — Send invite email via Firebase Auth
+    // The reset link acts as the invite — owner clicks it to set their password
+    // Uses Firebase's built-in email (customize in Firebase Console → Authentication → Templates)
+    // For custom email content you can use SendGrid/Mailgun here instead
+
+    // Send a notification to the owner's user record if they have a profile
+    // (they won't yet, but save to a pending_invites collection for tracking)
+    await db.collection("pending_invites").doc(uid).set({
+      uid,
+      email,
+      fullName,
+      boutiqueName,
+      boutiqueId,
+      tier,
+      resetLink,
+      status: "sent",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    logger.info("Boutique owner invited", { uid, email, boutiqueId });
+
+    return {
+      success: true,
+      uid,
+      boutiqueId,
+      email,
+    };
+  } catch (error) {
+    logger.error("Invite boutique owner error", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError(
+      "internal",
+      error.message || "Failed to invite boutique owner."
+    );
+  }
+});
+// ================= ALGOLIA SEARCH SYNC =================
+
+// ── Sync product to Algolia on create ──────────────────────────────────────
+exports.algoliaProductCreated = onDocumentCreated(
+  "boutiques/{boutiqueId}/products/{productId}",
+  async (event) => {
+    const data = event.data.data();
+    const { boutiqueId, productId } = event.params;
+    if (!data) return;
+
+    const record = {
+      objectID: productId,
+      productId,
+      boutiqueId,
+      title: data.title || "",
+      description: data.description || "",
+      boutiqueName: data.boutiqueName || "",
+      category: data.category || [],
+      colors: data.colors || [],
+      price: data.price || 0,
+      imageUrl: data.imageUrl || "",
+      imageUrls: data.imageUrls || [],
+      stock: data.stock || 0,
+      madeToOrder: data.madeToOrder || false,
+    };
+
+    await saveAlgoliaObject(PRODUCTS_INDEX, record);
+    logger.info("Algolia product created", { productId });
+  }
+);
+
+// ── Sync product to Algolia on update ──────────────────────────────────────
+exports.algoliaProductUpdated = onDocumentUpdated(
+  "boutiques/{boutiqueId}/products/{productId}",
+  async (event) => {
+    const data = event.data.after.data();
+    const { boutiqueId, productId } = event.params;
+    if (!data) return;
+
+    const record = {
+      objectID: productId,
+      productId,
+      boutiqueId,
+      title: data.title || "",
+      description: data.description || "",
+      boutiqueName: data.boutiqueName || "",
+      category: data.category || [],
+      colors: data.colors || [],
+      price: data.price || 0,
+      imageUrl: data.imageUrl || "",
+      imageUrls: data.imageUrls || [],
+      stock: data.stock || 0,
+      madeToOrder: data.madeToOrder || false,
+    };
+
+    await saveAlgoliaObject(PRODUCTS_INDEX, record);
+    logger.info("Algolia product updated", { productId });
+  }
+);
+
+// ── Remove product from Algolia on delete ─────────────────────────────────
+exports.algoliaProductDeleted = onDocumentDeleted(
+  "boutiques/{boutiqueId}/products/{productId}",
+  async (event) => {
+    const { productId } = event.params;
+    await deleteAlgoliaObject(PRODUCTS_INDEX, productId);
+    logger.info("Algolia product deleted", { productId });
+  }
+);
+
+// ── Sync boutique to Algolia on create ────────────────────────────────────
+exports.algoliaBoutiqueCreated = onDocumentCreated(
+  "boutiques/{boutiqueId}",
+  async (event) => {
+    const data = event.data.data();
+    const { boutiqueId } = event.params;
+    if (!data) return;
+
+    const record = {
+      objectID: boutiqueId,
+      boutiqueId,
+      name: data.name || "",
+      description: data.description || "",
+      logoPath: data.logoPath || "",
+      bannerPath: data.bannerPath || "",
+      tier: data.tier || "basic",
+      isActive: data.isActive || false,
+    };
+
+    await saveAlgoliaObject(BOUTIQUES_INDEX, record);
+    logger.info("Algolia boutique created", { boutiqueId });
+  }
+);
+
+// ── Sync boutique to Algolia on update ────────────────────────────────────
+exports.algoliaBoutiqueUpdated = onDocumentUpdated(
+  "boutiques/{boutiqueId}",
+  async (event) => {
+    const data = event.data.after.data();
+    const { boutiqueId } = event.params;
+    if (!data) return;
+
+    const record = {
+      objectID: boutiqueId,
+      boutiqueId,
+      name: data.name || "",
+      description: data.description || "",
+      logoPath: data.logoPath || "",
+      bannerPath: data.bannerPath || "",
+      tier: data.tier || "basic",
+      isActive: data.isActive || false,
+    };
+
+    await saveAlgoliaObject(BOUTIQUES_INDEX, record);
+    logger.info("Algolia boutique updated", { boutiqueId });
+  }
+);
+
+// ── Remove boutique from Algolia on delete ────────────────────────────────
+exports.algoliaBoutiqueDeleted = onDocumentDeleted(
+  "boutiques/{boutiqueId}",
+  async (event) => {
+    const { boutiqueId } = event.params;
+    await deleteAlgoliaObject(BOUTIQUES_INDEX, boutiqueId);
+    logger.info("Algolia boutique deleted", { boutiqueId });
+  }
+);
+
+// ── One-time bulk index of all existing Firestore data ────────────────────
+// Call this once from super admin to seed Algolia with existing products/boutiques
+exports.algoliaReindex = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be logged in.");
+  }
+
+  const uid = request.auth.uid;
+  const superAdmin = await isSuperAdminUser(uid);
+  if (!superAdmin) {
+    throw new HttpsError("permission-denied", "Super admins only.");
+  }
+
+  // Index all boutiques
+  const boutiquesSnap = await db.collection("boutiques").get();
+  const boutiqueRecords = boutiquesSnap.docs.map((doc) => ({
+    objectID: doc.id,
+    boutiqueId: doc.id,
+    name: doc.data().name || "",
+    description: doc.data().description || "",
+    logoPath: doc.data().logoPath || "",
+    tier: doc.data().tier || "basic",
+    isActive: doc.data().isActive || false,
+  }));
+
+  if (boutiqueRecords.length > 0) {
+    await saveAlgoliaObjects(BOUTIQUES_INDEX, boutiqueRecords);
+  }
+
+  // Index all products (collection group)
+  const productsSnap = await db.collectionGroup("products").get();
+  const productRecords = productsSnap.docs.map((doc) => {
+    const data = doc.data();
+    const boutiqueId = doc.ref.parent.parent?.id || "";
+    return {
+      objectID: doc.id,
+      productId: doc.id,
+      boutiqueId,
+      title: data.title || "",
+      description: data.description || "",
+      boutiqueName: data.boutiqueName || "",
+      category: data.category || [],
+      colors: data.colors || [],
+      price: data.price || 0,
+      imageUrl: data.imageUrl || "",
+      imageUrls: data.imageUrls || [],
+      stock: data.stock || 0,
+      madeToOrder: data.madeToOrder || false,
+    };
+  });
+
+  if (productRecords.length > 0) {
+    await saveAlgoliaObjects(PRODUCTS_INDEX, productRecords);
+  }
+
+  logger.info("Algolia reindex complete", {
+    boutiques: boutiqueRecords.length,
+    products: productRecords.length,
+  });
+
+  return {
+    success: true,
+    boutiquesIndexed: boutiqueRecords.length,
+    productsIndexed: productRecords.length,
+  };
 });

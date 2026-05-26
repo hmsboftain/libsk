@@ -106,13 +106,13 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
       case 'placed':
         return AppColors.deepAccent;
       case 'confirmed':
-        return const Color(0xFF5B8DB8);
+        return AppColors.primaryText;
       case 'on the way':
-        return const Color(0xFFB87D3B);
+        return AppColors.deepAccent;
       case 'delivered':
-        return const Color(0xFF3D6B45);
+        return AppColors.primaryText;
       case 'cancelled':
-        return const Color(0xFF9B4A4A);
+        return AppColors.deepAccent;
       default:
         return AppColors.secondaryText;
     }
@@ -121,15 +121,15 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
   Color _statusBgColor(String status) {
     switch (status.toLowerCase()) {
       case 'placed':
-        return AppColors.softAccent.withValues(alpha:0.35);
+        return AppColors.softAccent.withValues(alpha: 0.35);
       case 'confirmed':
-        return const Color(0xFFE8F0F8);
+        return AppColors.field;
       case 'on the way':
-        return const Color(0xFFF8F0E4);
+        return AppColors.selectedSoft;
       case 'delivered':
-        return const Color(0xFFE8F2EA);
+        return AppColors.selectedSoft;
       case 'cancelled':
-        return const Color(0xFFF7E8E8);
+        return AppColors.disabledField;
       default:
         return AppColors.field;
     }
@@ -154,11 +154,7 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
   Widget buildSectionTitle(String title) {
     return Text(
       title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-        color: AppColors.primaryText,
-      ),
+      style: AppTextStyles.headingSmall,
     );
   }
 
@@ -169,28 +165,22 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.zero,
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+            style: AppTextStyles.labelLarge.copyWith(
               color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 15,
-              color: AppColors.primaryText,
-              height: 1.4,
-            ),
+            style: AppTextStyles.bodyMedium.copyWith(height: 1.4),
           ),
         ],
       ),
@@ -221,8 +211,8 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.zero,
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,10 +222,11 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
             height: 92,
             decoration: BoxDecoration(
               color: AppColors.field,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.zero,
+              border: Border.all(color: AppColors.border, width: 0.5),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.zero,
               child: imageUrl.isNotEmpty
                   ? Image.network(
                 imageUrl,
@@ -260,52 +251,34 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryText,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   description,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.secondaryText,
-                    height: 1.35,
-                  ),
+                  style: AppTextStyles.bodySmall.copyWith(height: 1.35),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Size: $size',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.secondaryText,
-                  ),
+                  style: AppTextStyles.bodySmall,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Quantity: $quantity',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.secondaryText,
-                  ),
+                  style: AppTextStyles.bodySmall,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Price: ${price.toStringAsFixed(0)} KWD',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.secondaryText,
-                  ),
+                  style: AppTextStyles.bodySmall,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Boutique ID: $boutiqueId',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.secondaryText,
-                  ),
+                  style: AppTextStyles.bodySmall,
                 ),
               ],
             ),
@@ -374,11 +347,7 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                   children: [
                     const Text(
                       'ORDER DETAILS',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryText,
-                      ),
+                      style: AppTextStyles.displayMedium,
                     ),
                     const SizedBox(height: 20),
 
@@ -388,19 +357,15 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
                         color: AppColors.card,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppColors.border),
+                        borderRadius: BorderRadius.zero,
+                        border: Border.all(color: AppColors.border, width: 0.5),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
                             'ORDER STATUS',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.secondaryText,
-                            ),
+                            style: AppTextStyles.capsLabel,
                           ),
                           const SizedBox(height: 12),
                           // Current status badge
@@ -411,13 +376,16 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                             ),
                             decoration: BoxDecoration(
                               color: _statusBgColor(_currentStatus),
-                              borderRadius: BorderRadius.circular(30),
+                              borderRadius: BorderRadius.zero,
+                              border: Border.all(
+                                color: _statusColor(_currentStatus)
+                                    .withValues(alpha: 0.3),
+                                width: 0.5,
+                              ),
                             ),
                             child: Text(
                               _currentStatus,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                              style: AppTextStyles.labelLarge.copyWith(
                                 color: _statusColor(_currentStatus),
                               ),
                             ),
@@ -425,11 +393,7 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                           const SizedBox(height: 16),
                           const Text(
                             'Update status:',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.secondaryText,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: AppTextStyles.labelLarge,
                           ),
                           const SizedBox(height: 10),
                           _isUpdating
@@ -459,19 +423,17 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                                     color: isSelected
                                         ? _statusBgColor(status)
                                         : AppColors.field,
-                                    borderRadius:
-                                    BorderRadius.circular(20),
+                                    borderRadius: BorderRadius.zero,
                                     border: Border.all(
                                       color: isSelected
                                           ? _statusColor(status)
                                           : AppColors.border,
+                                      width: 0.5,
                                     ),
                                   ),
                                   child: Text(
                                     status,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
+                                    style: AppTextStyles.labelLarge.copyWith(
                                       color: isSelected
                                           ? _statusColor(status)
                                           : AppColors.secondaryText,
@@ -523,15 +485,15 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: AppColors.card,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: AppColors.border),
+                          borderRadius: BorderRadius.zero,
+                          border: Border.all(
+                            color: AppColors.border,
+                            width: 0.5,
+                          ),
                         ),
                         child: const Text(
                           'No items found.',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.secondaryText,
-                          ),
+                          style: AppTextStyles.bodyMedium,
                         ),
                       )
                     else

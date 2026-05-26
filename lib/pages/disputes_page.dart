@@ -24,11 +24,11 @@ class _DisputesPageState extends State<DisputesPage> {
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'open':
-        return const Color(0xFF9B4A4A);
+        return AppColors.deepAccent;
       case 'under review':
-        return const Color(0xFFB87D3B);
+        return AppColors.primaryText;
       case 'resolved':
-        return const Color(0xFF3D6B45);
+        return AppColors.primaryText;
       case 'rejected':
         return AppColors.secondaryText;
       default:
@@ -39,13 +39,13 @@ class _DisputesPageState extends State<DisputesPage> {
   Color _statusBgColor(String status) {
     switch (status.toLowerCase()) {
       case 'open':
-        return const Color(0xFFF7E8E8);
+        return AppColors.selectedSoft;
       case 'under review':
-        return const Color(0xFFF8F0E4);
-      case 'resolved':
-        return const Color(0xFFE8F2EA);
-      case 'rejected':
         return AppColors.field;
+      case 'resolved':
+        return AppColors.selectedSoft;
+      case 'rejected':
+        return AppColors.disabledField;
       default:
         return AppColors.softAccent;
     }
@@ -64,31 +64,34 @@ class _DisputesPageState extends State<DisputesPage> {
         builder: (ctx) => AlertDialog(
           backgroundColor: AppColors.background,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.zero,
+            side: const BorderSide(color: AppColors.border, width: 0.5),
           ),
           title: const Text(
             'Resolve Dispute',
-            style: TextStyle(fontWeight: FontWeight.w700),
+            style: AppTextStyles.headingSmall,
           ),
           content: const Text(
             'How would you like to resolve this dispute?',
-            style: TextStyle(color: AppColors.secondaryText, height: 1.4),
+            style: AppTextStyles.bodyMedium,
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text(
+              child: Text(
                 'Cancel',
-                style: TextStyle(color: AppColors.secondaryText),
+                style: AppTextStyles.labelLarge.copyWith(
+                  color: AppColors.secondaryText,
+                ),
               ),
             ),
             OutlinedButton(
               onPressed: () => Navigator.pop(ctx, 'resolve_no_refund'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF3D6B45),
-                side: const BorderSide(color: Color(0xFF3D6B45)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                foregroundColor: AppColors.deepAccent,
+                side: const BorderSide(color: AppColors.deepAccent, width: 0.5),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero,
                 ),
               ),
               child: const Text('Resolve — No Refund'),
@@ -96,14 +99,17 @@ class _DisputesPageState extends State<DisputesPage> {
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, 'resolve_with_refund'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3D6B45),
+                backgroundColor: AppColors.deepAccent,
                 foregroundColor: Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero,
                 ),
               ),
-              child: const Text('Resolve + Refund'),
+              child: const Text(
+                'Resolve + Refund',
+                style: AppTextStyles.button,
+              ),
             ),
           ],
         ),
@@ -209,15 +215,15 @@ class _DisputesPageState extends State<DisputesPage> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
                 color: isSelected ? AppColors.deepAccent : AppColors.field,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.zero,
                 border: Border.all(
                   color: isSelected ? AppColors.deepAccent : AppColors.border,
+                  width: 0.5,
                 ),
               ),
               child: Text(
                 filter,
-                style: TextStyle(
-                  fontSize: 12,
+                style: AppTextStyles.labelSmall.copyWith(
                   fontWeight: FontWeight.w600,
                   color: isSelected ? Colors.white : AppColors.secondaryText,
                 ),
@@ -266,8 +272,8 @@ class _DisputesPageState extends State<DisputesPage> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.zero,
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,10 +284,8 @@ class _DisputesPageState extends State<DisputesPage> {
               Expanded(
                 child: Text(
                   'Order #$orderNumber',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryText,
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -290,13 +294,16 @@ class _DisputesPageState extends State<DisputesPage> {
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: _statusBgColor(status),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.zero,
+                  border: Border.all(
+                    color: _statusColor(status).withValues(alpha: 0.3),
+                    width: 0.5,
+                  ),
                 ),
                 child: Text(
                   status,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                  style: AppTextStyles.capsLabel.copyWith(
+                    fontWeight: FontWeight.w600,
                     color: _statusColor(status),
                   ),
                 ),
@@ -308,19 +315,14 @@ class _DisputesPageState extends State<DisputesPage> {
           // Customer
           Text(
             customerName,
-            style: const TextStyle(
-              fontSize: 14,
+            style: AppTextStyles.bodyMedium.copyWith(
               fontWeight: FontWeight.w600,
-              color: AppColors.primaryText,
             ),
           ),
           if (customerEmail.isNotEmpty)
             Text(
               customerEmail,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.secondaryText,
-              ),
+              style: AppTextStyles.bodySmall,
             ),
           const SizedBox(height: 10),
 
@@ -329,13 +331,13 @@ class _DisputesPageState extends State<DisputesPage> {
             padding:
             const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: AppColors.softAccent.withValues(alpha:0.3),
-              borderRadius: BorderRadius.circular(8),
+              color: AppColors.softAccent.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.zero,
+              border: Border.all(color: AppColors.border, width: 0.5),
             ),
             child: Text(
               category,
-              style: const TextStyle(
-                fontSize: 12,
+              style: AppTextStyles.labelSmall.copyWith(
                 fontWeight: FontWeight.w600,
                 color: AppColors.deepAccent,
               ),
@@ -346,11 +348,7 @@ class _DisputesPageState extends State<DisputesPage> {
             const SizedBox(height: 10),
             Text(
               description,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.secondaryText,
-                height: 1.4,
-              ),
+              style: AppTextStyles.bodySmall.copyWith(height: 1.4),
             ),
           ],
 
@@ -359,18 +357,12 @@ class _DisputesPageState extends State<DisputesPage> {
             children: [
               Text(
                 'Order total: ${orderTotal.toStringAsFixed(0)} KWD',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.secondaryText,
-                ),
+                style: AppTextStyles.bodySmall,
               ),
               const Spacer(),
               Text(
                 dateString,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.secondaryText,
-                ),
+                style: AppTextStyles.bodySmall,
               ),
             ],
           ),
@@ -381,24 +373,27 @@ class _DisputesPageState extends State<DisputesPage> {
               padding:
               const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8F2EA),
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.selectedSoft,
+                borderRadius: BorderRadius.zero,
+                border: Border.all(
+                  color: AppColors.border,
+                  width: 0.5,
+                ),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.check_circle_outline,
-                    color: Color(0xFF3D6B45),
+                    color: AppColors.deepAccent,
                     size: 14,
                   ),
-                  SizedBox(width: 6),
+                  const SizedBox(width: 6),
                   Text(
                     'Refund issued',
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: AppTextStyles.labelSmall.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF3D6B45),
+                      color: AppColors.deepAccent,
                     ),
                   ),
                 ],
@@ -432,28 +427,21 @@ class _DisputesPageState extends State<DisputesPage> {
                     ),
                     decoration: BoxDecoration(
                       color: isResolve
-                          ? const Color(0xFFE8F2EA)
+                          ? AppColors.selectedSoft
                           : isReject
-                          ? const Color(0xFFF7E8E8)
+                          ? AppColors.disabledField
                           : AppColors.field,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.zero,
                       border: Border.all(
-                        color: isResolve
-                            ? const Color(0xFF3D6B45)
-                            : isReject
-                            ? const Color(0xFF9B4A4A)
-                            : AppColors.border,
+                        color: AppColors.border,
+                        width: 0.5,
                       ),
                     ),
                     child: Text(
                       s,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: isResolve
-                            ? const Color(0xFF3D6B45)
-                            : isReject
-                            ? const Color(0xFF9B4A4A)
+                      style: AppTextStyles.labelLarge.copyWith(
+                        color: isResolve || isReject
+                            ? AppColors.deepAccent
                             : AppColors.secondaryText,
                       ),
                     ),
@@ -486,15 +474,18 @@ class _DisputesPageState extends State<DisputesPage> {
                     return const Center(
                       child: CircularProgressIndicator(
                         color: AppColors.deepAccent,
+                        strokeWidth: 1.5,
                       ),
                     );
                   }
 
                   if (snapshot.hasError) {
-                    return const Center(
+                    return Center(
                       child: Text(
                         'Failed to load disputes',
-                        style: TextStyle(color: AppColors.secondaryText),
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.secondaryText,
+                        ),
                       ),
                     );
                   }
@@ -517,17 +508,12 @@ class _DisputesPageState extends State<DisputesPage> {
                           children: [
                             const Text(
                               'DISPUTES',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primaryText,
-                              ),
+                              style: AppTextStyles.displayMedium,
                             ),
                             const Spacer(),
                             Text(
                               '${filtered.length} ${filtered.length == 1 ? 'dispute' : 'disputes'}',
-                              style: const TextStyle(
-                                fontSize: 14,
+                              style: AppTextStyles.bodyMedium.copyWith(
                                 color: AppColors.secondaryText,
                               ),
                             ),
@@ -541,9 +527,7 @@ class _DisputesPageState extends State<DisputesPage> {
                             ? const Center(
                           child: Text(
                             'No disputes found',
-                            style: TextStyle(
-                              color: AppColors.secondaryText,
-                            ),
+                            style: AppTextStyles.bodyMedium,
                           ),
                         )
                             : ListView.builder(

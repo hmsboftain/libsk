@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../widgets/theme.dart';
 
@@ -19,39 +20,36 @@ Widget buildProductCard({
         children: [
           Stack(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: imageUrl.isNotEmpty
-                    ? Image.network(
-                  imageUrl,
-                  height: 210,
-                  width: 170,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      height: 210,
-                      width: 170,
-                      color: AppColors.field,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.image_not_supported_outlined,
-                        size: 30,
-                        color: Colors.black54,
-                      ),
-                    );
-                  },
-                )
-                    : Container(
-                  height: 210,
-                  width: 170,
-                  color: AppColors.field,
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.image_not_supported_outlined,
-                    size: 30,
-                    color: Colors.black54,
-                  ),
+              Container(
+                width: 170,
+                height: 212,
+                decoration: BoxDecoration(
+                  color: AppColors.imagePlaceholder,
+                  border: Border.all(color: AppColors.border, width: 0.5),
                 ),
+                child: imageUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        width: 170,
+                        height: 212,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) =>
+                            Container(color: AppColors.imagePlaceholder),
+                        errorWidget: (context, url, error) => const Center(
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            size: 24,
+                            color: AppColors.softAccent,
+                          ),
+                        ),
+                      )
+                    : const Center(
+                        child: Icon(
+                          Icons.image_not_supported_outlined,
+                          size: 24,
+                          color: AppColors.softAccent,
+                        ),
+                      ),
               ),
               if (onLikeTap != null)
                 Positioned(
@@ -59,44 +57,42 @@ Widget buildProductCard({
                   right: 10,
                   child: GestureDetector(
                     onTap: onLikeTap,
-                    child: CircleAvatar(
-                      radius: 16,
-                      backgroundColor: AppColors.card,
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppColors.background.withValues(alpha: 0.9),
+                        border: Border.all(color: AppColors.border, width: 0.5),
+                      ),
                       child: Icon(
                         isLiked ? Icons.favorite : Icons.favorite_border,
-                        color: isLiked ? Colors.red : Colors.black,
-                        size: 18,
+                        color: isLiked
+                            ? AppColors.deepAccent
+                            : AppColors.secondaryText,
+                        size: 16,
                       ),
                     ),
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
+            style: AppTextStyles.bodyMedium,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           if (brand != null)
             Text(
               brand,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Colors.grey,
-              ),
+              style: AppTextStyles.bodySmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-          const SizedBox(height: 4),
-          Text(
-            price,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          const SizedBox(height: 5),
+          Text(price, style: AppTextStyles.labelLarge),
         ],
       ),
     ),

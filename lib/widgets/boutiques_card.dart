@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'boutique_logo_avatar.dart';
+import 'theme.dart';
 
 class BoutiquesCard extends StatelessWidget {
   final String imageUrl;
@@ -37,10 +38,7 @@ class BoutiquesCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     boutiqueName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: AppTextStyles.bodyLarge,
                   ),
                 ),
                 if (showLikeButton)
@@ -48,14 +46,16 @@ class BoutiquesCard extends StatelessWidget {
                     onPressed: onLikeTap,
                     icon: Icon(
                       isLiked ? Icons.favorite : Icons.favorite_border,
-                      color: isLiked ? Colors.red : Colors.black,
+                      color: isLiked
+                          ? AppColors.deepAccent
+                          : AppColors.secondaryText,
                     ),
                   ),
               ],
             ),
           ),
         ),
-        const Divider(height: 1),
+        const Divider(height: 1, thickness: 0.5, color: AppColors.border),
       ],
     );
   }

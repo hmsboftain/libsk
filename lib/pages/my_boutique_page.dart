@@ -71,8 +71,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: child,
     );
@@ -89,20 +88,14 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+            style: AppTextStyles.labelLarge.copyWith(
               color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value.isEmpty ? '-' : value,
-            style: const TextStyle(
-              fontSize: 15,
-              color: AppColors.primaryText,
-              height: 1.4,
-            ),
+            style: AppTextStyles.bodyMedium.copyWith(height: 1.4),
           ),
         ],
       ),
@@ -119,46 +112,38 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
       children: [
         Text(
           title,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppColors.primaryText,
-          ),
+          style: AppTextStyles.labelLarge,
         ),
         const SizedBox(height: 10),
         Container(
           width: double.infinity,
           height: height,
           decoration: BoxDecoration(
-            color: AppColors.field,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
+            color: AppColors.imagePlaceholder,
+            border: Border.all(color: AppColors.border, width: 0.5),
           ),
           child: imageUrl != null && imageUrl.isNotEmpty
-              ? ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return const Center(
-                  child: Text(
-                    'Image could not load',
-                    style: TextStyle(
-                      color: AppColors.secondaryText,
-                      fontSize: 14,
-                    ),
+              ? Image.network(
+            imageUrl,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: height,
+            errorBuilder: (context, error, stackTrace) {
+              return Center(
+                child: Text(
+                  'Image could not load',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.secondaryText,
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           )
-              : const Center(
+              : Center(
             child: Text(
               'No image uploaded',
-              style: TextStyle(
+              style: AppTextStyles.bodyMedium.copyWith(
                 color: AppColors.secondaryText,
-                fontSize: 14,
               ),
             ),
           ),
@@ -189,6 +174,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                 ),
               )
                   : RefreshIndicator(
+                color: AppColors.deepAccent,
                 onRefresh: _onRefresh,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -196,19 +182,14 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'MY BOUTIQUE',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primaryText,
-                        ),
+                        style: AppTextStyles.headingMedium,
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'View and manage your boutique details.',
-                        style: TextStyle(
-                          fontSize: 14,
+                        style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.secondaryText,
                           height: 1.4,
                         ),
@@ -246,21 +227,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                         height: 56,
                         child: ElevatedButton(
                           onPressed: openEditPage,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.black,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: const Text(
-                            'Edit Boutique',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                          child: const Text('Edit Boutique'),
                         ),
                       ),
                     ],

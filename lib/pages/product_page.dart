@@ -5,6 +5,7 @@ import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProductPage extends StatefulWidget {
   final String productId;
@@ -450,30 +451,26 @@ class _ProductPageState extends State<ProductPage> {
                       });
                     },
                     itemBuilder: (context, index) {
-                      return Image.network(
-                        images[index],
+                      return CachedNetworkImage(
+                        imageUrl: images[index],
                         width: double.infinity,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: AppColors.imagePlaceholder,
-                            alignment: Alignment.center,
-                            child: const Icon(
-                              Icons.image_not_supported_outlined,
-                              size: 40,
-                              color: AppColors.secondaryText,
-                            ),
-                          );
-                        },
+                        placeholder: (context, url) =>
+                            Container(color: AppColors.imagePlaceholder),
+                        errorWidget: (context, url, error) => Container(
+                          color: AppColors.imagePlaceholder,
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.image_not_supported_outlined,
+                            size: 40,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
                       );
                     },
                   ),
           ),
-          Positioned(
-            top: 16,
-            right: 16,
-            child: _buildHeartButton(data),
-          ),
+          Positioned(top: 16, right: 16, child: _buildHeartButton(data)),
         ],
       ),
     );
@@ -510,10 +507,7 @@ class _ProductPageState extends State<ProductPage> {
                   color: selectedImageIndex == index
                       ? AppColors.deepAccent
                       : Colors.transparent,
-                  border: Border.all(
-                    color: AppColors.border,
-                    width: 0.5,
-                  ),
+                  border: Border.all(color: AppColors.border, width: 0.5),
                 ),
               ),
             );
@@ -615,10 +609,7 @@ class _ProductPageState extends State<ProductPage> {
               ),
             ),
           ),
-        const Divider(
-          color: AppColors.border,
-          thickness: 0.5,
-        ),
+        const Divider(color: AppColors.border, thickness: 0.5),
       ],
     );
   }
@@ -713,10 +704,7 @@ class _ProductPageState extends State<ProductPage> {
                             ),
                           if (colors.isNotEmpty) ...[
                             const SizedBox(height: 16),
-                            Text(
-                              'COLOURS',
-                              style: AppTextStyles.labelLarge,
-                            ),
+                            Text('COLOURS', style: AppTextStyles.labelLarge),
                             const SizedBox(height: 8),
                             Wrap(
                               spacing: 8,
@@ -782,7 +770,9 @@ class _ProductPageState extends State<ProductPage> {
                   },
                   content: hasSizes
                       ? "${AppLocalizations.of(context)!.availableSizes} ${sizes.join(', ')}"
-                      : AppLocalizations.of(context)!.noSizeInformationAvailable,
+                      : AppLocalizations.of(
+                          context,
+                        )!.noSizeInformationAvailable,
                 ),
                 const SizedBox(height: 30),
               ],

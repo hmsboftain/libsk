@@ -110,20 +110,20 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
 
     switch (status.toLowerCase()) {
       case 'confirmed':
-        background = const Color(0xFFE8F0F8);
-        textColor = const Color(0xFF5B8DB8);
+        background = AppColors.field;
+        textColor = AppColors.primaryText;
         break;
       case 'on the way':
-        background = const Color(0xFFF8F0E4);
-        textColor = const Color(0xFFB87D3B);
+        background = AppColors.selectedSoft;
+        textColor = AppColors.deepAccent;
         break;
       case 'delivered':
-        background = const Color(0xFFE8F2EA);
-        textColor = const Color(0xFF3D6B45);
+        background = AppColors.selectedSoft;
+        textColor = AppColors.primaryText;
         break;
       case 'cancelled':
-        background = const Color(0xFFF7E8E8);
-        textColor = const Color(0xFF9B4A4A);
+        background = AppColors.disabledField;
+        textColor = AppColors.deepAccent;
         break;
       default:
         background = AppColors.field;
@@ -134,12 +134,11 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Text(
         status,
-        style: TextStyle(
-          fontSize: 12,
+        style: AppTextStyles.bodySmall.copyWith(
           fontWeight: FontWeight.w600,
           color: textColor,
         ),
@@ -163,41 +162,41 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.field,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+          Container(
+            width: 64,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppColors.imagePlaceholder,
+              border: Border.all(color: AppColors.border, width: 0.5),
+            ),
             child: imageUrl.isNotEmpty
                 ? Image.network(
-              imageUrl,
-              width: 62,
-              height: 74,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  width: 62,
-                  height: 74,
-                  color: AppColors.card,
-                  child: const Icon(
-                    Icons.image_not_supported_outlined,
-                    color: AppColors.deepAccent,
+                    imageUrl,
+                    width: 64,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Center(
+                        child: Icon(
+                          Icons.image_not_supported_outlined,
+                          color: AppColors.softAccent,
+                          size: 24,
+                        ),
+                      );
+                    },
+                  )
+                : const Center(
+                    child: Icon(
+                      Icons.image_not_supported_outlined,
+                      color: AppColors.softAccent,
+                      size: 24,
+                    ),
                   ),
-                );
-              },
-            )
-                : Container(
-              width: 62,
-              height: 74,
-              color: AppColors.card,
-              child: const Icon(
-                Icons.image_not_supported_outlined,
-                color: AppColors.deepAccent,
-              ),
-            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -206,36 +205,18 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryText,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  'Size: $size',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
+                Text('Size: $size', style: AppTextStyles.bodySmall),
                 const SizedBox(height: 4),
-                Text(
-                  'Quantity: $quantity',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
+                Text('Quantity: $quantity', style: AppTextStyles.bodySmall),
                 const SizedBox(height: 6),
                 Text(
                   '${price.toStringAsFixed(0)} KWD',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryText,
-                  ),
+                  style: AppTextStyles.labelLarge,
                 ),
               ],
             ),
@@ -271,7 +252,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
     final addressText = address == null
         ? 'No address available'
         : '${address['area'] ?? ''}, ${address['governorate'] ?? ''}\n'
-        'Block ${address['block'] ?? ''} Street ${address['street'] ?? ''} House ${address['house'] ?? ''}';
+              'Block ${address['block'] ?? ''} Street ${address['street'] ?? ''} House ${address['house'] ?? ''}';
 
     final isPlaced = status.toLowerCase() == 'placed';
 
@@ -280,8 +261,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -291,10 +271,8 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
               Expanded(
                 child: Text(
                   'Order #$orderNumber',
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryText,
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -302,101 +280,32 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            'Date: $date',
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.secondaryText,
-            ),
-          ),
+          Text('Date: $date', style: AppTextStyles.bodySmall),
           const SizedBox(height: 14),
-          const Text(
-            'Customer',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryText,
-            ),
-          ),
+          Text('Customer', style: AppTextStyles.labelLarge),
           const SizedBox(height: 6),
-          Text(
-            customerName,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.primaryText,
-            ),
-          ),
+          Text(customerName, style: AppTextStyles.bodyMedium),
           if (customerEmail.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(
-              customerEmail,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.secondaryText,
-              ),
-            ),
+            Text(customerEmail, style: AppTextStyles.bodySmall),
           ],
           const SizedBox(height: 14),
-          const Text(
-            'Delivery',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryText,
-            ),
-          ),
+          Text('Delivery', style: AppTextStyles.labelLarge),
           const SizedBox(height: 6),
-          Text(
-            deliveryMethod,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.primaryText,
-            ),
-          ),
+          Text(deliveryMethod, style: AppTextStyles.bodyMedium),
           const SizedBox(height: 14),
-          const Text(
-            'Payment',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryText,
-            ),
-          ),
+          Text('Payment', style: AppTextStyles.labelLarge),
           const SizedBox(height: 6),
-          Text(
-            paymentMethod,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.primaryText,
-            ),
-          ),
+          Text(paymentMethod, style: AppTextStyles.bodyMedium),
           const SizedBox(height: 14),
-          const Text(
-            'Address',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryText,
-            ),
-          ),
+          Text('Address', style: AppTextStyles.labelLarge),
           const SizedBox(height: 6),
           Text(
             addressText,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.secondaryText,
-              height: 1.4,
-            ),
+            style: AppTextStyles.bodySmall.copyWith(height: 1.4),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Items',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryText,
-            ),
-          ),
+          Text('Items', style: AppTextStyles.labelLarge),
           const SizedBox(height: 10),
           ...items.map((item) {
             return buildOrderItem(Map<String, dynamic>.from(item));
@@ -404,21 +313,11 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
           const SizedBox(height: 6),
           Row(
             children: [
-              Text(
-                '$itemCount item(s)',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.secondaryText,
-                ),
-              ),
+              Text('$itemCount item(s)', style: AppTextStyles.bodySmall),
               const Spacer(),
               Text(
                 'Total: ${total.toStringAsFixed(0)} KWD',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryText,
-                ),
+                style: AppTextStyles.labelLarge,
               ),
             ],
           ),
@@ -437,26 +336,27 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                         context: context,
                         builder: (ctx) => AlertDialog(
                           backgroundColor: AppColors.background,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.zero,
+                            side: BorderSide(
+                              color: AppColors.border,
+                              width: 0.5,
+                            ),
                           ),
                           title: const Text(
                             'Cancel Order',
-                            style: TextStyle(fontWeight: FontWeight.w700),
+                            style: AppTextStyles.headingSmall,
                           ),
                           content: const Text(
                             'Are you sure you want to cancel this order? This cannot be undone.',
-                            style: TextStyle(
-                              color: AppColors.secondaryText,
-                              height: 1.4,
-                            ),
+                            style: AppTextStyles.bodyMedium,
                           ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text(
+                              child: Text(
                                 'Back',
-                                style: TextStyle(
+                                style: AppTextStyles.labelLarge.copyWith(
                                   color: AppColors.secondaryText,
                                 ),
                               ),
@@ -464,14 +364,17 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                             ElevatedButton(
                               onPressed: () => Navigator.pop(ctx, true),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF9B4A4A),
+                                backgroundColor: AppColors.deepAccent,
                                 foregroundColor: Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                              child: const Text('Cancel Order'),
+                              child: const Text(
+                                'Cancel Order',
+                                style: AppTextStyles.button,
+                              ),
                             ),
                           ],
                         ),
@@ -487,16 +390,19 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                       }
                     },
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF9B4A4A),
-                      side: const BorderSide(color: Color(0xFF9B4A4A)),
+                      foregroundColor: AppColors.deepAccent,
+                      side: const BorderSide(
+                        color: AppColors.deepAccent,
+                        width: 0.5,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     child: const Text(
                       'Cancel Order',
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                      style: AppTextStyles.labelLarge,
                     ),
                   ),
                 ),
@@ -512,17 +418,17 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3D6B45),
+                      backgroundColor: AppColors.deepAccent,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     child: const Text(
                       'Confirm Order',
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                      style: AppTextStyles.button,
                     ),
                   ),
                 ),
@@ -540,15 +446,20 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(color: AppColors.deepAccent),
+            child: CircularProgressIndicator(
+              color: AppColors.deepAccent,
+              strokeWidth: 1.5,
+            ),
           );
         }
 
         if (snapshot.hasError) {
-          return const Center(
+          return Center(
             child: Text(
               'Failed to load orders',
-              style: TextStyle(color: AppColors.secondaryText),
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.secondaryText,
+              ),
             ),
           );
         }
@@ -557,16 +468,16 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
 
         if (docs.isEmpty) {
           return RefreshIndicator(
+            color: AppColors.deepAccent,
             onRefresh: _onRefresh,
-            child: const SingleChildScrollView(
-              physics: AlwaysScrollableScrollPhysics(),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
               child: SizedBox(
                 height: 400,
                 child: Center(
                   child: Text(
                     'No orders yet',
-                    style: TextStyle(
-                      fontSize: 16,
+                    style: AppTextStyles.bodyLarge.copyWith(
                       color: AppColors.secondaryText,
                     ),
                   ),
@@ -577,6 +488,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
         }
 
         return RefreshIndicator(
+          color: AppColors.deepAccent,
           onRefresh: _onRefresh,
           child: ListView.builder(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -602,49 +514,48 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
             Expanded(
               child: isLoading
                   ? const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.deepAccent,
-                ),
-              )
-                  : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(20, 12, 20, 8),
-                    child: Text(
-                      'MY ORDERS',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryText,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: errorMessage != null
-                        ? RefreshIndicator(
-                      onRefresh: _onRefresh,
-                      child: ListView(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(
-                              errorMessage!,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                color: AppColors.secondaryText,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
+                      child: CircularProgressIndicator(
+                        color: AppColors.deepAccent,
+                        strokeWidth: 1.5,
                       ),
                     )
-                        : _buildOrdersList(),
-                  ),
-                ],
-              ),
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                          child: Text(
+                            'MY ORDERS',
+                            style: AppTextStyles.headingMedium.copyWith(
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: errorMessage != null
+                              ? RefreshIndicator(
+                                  color: AppColors.deepAccent,
+                                  onRefresh: _onRefresh,
+                                  child: ListView(
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.all(24),
+                                        child: Text(
+                                          errorMessage!,
+                                          style: AppTextStyles.bodyMedium
+                                              .copyWith(
+                                                color: AppColors.secondaryText,
+                                              ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : _buildOrdersList(),
+                        ),
+                      ],
+                    ),
             ),
           ],
         ),

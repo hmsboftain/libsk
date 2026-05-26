@@ -29,35 +29,38 @@ class _YourAccountPageState extends State<YourAccountPage> {
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.background,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.zero,
+          side: const BorderSide(color: AppColors.border, width: 0.5),
         ),
         title: const Text(
           'Delete Account',
-          style: TextStyle(fontWeight: FontWeight.w700),
+          style: AppTextStyles.headingMedium,
         ),
         content: const Text(
           'Are you sure you want to permanently delete your account? This action cannot be undone.',
-          style: TextStyle(color: Colors.black54, height: 1.4),
+          style: AppTextStyles.bodyMedium,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text(
+            child: Text(
               'Cancel',
-              style: TextStyle(color: Colors.black54),
+              style: AppTextStyles.labelLarge.copyWith(
+                color: AppColors.secondaryText,
+              ),
             ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.deepAccent,
               foregroundColor: Colors.white,
               elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: const Text('Delete'),
+            child: const Text('Delete', style: AppTextStyles.button),
           ),
         ],
       ),
@@ -97,18 +100,19 @@ class _YourAccountPageState extends State<YourAccountPage> {
           builder: (dialogContext) => AlertDialog(
             backgroundColor: AppColors.background,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.zero,
+              side: const BorderSide(color: AppColors.border, width: 0.5),
             ),
             title: const Text(
               'Confirm Password',
-              style: TextStyle(fontWeight: FontWeight.w700),
+              style: AppTextStyles.headingMedium,
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
                   'Please enter your password to confirm account deletion.',
-                  style: TextStyle(color: Colors.black54, height: 1.4),
+                  style: AppTextStyles.bodyMedium,
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -119,11 +123,25 @@ class _YourAccountPageState extends State<YourAccountPage> {
                     filled: true,
                     fillColor: AppColors.field,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(
+                        color: AppColors.border,
+                        width: 0.5,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(
+                        color: AppColors.border,
+                        width: 0.5,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.black),
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(
+                        color: AppColors.deepAccent,
+                        width: 1,
+                      ),
                     ),
                   ),
                 ),
@@ -132,22 +150,24 @@ class _YourAccountPageState extends State<YourAccountPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text(
+                child: Text(
                   'Cancel',
-                  style: TextStyle(color: Colors.black54),
+                  style: AppTextStyles.labelLarge.copyWith(
+                    color: AppColors.secondaryText,
+                  ),
                 ),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: AppColors.deepAccent,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text('Confirm'),
+                child: const Text('Confirm', style: AppTextStyles.button),
               ),
             ],
           ),
@@ -211,13 +231,10 @@ class _YourAccountPageState extends State<YourAccountPage> {
             const SizedBox(height: 12),
             Text(
               loc.yourAccount,
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.headingLarge,
             ),
             const SizedBox(height: 16),
-            const Divider(height: 1, thickness: 1),
+            const Divider(height: 1, thickness: 0.5),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -227,10 +244,14 @@ class _YourAccountPageState extends State<YourAccountPage> {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.badge_outlined),
-                      title: Text(loc.accountInformation),
+                      title: Text(
+                        loc.accountInformation,
+                        style: AppTextStyles.bodyLarge,
+                      ),
                       trailing: const Icon(
                         Icons.arrow_forward_ios,
                         size: 16,
+                        color: AppColors.secondaryText,
                       ),
                       onTap: () {
                         Navigator.push(
@@ -246,10 +267,14 @@ class _YourAccountPageState extends State<YourAccountPage> {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.lock_outline),
-                      title: Text(loc.changePassword),
+                      title: Text(
+                        loc.changePassword,
+                        style: AppTextStyles.bodyLarge,
+                      ),
                       trailing: const Icon(
                         Icons.arrow_forward_ios,
                         size: 16,
+                        color: AppColors.secondaryText,
                       ),
                       onTap: () {
                         Navigator.push(
@@ -263,24 +288,29 @@ class _YourAccountPageState extends State<YourAccountPage> {
                     const Divider(),
                     const SizedBox(height: 40),
                     isDeleting
-                        ? const CircularProgressIndicator(color: Colors.red)
+                        ? const CircularProgressIndicator(
+                      color: AppColors.deepAccent,
+                      strokeWidth: 1.5,
+                    )
                         : SizedBox(
                       width: double.infinity,
                       height: 54,
                       child: OutlinedButton(
                         onPressed: deleteAccount,
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red),
+                          foregroundColor: AppColors.deepAccent,
+                          side: const BorderSide(
+                            color: AppColors.deepAccent,
+                            width: 0.5,
+                          ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Delete Account',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                          style: AppTextStyles.labelLarge.copyWith(
+                            color: AppColors.deepAccent,
                           ),
                         ),
                       ),

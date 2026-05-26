@@ -1,0 +1,713 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import '../navigation/app_header.dart';
+import '../widgets/theme.dart';
+
+class BoutiqueOnboardingPage extends StatefulWidget {
+  const BoutiqueOnboardingPage({super.key});
+
+  @override
+  State<BoutiqueOnboardingPage> createState() => _BoutiqueOnboardingPageState();
+}
+
+class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
+  final _formKey = GlobalKey<FormState>();
+  bool isLoading = false;
+  String selectedTier = 'Basic';
+
+  // Step tracking
+  int _step = 1; // 1 = find user, 2 = boutique details
+
+  // Found user
+  String? _foundUid;
+  String? _foundName;
+  String? _foundEmail;
+
+  final emailController = TextEditingController();
+  final boutiqueNameController = TextEditingController();
+  final boutiqueDescController = TextEditingController();
+
+  final List<Map<String, String>> tiers = [
+    {
+      'name': 'Basic',
+      'price': '40 KD/mo',
+      'commission': '12%',
+      'products': '20 products',
+      'images': '3 images/product',
+      'support': 'Standard support',
+    },
+    {
+      'name': 'Pro',
+      'price': '70 KD/mo',
+      'commission': '8%',
+      'products': '100 products',
+      'images': '6 images/product',
+      'support': 'Priority support',
+    },
+    {
+      'name': 'Elite',
+      'price': '120 KD/mo',
+      'commission': '4%',
+      'products': 'Unlimited',
+      'images': '10 images/product',
+      'support': 'Dedicated support',
+    },
+  ];
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    boutiqueNameController.dispose();
+    boutiqueDescController.dispose();
+    super.dispose();
+  }
+
+  // Step 1 — look up user by email
+  Future<void> _findUser() async {
+    final email = emailController.text.trim().toLowerCase();
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid email address')),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      // Check not already a boutique owner
+      final ownerCheck = await FirebaseFirestore.instance
+          .collection('boutique_owners')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
+      if (ownerCheck.docs.isNotEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This user is already a boutique owner'),
+          ),
+        );
+        return;
+      }
+
+      // Look up user by email
+      final userQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
+      if (userQuery.docs.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No account found with this email. Ask the owner to sign up first.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final userDoc = userQuery.docs.first;
+      final userData = userDoc.data();
+
+      setState(() {
+        _foundUid = userDoc.id;
+        _foundEmail = email;
+        _foundName =
+            userData['fullName']?.toString() ??
+            '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'
+                .trim();
+        _step = 2;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  // Step 2 — create boutique + owner docs
+  Future<void> _createBoutique() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_foundUid == null) return;
+
+    setState(() => isLoading = true);
+
+    try {
+      // Create boutique doc
+      final boutiqueRef = await FirebaseFirestore.instance
+          .collection('boutiques')
+          .add({
+            'name': boutiqueNameController.text.trim(),
+            'description': boutiqueDescController.text.trim(),
+            'tier': selectedTier.toLowerCase(),
+            'ownerUid': _foundUid,
+            'isActive': true,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+      // Create boutique_owners doc using owner's UID
+      await FirebaseFirestore.instance
+          .collection('boutique_owners')
+          .doc(_foundUid)
+          .set({
+            'uid': _foundUid,
+            'fullName': _foundName ?? '',
+            'email': _foundEmail ?? '',
+            'boutiqueId': boutiqueRef.id,
+            'boutiqueName': boutiqueNameController.text.trim(),
+            'tier': selectedTier.toLowerCase(),
+            'role': 'boutique_owner',
+            'isApproved': true,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+      // Update user role
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_foundUid)
+          .update({'role': 'boutique_owner'});
+
+      if (!mounted) return;
+
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.background,
+          shape: const RoundedRectangleBorder(),
+          title: Text('Done', style: AppTextStyles.headingSmall),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${boutiqueNameController.text.trim()} is now live on LIBSK.',
+                style: AppTextStyles.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.field,
+                  border: Border.all(color: AppColors.border, width: 0.5),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('OWNER', style: AppTextStyles.capsLabel),
+                    const SizedBox(height: 4),
+                    Text(_foundName ?? '', style: AppTextStyles.labelLarge),
+                    const SizedBox(height: 2),
+                    Text(
+                      _foundEmail ?? '',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.deepAccent,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('TIER', style: AppTextStyles.capsLabel),
+                    const SizedBox(height: 4),
+                    Text(selectedTier, style: AppTextStyles.labelLarge),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'The owner can now log in and access their boutique dashboard.',
+                style: AppTextStyles.bodySmall,
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.deepAccent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero,
+                ),
+              ),
+              child: Text('Done', style: AppTextStyles.button),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  InputDecoration _inputDec(String hint) {
+    const border = OutlineInputBorder(
+      borderRadius: BorderRadius.zero,
+      borderSide: BorderSide(color: AppColors.border, width: 0.5),
+    );
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: AppColors.field,
+      hintStyle: AppTextStyles.bodyMedium.copyWith(
+        color: AppColors.secondaryText,
+      ),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: const OutlineInputBorder(
+        borderRadius: BorderRadius.zero,
+        borderSide: BorderSide(color: AppColors.deepAccent, width: 1),
+      ),
+    );
+  }
+
+  Widget _label(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(text, style: AppTextStyles.labelLarge),
+  );
+
+  Widget _card({required Widget child}) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: AppColors.card,
+      border: Border.all(color: AppColors.border, width: 0.5),
+    ),
+    child: child,
+  );
+
+  Widget _stepIndicator() {
+    return Row(
+      children: [
+        _stepDot(1, 'Find User'),
+        Expanded(
+          child: Container(
+            height: 0.5,
+            color: _step >= 2 ? AppColors.deepAccent : AppColors.border,
+          ),
+        ),
+        _stepDot(2, 'Boutique Details'),
+      ],
+    );
+  }
+
+  Widget _stepDot(int step, String label) {
+    final isActive = _step == step;
+    final isDone = _step > step;
+    return Column(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isDone || isActive
+                ? AppColors.deepAccent
+                : AppColors.imagePlaceholder,
+            border: Border.all(
+              color: isDone || isActive
+                  ? AppColors.deepAccent
+                  : AppColors.border,
+              width: 0.5,
+            ),
+          ),
+          child: Center(
+            child: isDone
+                ? const Icon(Icons.check, size: 14, color: Colors.white)
+                : Text(
+                    '$step',
+                    style: AppTextStyles.capsLabel.copyWith(
+                      color: isActive ? Colors.white : AppColors.secondaryText,
+                      fontSize: 11,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: AppTextStyles.bodySmall.copyWith(
+            fontSize: 10,
+            color: isActive ? AppColors.deepAccent : AppColors.secondaryText,
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const AppHeader(showBackButton: true),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Boutique Onboarding',
+                      style: AppTextStyles.displayMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Upgrade an existing user account to a boutique owner.',
+                      style: AppTextStyles.bodySmall,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Step indicator
+                    _stepIndicator(),
+                    const SizedBox(height: 24),
+
+                    // ── STEP 1 — Find user ──────────────────────────
+                    if (_step == 1) ...[
+                      _card(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'FIND ACCOUNT',
+                              style: AppTextStyles.capsLabel,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Enter the email the boutique owner used to sign up.',
+                              style: AppTextStyles.bodySmall,
+                            ),
+                            const SizedBox(height: 16),
+                            _label('Email Address'),
+                            TextField(
+                              controller: emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              autocorrect: false,
+                              decoration: _inputDec('owner@example.com'),
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: ElevatedButton(
+                                onPressed: isLoading ? null : _findUser,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.deepAccent,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero,
+                                  ),
+                                ),
+                                child: isLoading
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : Text(
+                                        'Find Account',
+                                        style: AppTextStyles.button,
+                                      ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // ── STEP 2 — Boutique details ───────────────────
+                    if (_step == 2) ...[
+                      // Found user card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.selectedSoft,
+                          border: Border.all(
+                            color: AppColors.deepAccent,
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              color: AppColors.deepAccent,
+                              child: Center(
+                                child: Text(
+                                  (_foundName?.isNotEmpty == true
+                                          ? _foundName![0]
+                                          : '?')
+                                      .toUpperCase(),
+                                  style: AppTextStyles.headingSmall.copyWith(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _foundName ?? '',
+                                    style: AppTextStyles.labelLarge,
+                                  ),
+                                  Text(
+                                    _foundEmail ?? '',
+                                    style: AppTextStyles.bodySmall.copyWith(
+                                      color: AppColors.secondaryText,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.check_circle_outline,
+                              color: AppColors.deepAccent,
+                              size: 20,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            // Boutique info
+                            _card(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'BOUTIQUE DETAILS',
+                                    style: AppTextStyles.capsLabel,
+                                  ),
+                                  const SizedBox(height: 14),
+                                  _label('Boutique Name'),
+                                  TextFormField(
+                                    controller: boutiqueNameController,
+                                    decoration: _inputDec('e.g. Maison Rima'),
+                                    validator: (v) =>
+                                        v == null || v.trim().isEmpty
+                                        ? 'Required'
+                                        : null,
+                                  ),
+                                  const SizedBox(height: 14),
+                                  _label('Description (optional)'),
+                                  TextFormField(
+                                    controller: boutiqueDescController,
+                                    maxLines: 3,
+                                    decoration: _inputDec(
+                                      'Brief description of the boutique',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 14),
+
+                            // Tier selection
+                            _card(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'SELECT TIER',
+                                    style: AppTextStyles.capsLabel,
+                                  ),
+                                  const SizedBox(height: 14),
+                                  ...tiers.map((tier) {
+                                    final isSelected =
+                                        selectedTier == tier['name'];
+                                    return GestureDetector(
+                                      onTap: () => setState(
+                                        () => selectedTier = tier['name']!,
+                                      ),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 150,
+                                        ),
+                                        margin: const EdgeInsets.only(
+                                          bottom: 10,
+                                        ),
+                                        padding: const EdgeInsets.all(14),
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? AppColors.selectedSoft
+                                              : AppColors.field,
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? AppColors.deepAccent
+                                                : AppColors.border,
+                                            width: isSelected ? 1 : 0.5,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Text(
+                                                        tier['name']!,
+                                                        style: AppTextStyles
+                                                            .labelLarge
+                                                            .copyWith(
+                                                              color: isSelected
+                                                                  ? AppColors
+                                                                        .deepAccent
+                                                                  : AppColors
+                                                                        .primaryText,
+                                                            ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Text(
+                                                        tier['price']!,
+                                                        style: AppTextStyles
+                                                            .bodySmall
+                                                            .copyWith(
+                                                              color: AppColors
+                                                                  .deepAccent,
+                                                            ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Text(
+                                                    '${tier['commission']} commission · ${tier['products']} · ${tier['images']}',
+                                                    style:
+                                                        AppTextStyles.bodySmall,
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    tier['support']!,
+                                                    style:
+                                                        AppTextStyles.bodySmall,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            if (isSelected)
+                                              const Icon(
+                                                Icons.check_circle_outline,
+                                                color: AppColors.deepAccent,
+                                                size: 20,
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 22),
+
+                            Row(
+                              children: [
+                                // Back button
+                                GestureDetector(
+                                  onTap: () => setState(() {
+                                    _step = 1;
+                                    _foundUid = null;
+                                    _foundName = null;
+                                    _foundEmail = null;
+                                  }),
+                                  child: Container(
+                                    height: 54,
+                                    width: 54,
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: AppColors.border,
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.arrow_back,
+                                      size: 18,
+                                      color: AppColors.secondaryText,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 54,
+                                    child: ElevatedButton(
+                                      onPressed: isLoading
+                                          ? null
+                                          : _createBoutique,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.deepAccent,
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.zero,
+                                        ),
+                                      ),
+                                      child: isLoading
+                                          ? const SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : Text(
+                                              'Create Boutique',
+                                              style: AppTextStyles.button,
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

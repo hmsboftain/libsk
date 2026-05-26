@@ -86,7 +86,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       children: [
                         const CircleAvatar(
                           radius: 35,
-                          backgroundColor: Colors.black,
+                          backgroundColor: AppColors.deepAccent,
                           child: Icon(
                             Icons.person,
                             color: Colors.white,
@@ -102,19 +102,15 @@ class _ProfilePageState extends State<ProfilePage> {
                                 displayName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                                style: AppTextStyles.headingMedium,
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 email,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black54,
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  color: AppColors.secondaryText,
                                 ),
                               ),
                             ],
@@ -127,11 +123,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     Text(
                       AppLocalizations.of(context)!.accountSection,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTextStyles.capsLabel,
                     ),
                     const SizedBox(height: 10),
 
@@ -195,8 +187,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.black,
+                            strokeWidth: 1.5,
+                            color: AppColors.deepAccent,
                           ),
                         ),
                       ),
@@ -206,11 +198,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 30),
                       Text(
                         AppLocalizations.of(context)!.adminSection,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: AppTextStyles.capsLabel,
                       ),
                       const SizedBox(height: 10),
                       _buildTile(
@@ -233,11 +221,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 30),
                       Text(
                         AppLocalizations.of(context)!.boutiqueSection,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: AppTextStyles.capsLabel,
                       ),
                       const SizedBox(height: 10),
                       _buildTile(
@@ -258,11 +242,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     Text(
                       AppLocalizations.of(context)!.languages,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTextStyles.capsLabel,
                     ),
                     const SizedBox(height: 10),
 
@@ -288,11 +268,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     Text(
                       AppLocalizations.of(context)!.supportSection,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTextStyles.capsLabel,
                     ),
                     const SizedBox(height: 10),
 
@@ -352,9 +328,13 @@ class _ProfilePageState extends State<ProfilePage> {
       children: [
         ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: Icon(icon),
-          title: Text(title),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+          leading: Icon(icon, color: AppColors.primaryText),
+          title: Text(title, style: AppTextStyles.bodyLarge),
+          trailing: const Icon(
+            Icons.arrow_forward_ios,
+            size: 16,
+            color: AppColors.secondaryText,
+          ),
           onTap: onTap,
         ),
         const Divider(),
