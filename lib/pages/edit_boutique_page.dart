@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -188,9 +189,18 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
     required File imageFile,
     required String folderName,
   }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      throw Exception('User not logged in');
+    }
+
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-    final ref = FirebaseStorage.instance.ref().child(folderName).child(fileName);
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child(folderName)
+        .child(uid)
+        .child(fileName);
 
     final metadata = SettableMetadata(
       contentType: 'image/jpeg',

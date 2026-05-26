@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -190,10 +191,16 @@ class _EditProductPageState extends State<EditProductPage> {
   }
 
   Future<String> uploadImageToStorage(File imageFile) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      throw Exception('User not logged in');
+    }
+
     final fileName = DateTime.now().millisecondsSinceEpoch.toString();
     final ref = FirebaseStorage.instance
         .ref()
         .child('product_images')
+        .child(uid)
         .child('$fileName.jpg');
 
     await ref.putFile(imageFile);
