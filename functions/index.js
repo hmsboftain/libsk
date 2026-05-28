@@ -24,6 +24,14 @@ const {algoliasearch} = require("algoliasearch");
 
 const PRODUCTS_INDEX = "products";
 const BOUTIQUES_INDEX = "boutiques";
+const PAYMENT_CURRENCY = "kwd";
+const CURRENCY_MULTIPLIERS = Object.freeze({
+  kwd: 1000,
+});
+const DELIVERY_COSTS_BY_METHOD = Object.freeze({
+  "Regular Delivery": 3,
+  "Same Day Delivery": 5,
+});
 
 let algoliaClient;
 
@@ -184,6 +192,152 @@ function getBoutiqueIdsFromItems(items) {
   return Array.from(boutiqueIds);
 }
 
+function getDeliveryCost(deliveryMethod) {
+  if (!Object.prototype.hasOwnProperty.call(
+    DELIVERY_COSTS_BY_METHOD,
+    deliveryMethod,
+  )) {
+    throw new HttpsError("invalid-argument", "Invalid delivery method.");
+  }
+
+  return DELIVERY_COSTS_BY_METHOD[deliveryMethod];
+}
+
+function calculatePaymentAmount(total, currency = PAYMENT_CURRENCY) {
+  const multiplier = CURRENCY_MULTIPLIERS[currency];
+
+  if (!multiplier) {
+    throw new HttpsError("invalid-argument", "Unsupported currency.");
+  }
+
+  return Math.round(total * multiplier);
+}
+
+function getProductKey(boutiqueId, productId) {
+  return `${boutiqueId}/${productId}`;
+}
+
+function groupQuantitiesByProduct(items) {
+  const groups = new Map();
+
+  for (const item of items) {
+    const key = getProductKey(item.boutiqueId, item.productId);
+    const group = groups.get(key) || {
+      boutiqueId: item.boutiqueId,
+      productId: item.productId,
+      quantity: 0,
+      items: [],
+    };
+
+    group.quantity += item.quantity;
+    group.items.push(item);
+    groups.set(key, group);
+  }
+
+  return groups;
+}
+
+function validatePaymentIntentForOrder(
+  paymentIntent,
+  {uid, expectedAmount, currency},
+) {
+  if (!paymentIntent || typeof paymentIntent !== "object") {
+    throw new HttpsError("failed-precondition", "Payment could not be verified.");
+  }
+
+  const metadata = paymentIntent.metadata || {};
+
+  if (metadata.uid !== uid) {
+    throw new HttpsError(
+      "permission-denied",
+      "Payment does not belong to this user.",
+    );
+  }
+
+  if (paymentIntent.status !== "succeeded") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Payment has not completed successfully.",
+    );
+  }
+
+  if (String(paymentIntent.currency || "").toLowerCase() !== currency) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Payment currency does not match the order.",
+    );
+  }
+
+  if (Number(paymentIntent.amount_received || 0) !== expectedAmount) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Payment amount does not match the order.",
+    );
+  }
+}
+
+async function getVerifiedOrderPricing(items) {
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    throw new HttpsError("invalid-argument", "Items must be a non-empty array.");
+  }
+
+  if (items.length > 50) {
+    throw new HttpsError("invalid-argument", "Order cannot contain more than 50 items.");
+  }
+
+  const verifiedItems = [];
+  let subtotal = 0;
+
+  for (const item of items) {
+    const boutiqueId = String(item.boutiqueId || "");
+    const productId  = String(item.productId  || "");
+    const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
+
+    if (!boutiqueId || !productId) {
+      throw new HttpsError("invalid-argument", "Each item must have boutiqueId and productId.");
+    }
+
+    if (quantity > 100) {
+      throw new HttpsError("invalid-argument", "Quantity cannot exceed 100 per item.");
+    }
+
+    const productDoc = await db
+      .collection("boutiques").doc(boutiqueId)
+      .collection("products").doc(productId)
+      .get();
+
+    if (!productDoc.exists) {
+      throw new HttpsError("not-found", `Product ${productId} not found.`);
+    }
+
+    const productData = productDoc.data();
+    const serverPrice = Number(productData.price) || 0;
+    subtotal += serverPrice * quantity;
+
+    const verifiedItem = {
+      productId,
+      boutiqueId,
+      title:        productData.title        || item.title       || "",
+      imageUrl:     item.imageUrl            || "",
+      description:  productData.description  || item.description || "",
+      size:         item.size                || "",
+      price:        serverPrice,
+      quantity,
+      boutiqueName: productData.boutiqueName || "",
+    };
+    const color = String(item.color || "").trim();
+    if (color) {
+      verifiedItem.color = color;
+    }
+    verifiedItems.push(verifiedItem);
+  }
+
+  return {
+    items: verifiedItems,
+    subtotal,
+  };
+}
+
 // ================= RATE LIMITING =================
 //
 // Generic sliding-window rate limiter backed by Firestore. Each caller is
@@ -239,57 +393,13 @@ exports.createPaymentIntent = onCall(async (request) => {
     logger.info("Callable data received", {data});
 
     const items = data.items;
-    const deliveryCost = data.deliveryCost;
-    const currency = data.currency;
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Items must be a non-empty array.",
-      );
-    }
-
-    if (!currency || typeof currency !== "string") {
-      throw new HttpsError("invalid-argument", "Currency is required.");
-    }
-
-    const allowedCurrencies = ["kwd", "usd", "gbp", "eur"];
-    if (!allowedCurrencies.includes(currency.toLowerCase())) {
-      throw new HttpsError("invalid-argument", "Unsupported currency.");
-    }
-
-    let subtotal = 0;
-
-    for (const item of items) {
-      const boutiqueId = String(item.boutiqueId || "");
-      const productId  = String(item.productId  || "");
-      const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
-
-      if (!boutiqueId || !productId) {
-        throw new HttpsError("invalid-argument", "Each item must have boutiqueId and productId.");
-      }
-
-      if (quantity > 100) {
-        throw new HttpsError("invalid-argument", "Quantity cannot exceed 100 per item.");
-      }
-
-      const productDoc = await db
-        .collection("boutiques").doc(boutiqueId)
-        .collection("products").doc(productId)
-        .get();
-
-      if (!productDoc.exists) {
-        throw new HttpsError("not-found", `Product ${productId} not found.`);
-      }
-
-      const serverPrice = Number(productDoc.data().price) || 0;
-      subtotal += serverPrice * quantity;
-    }
-
-    const delivery = Number(deliveryCost) || 0;
+    const deliveryMethod = data.deliveryMethod || "";
+    const currency = PAYMENT_CURRENCY;
+    const delivery = getDeliveryCost(deliveryMethod);
+    const pricing = await getVerifiedOrderPricing(items);
+    const subtotal = pricing.subtotal;
     const total = subtotal + delivery;
-    const multiplier = currency.toLowerCase() === "kwd" ? 1000 : 100;
-    const amount = Math.round(total * multiplier);
+    const amount = calculatePaymentAmount(total, currency);
 
     if (amount <= 0) {
       throw new HttpsError("invalid-argument", "Order total must be greater than zero.");
@@ -305,7 +415,11 @@ exports.createPaymentIntent = onCall(async (request) => {
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
-      currency: currency.toLowerCase(),
+      currency,
+      metadata: {
+        uid: request.auth.uid,
+        deliveryMethod,
+      },
     });
 
     return {
@@ -407,41 +521,42 @@ exports.createOrder = onCall(async (request) => {
   const paymentMethod   = data.paymentMethod   || "";
   const paymentIntentId = data.paymentIntentId || "";
 
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    throw new HttpsError("invalid-argument", "Items must be a non-empty array.");
-  }
-
-  if (items.length > 50) {
-    throw new HttpsError("invalid-argument", "Order cannot contain more than 50 items.");
-  }
-
-  const allowedDeliveryMethods = ["Regular Delivery", "Same Day Delivery"];
   const allowedPaymentMethods  = ["Card"];
-
-  if (!allowedDeliveryMethods.includes(deliveryMethod)) {
-    throw new HttpsError("invalid-argument", "Invalid delivery method.");
-  }
+  const deliveryCost = getDeliveryCost(deliveryMethod);
 
   if (!allowedPaymentMethods.includes(paymentMethod)) {
     throw new HttpsError("invalid-argument", "Invalid payment method.");
   }
 
-  if (typeof paymentIntentId !== "string" || paymentIntentId.length > 200) {
+  if (!paymentIntentId ||
+      typeof paymentIntentId !== "string" ||
+      paymentIntentId.length > 200) {
     throw new HttpsError("invalid-argument", "Invalid paymentIntentId.");
   }
 
-  const counterRef = db.collection("metadata").doc("order_counter");
-  const orderNumber = await db.runTransaction(async (tx) => {
-    const snap = await tx.get(counterRef);
-    let last = 100000;
-    if (snap.exists && typeof snap.data().lastOrderNumber === "number") {
-      last = snap.data().lastOrderNumber;
-    }
-    const next = last + 1;
-    tx.set(counterRef, { lastOrderNumber: next }, { merge: true });
-    return String(next);
+  const pricing = await getVerifiedOrderPricing(items);
+  const verifiedItems = pricing.items;
+  const verifiedSubtotal = pricing.subtotal;
+
+  if (verifiedSubtotal > 5000) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Order total cannot exceed KD 5,000.",
+    );
+  }
+
+  const total = verifiedSubtotal + deliveryCost;
+  const expectedAmount = calculatePaymentAmount(total, PAYMENT_CURRENCY);
+  const stripe = require("stripe")(stripeSecret.value());
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+  validatePaymentIntentForOrder(paymentIntent, {
+    uid,
+    expectedAmount,
+    currency: PAYMENT_CURRENCY,
   });
 
+  const counterRef = db.collection("metadata").doc("order_counter");
   const addressSnap = await db
     .collection("users").doc(uid)
     .collection("saved_addresses")
@@ -460,79 +575,62 @@ exports.createOrder = onCall(async (request) => {
 
   const userOrderRef   = db.collection("users").doc(uid).collection("orders").doc();
   const globalOrderRef = db.collection("global_orders").doc(userOrderRef.id);
+  const paymentIntentRef = db.collection("payment_intents").doc(paymentIntentId);
 
-  const boutiqueMap = {};
-  for (const item of items) {
-    const bid = String(item.boutiqueId || "");
-    if (!bid) continue;
-    if (!boutiqueMap[bid]) boutiqueMap[bid] = [];
-    boutiqueMap[bid].push(item);
+  const boutiqueOrderRefs = {};
+  for (const boutiqueId of getBoutiqueIdsFromItems(verifiedItems)) {
+    boutiqueOrderRefs[boutiqueId] = db.collection("boutiques").doc(boutiqueId)
+      .collection("orders").doc();
   }
 
-  const verifiedItems = [];
-  let verifiedSubtotal = 0;
+  const result = await db.runTransaction(async (tx) => {
+    const paymentIntentSnap = await tx.get(paymentIntentRef);
+    const counterSnap = await tx.get(counterRef);
+    const productGroups = groupQuantitiesByProduct(verifiedItems);
 
-  await db.runTransaction(async (tx) => {
-    for (const item of items) {
-      const boutiqueId = String(item.boutiqueId || "");
-      const productId  = String(item.productId  || "");
-      const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
-
-      if (!boutiqueId || !productId) {
-        throw new HttpsError("invalid-argument", "Invalid product information.");
-      }
-
-      if (quantity > 100) {
-        throw new HttpsError("invalid-argument", "Quantity cannot exceed 100 per item.");
-      }
-
-      const productRef  = db.collection("boutiques").doc(boutiqueId)
-                            .collection("products").doc(productId);
+    for (const group of productGroups.values()) {
+      const productRef  = db.collection("boutiques").doc(group.boutiqueId)
+                            .collection("products").doc(group.productId);
       const productSnap = await tx.get(productRef);
 
       if (!productSnap.exists) {
         throw new HttpsError("not-found",
-          `${item.title || "Product"} is no longer available.`);
+          `${group.items[0].title || "Product"} is no longer available.`);
       }
 
       const productData = productSnap.data();
       const stock       = Number(productData.stock) || 0;
 
-      if (stock < quantity) {
+      if (stock < group.quantity) {
         throw new HttpsError("failed-precondition",
           `${productData.title || "Product"} does not have enough stock.`);
       }
 
       const serverPrice = Number(productData.price) || 0;
-      verifiedSubtotal += serverPrice * quantity;
-
-      const verifiedItem = {
-        productId,
-        boutiqueId,
-        title:        productData.title        || item.title       || "",
-        imageUrl:     item.imageUrl            || "",
-        description:  productData.description  || item.description || "",
-        size:         item.size                || "",
-        price:        serverPrice,
-        quantity,
-        boutiqueName: productData.boutiqueName || "",
-      };
-      const color = String(item.color || "").trim();
-      if (color) {
-        verifiedItem.color = color;
+      for (const item of group.items) {
+        if (item.price !== serverPrice) {
+          throw new HttpsError(
+            "failed-precondition",
+            `${productData.title || "Product"} price changed. Please retry checkout.`,
+          );
+        }
       }
-      verifiedItems.push(verifiedItem);
     }
 
-    if (verifiedSubtotal > 5000) {
+    if (paymentIntentSnap.exists) {
       throw new HttpsError(
-        "invalid-argument",
-        "Order total cannot exceed KD 5,000.",
+        "already-exists",
+        "This payment has already been used for an order.",
       );
     }
 
-    const deliveryCost = deliveryMethod === "Regular Delivery" ? 3 : 5;
-    const total = verifiedSubtotal + deliveryCost;
+    let last = 100000;
+    if (counterSnap.exists &&
+        typeof counterSnap.data().lastOrderNumber === "number") {
+      last = counterSnap.data().lastOrderNumber;
+    }
+    const nextOrderNumber = last + 1;
+    const orderNumber = String(nextOrderNumber);
 
     const orderBase = {
       orderNumber,
@@ -551,16 +649,23 @@ exports.createOrder = onCall(async (request) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
+    tx.set(counterRef, { lastOrderNumber: nextOrderNumber }, { merge: true });
+    tx.set(paymentIntentRef, {
+      uid,
+      orderId: userOrderRef.id,
+      orderNumber,
+      amount: expectedAmount,
+      currency: PAYMENT_CURRENCY,
+      status: paymentIntent.status,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
     tx.set(userOrderRef, orderBase);
     tx.set(globalOrderRef, { ...orderBase, sourceUserOrderId: userOrderRef.id });
 
-    for (const [boutiqueId] of Object.entries(boutiqueMap)) {
+    for (const [boutiqueId, boutiqueOrderRef] of Object.entries(boutiqueOrderRefs)) {
       const bItems = verifiedItems.filter(i => i.boutiqueId === boutiqueId);
       const bTotal = bItems.reduce((s, i) => s + i.price * i.quantity, 0);
       const bCount = bItems.reduce((s, i) => s + i.quantity, 0);
-
-      const boutiqueOrderRef = db.collection("boutiques").doc(boutiqueId)
-                                 .collection("orders").doc();
 
       tx.set(boutiqueOrderRef, {
         orderNumber,
@@ -580,17 +685,19 @@ exports.createOrder = onCall(async (request) => {
       });
     }
 
-    for (const item of verifiedItems) {
-      const productRef = db.collection("boutiques").doc(item.boutiqueId)
-                           .collection("products").doc(item.productId);
+    for (const group of productGroups.values()) {
+      const productRef = db.collection("boutiques").doc(group.boutiqueId)
+                           .collection("products").doc(group.productId);
       tx.update(productRef, {
-        stock: admin.firestore.FieldValue.increment(-item.quantity),
+        stock: admin.firestore.FieldValue.increment(-group.quantity),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
+
+    return { orderNumber };
   });
 
-  return { orderNumber };
+  return result;
 });
 
 // ================= ORDER NOTIFICATIONS =================
@@ -1519,3 +1626,12 @@ exports.cleanupGuestCarts = onSchedule("every 24 hours", async () => {
     if (cartSnap.docs.length > 0) await batch.commit();
   }
 });
+
+if (process.env.NODE_ENV === "test") {
+  exports._test = {
+    calculatePaymentAmount,
+    getDeliveryCost,
+    groupQuantitiesByProduct,
+    validatePaymentIntentForOrder,
+  };
+}
