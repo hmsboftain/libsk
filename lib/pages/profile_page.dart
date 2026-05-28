@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../navigation/app_header.dart';
 import '../navigation/main_navigation_bar.dart';
 import '../services/firestore_service.dart';
@@ -57,12 +58,19 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
     final displayName =
-    (user?.displayName != null && user!.displayName!.trim().isNotEmpty)
+        (user?.displayName != null && user!.displayName!.trim().isNotEmpty)
         ? user.displayName!
         : AppLocalizations.of(context)!.user;
 
@@ -203,14 +211,15 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 10),
                       _buildTile(
                         icon: Icons.admin_panel_settings_outlined,
-                        title:
-                        AppLocalizations.of(context)!.superAdminDashboard,
+                        title: AppLocalizations.of(
+                          context,
+                        )!.superAdminDashboard,
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) =>
-                              const SuperAdminDashboardPage(),
+                                  const SuperAdminDashboardPage(),
                             ),
                           );
                         },
@@ -249,13 +258,13 @@ class _ProfilePageState extends State<ProfilePage> {
                     _buildTile(
                       icon: Icons.language,
                       title:
-                      Localizations.localeOf(context).languageCode == 'ar'
+                          Localizations.localeOf(context).languageCode == 'ar'
                           ? '🇰🇼 العربية'
                           : '🇬🇧 English',
                       onTap: () {
-                        final currentLocale =
-                            Localizations.localeOf(context).languageCode;
-
+                        final currentLocale = Localizations.localeOf(
+                          context,
+                        ).languageCode;
                         if (currentLocale == 'ar') {
                           LibskApp.setLocale(context, const Locale('en'));
                         } else {
@@ -285,6 +294,19 @@ class _ProfilePageState extends State<ProfilePage> {
                       },
                     ),
 
+                    // ── Legal links ──
+                    _buildTile(
+                      icon: Icons.privacy_tip_outlined,
+                      title: 'Privacy Policy',
+                      onTap: () => _launchUrl('https://libsk.com/privacy.html'),
+                    ),
+
+                    _buildTile(
+                      icon: Icons.description_outlined,
+                      title: 'Terms of Use',
+                      onTap: () => _launchUrl('https://libsk.com/terms.html'),
+                    ),
+
                     const SizedBox(height: 30),
 
                     _buildTile(
@@ -303,11 +325,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
                         navigator.pushAndRemoveUntil(
                           MaterialPageRoute(
-                            builder: (context) => MainNavigationPage(
-                              onLanguageChange: (_) {},
-                            ),
+                            builder: (context) =>
+                                MainNavigationPage(onLanguageChange: (_) {}),
                           ),
-                              (route) => false,
+                          (route) => false,
                         );
                       },
                     ),

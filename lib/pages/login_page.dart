@@ -64,9 +64,7 @@ class _LoginPageState extends State<LoginPage> {
       } else if (isOwner) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (context) => const OwnerDashboardPage(),
-          ),
+          MaterialPageRoute(builder: (context) => const OwnerDashboardPage()),
         );
       } else {
         Navigator.pop(context, true);
@@ -87,9 +85,9 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -119,22 +117,24 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       final GoogleSignInAuthentication googleAuth =
-      await googleUser.authentication;
+          await googleUser.authentication;
 
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      final userCredential =
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
 
       final user = userCredential.user;
       if (user != null) {
         final nameParts = (user.displayName ?? '').split(' ');
         final firstName = nameParts.isNotEmpty ? nameParts.first : '';
-        final lastName =
-        nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+        final lastName = nameParts.length > 1
+            ? nameParts.sublist(1).join(' ')
+            : '';
 
         await FirestoreService.createUserProfile(
           uid: user.uid,
@@ -333,17 +333,17 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     child: isLoading
                         ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.5,
-                        color: Colors.white,
-                      ),
-                    )
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: Colors.white,
+                            ),
+                          )
                         : Text(
-                      AppLocalizations.of(context)!.signIn,
-                      style: AppTextStyles.button,
-                    ),
+                            AppLocalizations.of(context)!.signIn,
+                            style: AppTextStyles.button,
+                          ),
                   ),
                 ),
                 const SizedBox(height: 26),
@@ -399,38 +399,36 @@ class _LoginPageState extends State<LoginPage> {
                     height: 54,
                     decoration: BoxDecoration(
                       color: AppColors.card,
-                      border: Border.all(
-                        color: AppColors.border,
-                        width: 0.5,
-                      ),
+                      border: Border.all(color: AppColors.border, width: 0.5),
                     ),
                     child: isGoogleLoading
                         ? const Center(
-                      child: SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
-                          color: AppColors.deepAccent,
-                        ),
-                      ),
-                    )
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: AppColors.deepAccent,
+                              ),
+                            ),
+                          )
                         : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.g_mobiledata,
-                          size: 28,
-                          color: AppColors.primaryText,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          AppLocalizations.of(context)!
-                              .continueWithGoogle,
-                          style: AppTextStyles.labelLarge,
-                        ),
-                      ],
-                    ),
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.g_mobiledata,
+                                size: 28,
+                                color: AppColors.primaryText,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                AppLocalizations.of(
+                                  context,
+                                )!.continueWithGoogle,
+                                style: AppTextStyles.labelLarge,
+                              ),
+                            ],
+                          ),
                   ),
                 ),
               ],

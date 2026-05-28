@@ -14,6 +14,10 @@ import 'firebase_options.dart';
 import 'services/notification_service.dart';
 import 'widgets/theme.dart';
 
+// Global navigator key used by NotificationService to push pages without a
+// BuildContext when the user taps a notification.
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -93,6 +97,7 @@ class _LibskAppState extends State<LibskApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
       theme: AppTheme.light,
       locale: _locale,
       supportedLocales: const [Locale('en'), Locale('ar')],

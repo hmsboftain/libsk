@@ -33,17 +33,22 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         {
           'q': 'How do I track my order?',
           'a':
-          'Once your order is placed, you can track it from the Orders section in your profile. You will see real-time status updates as your order is processed and shipped.',
+              'Once your order is placed, you can track it from the Orders section in your profile. You will see real-time status updates as your order is processed and delivered.',
         },
         {
           'q': 'Can I cancel my order?',
           'a':
-          'Orders can be cancelled within 1 hour of placement. After that, the boutique may have already begun processing it. Contact us immediately if you need to cancel.',
+              'Orders can be cancelled within 1 hour of placement. After that, the boutique may have already begun processing it. Contact us immediately if you need to cancel.',
         },
         {
-          'q': 'My order shows delivered but I haven\'t received it.',
+          'q': 'My order shows delivered but I have not received it.',
           'a':
-          'Please check with neighbours or building reception first. If the item is still missing, contact our support team within 48 hours and we will investigate.',
+              'Please check with neighbours or building reception first. If the item is still missing, contact our support team within 48 hours and we will investigate.',
+        },
+        {
+          'q': 'How do I open a dispute?',
+          'a':
+              'You have 7 days from the delivery date to open a dispute. Go to your Orders, select the relevant order, and tap Open Dispute. Describe your issue and submit. Please note that boutique owners and admins have the right to review and reject disputes based on the nature and validity of the claim.',
         },
       ],
     },
@@ -54,17 +59,17 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         {
           'q': 'What areas do you deliver to?',
           'a':
-          'We currently deliver across all governorates in Kuwait including Capital, Hawalli, Farwaniya, Ahmadi, Jahra, and Mubarak Al-Kabeer.',
+              'We currently deliver across all governorates in Kuwait including Capital, Hawalli, Farwaniya, Ahmadi, Jahra, and Mubarak Al-Kabeer.',
         },
         {
           'q': 'How long does delivery take?',
           'a':
-          'Standard delivery takes 2–4 business days depending on the boutique and your location. Some boutiques offer same-day delivery within Kuwait City.',
+              'Delivery times depend on the delivery type you select and your location. Standard delivery typically takes 2 to 4 business days. Same-day delivery is available for select areas.',
         },
         {
-          'q': 'Is there a delivery fee?',
+          'q': 'How much does delivery cost?',
           'a':
-          'Delivery fees vary by boutique and are shown at checkout before you confirm your order.',
+              'Delivery fees depend on the type of delivery selected and the delivery area. The exact fee will be shown at checkout before you confirm your order.',
         },
       ],
     },
@@ -75,17 +80,17 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         {
           'q': 'What is the return policy?',
           'a':
-          'Return policies are set by each boutique individually. You can find the return policy on the boutique\'s storefront page before purchasing.',
+              'LIBSK has a 7-day return window from the date of delivery. Return eligibility may also depend on the individual boutique requirements. Please check the boutique storefront for any additional conditions before purchasing.',
         },
         {
           'q': 'How do I return an item?',
           'a':
-          'To initiate a return, go to your Orders, select the item, and tap Request Return. Our team will coordinate with the boutique on your behalf.',
+              'To initiate a return, go to your Orders, select the item, and tap Request Return. Our team will coordinate with the boutique on your behalf.',
         },
         {
           'q': 'How long do refunds take?',
           'a':
-          'Once a return is approved, refunds are processed within 5–7 business days depending on your payment method.',
+              'Once a return is approved, refunds are processed within 5 to 7 business days depending on your payment method.',
         },
       ],
     },
@@ -96,17 +101,17 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         {
           'q': 'What payment methods are accepted?',
           'a':
-          'We currently accept only card payments via KNET and Visa/Mastercard.',
+              'We accept KNet, Visa, Mastercard, Apple Pay, debit cards, credit cards, and Deema.',
         },
         {
           'q': 'Is my payment information secure?',
           'a':
-          'Yes. We do not store any card details. All transactions are processed through secure, encrypted payment gateways.',
+              'Yes. We do not store any card details. All transactions are processed through secure, encrypted payment gateways.',
         },
         {
-          'q': 'I was charged but my order wasn\'t placed.',
+          'q': 'I was charged but my order was not placed.',
           'a':
-          'This can happen due to a connection issue. Please contact us immediately with your payment reference and Order Number and we will resolve it within 24 hours.',
+              'This can happen due to a connection issue. Please contact us immediately with your payment reference and we will resolve it within 24 hours.',
         },
       ],
     },
@@ -117,17 +122,17 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         {
           'q': 'How do I change my password?',
           'a':
-          'Go to Profile, tap Your Account, then tap Change Password. You will receive a reset link to your registered email.',
+              'Go to Profile, tap Your Account, then tap Change Password. You will receive a reset link to your registered email.',
         },
         {
           'q': 'How do I update my delivery address?',
           'a':
-          'Go to Profile, then Saved Addresses. You can add, edit, or remove addresses at any time.',
+              'Go to Profile, then Saved Addresses. You can add, edit, or remove addresses at any time.',
         },
         {
           'q': 'How do I delete my account?',
           'a':
-          'To delete your account, contact our support team. Account deletion is permanent and cannot be undone.',
+              'You can delete your account from the Profile page under Your Account settings. Account deletion is permanent and cannot be undone.',
         },
       ],
     },
@@ -138,17 +143,17 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         {
           'q': 'How do I become a boutique owner on LIBSK?',
           'a':
-          'Tap Apply as Boutique Owner on the homepage or contact us directly. Our team will review your application and get back to you within 3 business days.',
+              'Send us an email at boutiques@libsk.com with details about your boutique. Our team will review your application and get back to you within 3 business days.',
         },
         {
           'q': 'Can I save a boutique to view later?',
           'a':
-          'Yes. Tap the save icon on any boutique storefront to add it to your Saved Boutiques in your profile.',
+              'Yes. Tap the save icon on any boutique storefront to add it to your Saved Boutiques in your profile.',
         },
         {
           'q': 'A boutique is not responding to my order.',
           'a':
-          'If a boutique has not updated your order status within 48 hours, contact our support team and we will follow up on your behalf.',
+              'If a boutique has not updated your order status within 48 hours, contact our support team and we will follow up on your behalf.',
         },
       ],
     },
@@ -177,7 +182,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     final email = _emailController.text.trim();
     final message = _messageController.text.trim();
 
-    final preflight = Validators.combine(name, [
+    final preflight =
+        Validators.combine(name, [
           (v) => Validators.required(v, 'Name'),
           (v) => Validators.maxLength(v, 100, 'Name'),
         ]) ??
@@ -218,7 +224,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       setState(() {
         _isSending = false;
         _successMessage =
-        'Your message has been sent. We will get back to you shortly.';
+            'Your message has been sent. We will get back to you shortly.';
       });
     } catch (e) {
       if (!mounted) return;
@@ -251,27 +257,59 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 12),
+
+                    // About LIBSK
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        border: Border.all(color: AppColors.border, width: 0.5),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Shop Local. Dress Global.',
+                            style: AppTextStyles.headingMedium,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'LIBSK is Kuwait\'s fashion marketplace connecting shoppers with the best independent local boutiques, all in one place. Browse, order, and receive from your favourite Kuwait brands with ease.',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.secondaryText,
+                              height: 1.6,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
                     const Text(
                       'Help & Support',
                       style: AppTextStyles.headingLarge,
                     ),
                     const SizedBox(height: 4),
-                    const Text(
+                    Text(
                       'How can we help you today?',
-                      style: AppTextStyles.bodyMedium,
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.secondaryText,
+                      ),
                     ),
                     const SizedBox(height: 24),
+
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: _topics.length,
                       gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: 1.0,
-                      ),
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            childAspectRatio: 1.0,
+                          ),
                       itemBuilder: (context, index) {
                         final topic = _topics[index];
                         final isSelected = _expandedTopic == index;
@@ -320,6 +358,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                         );
                       },
                     ),
+
                     if (_expandedTopic != null) ...[
                       const SizedBox(height: 20),
                       Text(
@@ -330,92 +369,109 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       ),
                       const SizedBox(height: 10),
                       ...(_topics[_expandedTopic!]['faqs']
-                      as List<Map<String, String>>)
+                              as List<Map<String, String>>)
                           .asMap()
                           .entries
                           .map((entry) {
-                        final i = entry.key;
-                        final faq = entry.value;
-                        final isOpen = _expandedFaq == i;
+                            final i = entry.key;
+                            final faq = entry.value;
+                            final isOpen = _expandedFaq == i;
 
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          decoration: BoxDecoration(
-                            color: AppColors.card,
-                            border: Border.all(
-                              color: AppColors.border,
-                              width: 0.5,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              ListTile(
-                                title: Text(
-                                  faq['q']!,
-                                  style: AppTextStyles.labelLarge,
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                color: AppColors.card,
+                                border: Border.all(
+                                  color: AppColors.border,
+                                  width: 0.5,
                                 ),
-                                trailing: Icon(
-                                  isOpen
-                                      ? Icons.keyboard_arrow_up
-                                      : Icons.keyboard_arrow_down,
-                                  color: AppColors.deepAccent,
-                                ),
-                                onTap: () {
-                                  setState(() {
-                                    _expandedFaq = isOpen ? null : i;
-                                  });
-                                },
                               ),
-                              if (isOpen)
-                                Padding(
-                                  padding:
-                                  const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                                  child: Text(
-                                    faq['a']!,
-                                    style: AppTextStyles.bodyMedium.copyWith(
-                                      color: AppColors.secondaryText,
-                                      height: 1.6,
+                              child: Column(
+                                children: [
+                                  ListTile(
+                                    title: Text(
+                                      faq['q']!,
+                                      style: AppTextStyles.labelLarge,
                                     ),
+                                    trailing: Icon(
+                                      isOpen
+                                          ? Icons.keyboard_arrow_up
+                                          : Icons.keyboard_arrow_down,
+                                      color: AppColors.deepAccent,
+                                    ),
+                                    onTap: () {
+                                      setState(() {
+                                        _expandedFaq = isOpen ? null : i;
+                                      });
+                                    },
                                   ),
-                                ),
-                            ],
-                          ),
-                        );
-                      }),
+                                  if (isOpen)
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        16,
+                                        0,
+                                        16,
+                                        14,
+                                      ),
+                                      child: Text(
+                                        faq['a']!,
+                                        style: AppTextStyles.bodyMedium
+                                            .copyWith(
+                                              color: AppColors.secondaryText,
+                                              height: 1.6,
+                                            ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            );
+                          }),
                     ],
+
                     const SizedBox(height: 30),
-                    const Text(
-                      'CONTACT US',
-                      style: AppTextStyles.capsLabel,
-                    ),
+                    const Text('CONTACT US', style: AppTextStyles.capsLabel),
                     const SizedBox(height: 12),
+
                     _contactTile(
                       icon: Icons.email_outlined,
                       title: 'Email Support',
-                      subtitle: 'support@libsk.app',
-                      onTap: () => _launchUrl('mailto:support@libsk.app'),
+                      subtitle: 'support@libsk.com',
+                      onTap: () => _launchUrl('mailto:support@libsk.com'),
                     ),
                     const SizedBox(height: 10),
                     _contactTile(
                       icon: Icons.chat_outlined,
                       title: 'WhatsApp',
-                      subtitle: '+965 123 456 789',
-                      onTap: () => _launchUrl('https://wa.me/965123456789'),
+                      subtitle: '+965 XXXX XXXX',
+                      onTap: () => _launchUrl('https://wa.me/965XXXXXXXX'),
                     ),
+                    const SizedBox(height: 10),
+                    _contactTile(
+                      icon: Icons.camera_alt_outlined,
+                      title: 'Instagram',
+                      subtitle: '@libsk',
+                      onTap: () => _launchUrl('https://instagram.com/libsk'),
+                    ),
+                    const SizedBox(height: 10),
+                    _contactTile(
+                      icon: Icons.play_circle_outline,
+                      title: 'TikTok',
+                      subtitle: '@libsk',
+                      onTap: () => _launchUrl('https://tiktok.com/@libsk'),
+                    ),
+
                     const SizedBox(height: 30),
                     const Text(
                       'SEND A MESSAGE',
                       style: AppTextStyles.capsLabel,
                     ),
                     const SizedBox(height: 12),
+
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: AppColors.card,
-                        border: Border.all(
-                          color: AppColors.border,
-                          width: 0.5,
-                        ),
+                        border: Border.all(color: AppColors.border, width: 0.5),
                       ),
                       child: Column(
                         children: [
@@ -466,25 +522,26 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.deepAccent,
                                 foregroundColor: Colors.white,
-                                padding:
-                                const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
                               child: _isSending
                                   ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 1.5,
-                                ),
-                              )
+                                      height: 18,
+                                      width: 18,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 1.5,
+                                      ),
+                                    )
                                   : const Text(
-                                'Send Message',
-                                style: AppTextStyles.button,
-                              ),
+                                      'Send Message',
+                                      style: AppTextStyles.button,
+                                    ),
                             ),
                           ),
                         ],
@@ -522,10 +579,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: AppTextStyles.labelLarge,
-                ),
+                Text(title, style: AppTextStyles.labelLarge),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,

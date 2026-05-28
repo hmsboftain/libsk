@@ -614,6 +614,7 @@ exports.notifyOrderPlaced = onDocumentCreated(
         `Your LIBSK order #${orderNumber} has been placed successfully.`,
         "order_placed",
         {
+          type: "order_status",
           orderId,
           orderNumber,
           status: "Placed",
@@ -630,6 +631,7 @@ exports.notifyOrderPlaced = onDocumentCreated(
         `A new order #${orderNumber} has been placed for your boutique.`,
         "new_boutique_order",
         {
+          type: "order_status",
           orderId,
           orderNumber,
           boutiqueId,
@@ -665,6 +667,7 @@ exports.notifyOrderStatusChanged = onDocumentUpdated(
         `Your order #${orderNumber} is now ${newStatus}.`,
         "order_status_updated",
         {
+          type: "order_status",
           orderId,
           orderNumber,
           oldStatus,
@@ -682,6 +685,7 @@ exports.notifyOrderStatusChanged = onDocumentUpdated(
         `Order #${orderNumber} is now ${newStatus}.`,
         "boutique_order_status_updated",
         {
+          type: "order_status",
           orderId,
           orderNumber,
           boutiqueId,
@@ -714,6 +718,7 @@ exports.notifyDisputeCreated = onDocumentCreated(
         `Your dispute for order #${orderNumber} has been submitted.`,
         "dispute_created",
         {
+          type: "dispute_status",
           disputeId,
           orderNumber,
           category,
@@ -733,6 +738,7 @@ exports.notifyDisputeCreated = onDocumentCreated(
         `A new dispute was submitted for order #${orderNumber}.`,
         "admin_new_dispute",
         {
+          type: "dispute_status",
           disputeId,
           orderNumber,
           category,
@@ -800,6 +806,7 @@ exports.notifyDisputeStatusChanged = onDocumentUpdated(
       body,
       type,
       {
+        type: "dispute_status",
         disputeId,
         orderNumber,
         oldStatus,
@@ -977,6 +984,7 @@ exports.notifyLowStock = onDocumentUpdated(
       `${productTitle} is running low. Only ${newStock} left in stock.`,
       "low_stock_alert",
       {
+        type: "low_stock",
         boutiqueId,
         productId,
         productTitle,
@@ -1094,6 +1102,7 @@ exports.sendManualNotification = onCall(async (request) => {
         body,
         "manual_notification",
         {
+          type: "manual",
           manualNotificationId: manualNotificationRef.id,
           targetType,
         },
