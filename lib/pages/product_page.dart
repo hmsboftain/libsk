@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
@@ -6,7 +7,50 @@ import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/error_state_widget.dart';
 import '../widgets/theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+Widget _buildDropdownSection({
+  required String title,
+  required bool isOpen,
+  required VoidCallback onTap,
+  required String content,
+}) {
+  return Column(
+    children: [
+      InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Row(
+            children: [
+              Text(title, style: AppTextStyles.labelLarge),
+              const Spacer(),
+              Icon(
+                isOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                color: AppColors.primaryText,
+              ),
+            ],
+          ),
+        ),
+      ),
+      if (isOpen)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Text(
+            content,
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.secondaryText,
+              height: 1.5,
+            ),
+          ),
+        ),
+      const Divider(color: AppColors.border, thickness: 0.5),
+    ],
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class ProductPage extends StatefulWidget {
   final String productId;
@@ -39,19 +83,19 @@ class ProductPage extends StatefulWidget {
 }
 
 class _ProductPageState extends State<ProductPage> {
-  final PageController _pageController = PageController();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final _pageController = PageController();
+  final _firestore = FirebaseFirestore.instance;
 
-  int selectedImageIndex = 0;
-  String selectedSize = '';
-  String selectedColor = '';
+  int _selectedImageIndex = 0;
+  String _selectedSize = '';
+  String _selectedColor = '';
 
-  bool showProductDetails = false;
-  bool showMaterialCare = false;
-  bool showSizeFit = false;
+  bool _showProductDetails = false;
+  bool _showMaterialCare = false;
+  bool _showSizeFit = false;
 
-  bool liked = false;
-  bool isLoadingLike = true;
+  bool _liked = false;
+  bool _isLoadingLike = true;
 
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _productStream;
 
@@ -64,7 +108,7 @@ class _ProductPageState extends State<ProductPage> {
         .collection('products')
         .doc(widget.productId)
         .snapshots();
-    loadSavedStatus();
+    _loadSavedStatus();
   }
 
   @override
@@ -73,29 +117,25 @@ class _ProductPageState extends State<ProductPage> {
     super.dispose();
   }
 
-  Map<String, dynamic> _fallbackProductData() {
-    return {
-      'title': widget.title,
-      'description': widget.description,
-      'price': widget.price,
-      'stock': widget.stock,
-      'sizes': widget.sizes,
-      'imageUrl': widget.imageUrl,
-      'imageUrls': widget.imageUrls,
-      'boutiqueName': widget.boutiqueName,
-    };
-  }
+  // ── Data resolution ───────────────────────────────────────────────────────
+
+  Map<String, dynamic> _fallbackProductData() => {
+    'title': widget.title,
+    'description': widget.description,
+    'price': widget.price,
+    'stock': widget.stock,
+    'sizes': widget.sizes,
+    'imageUrl': widget.imageUrl,
+    'imageUrls': widget.imageUrls,
+    'boutiqueName': widget.boutiqueName,
+  };
 
   Map<String, dynamic> _resolveProductData(
     DocumentSnapshot<Map<String, dynamic>>? snapshot,
   ) {
     final fallback = _fallbackProductData();
     final live = snapshot?.data();
-
-    if (live == null || live.isEmpty) {
-      return fallback;
-    }
-
+    if (live == null || live.isEmpty) return fallback;
     return {
       ...fallback,
       ...live,
@@ -118,198 +158,151 @@ class _ProductPageState extends State<ProductPage> {
     final sizeEntries = data['sizeEntries'];
     if (sizeEntries is List && sizeEntries.isNotEmpty) {
       return sizeEntries
-          .map((entry) {
-            if (entry is Map) {
-              return entry['name']?.toString().trim() ?? '';
-            }
-            return entry.toString().trim();
-          })
-          .where((size) => size.isNotEmpty)
+          .map(
+            (e) => e is Map
+                ? e['name']?.toString().trim() ?? ''
+                : e.toString().trim(),
+          )
+          .where((s) => s.isNotEmpty)
           .toList();
     }
-
     final sizes = data['sizes'];
     if (sizes is List) {
       return sizes
-          .map((size) => size.toString().trim())
-          .where((size) => size.isNotEmpty)
+          .map((s) => s.toString().trim())
+          .where((s) => s.isNotEmpty)
           .toList();
     }
-
     return widget.sizes;
   }
 
   double _parsePrice(Map<String, dynamic> data) {
-    final priceValue = data['price'] ?? widget.price;
-    if (priceValue is num) {
-      return priceValue.toDouble();
-    }
-    return double.tryParse(priceValue.toString()) ?? widget.price;
+    final v = data['price'] ?? widget.price;
+    return v is num
+        ? v.toDouble()
+        : double.tryParse(v.toString()) ?? widget.price;
   }
 
   int _parseStock(Map<String, dynamic> data) {
-    final stockValue = data['stock'] ?? widget.stock;
-    if (stockValue is int) {
-      return stockValue;
-    }
-    return int.tryParse(stockValue.toString()) ?? widget.stock;
+    final v = data['stock'] ?? widget.stock;
+    return v is int ? v : int.tryParse(v.toString()) ?? widget.stock;
   }
 
   List<String> _galleryImages(Map<String, dynamic> data) {
     final imageUrlsData = data['imageUrls'];
     if (imageUrlsData is List && imageUrlsData.isNotEmpty) {
       return imageUrlsData
-          .map((image) => image.toString().trim())
-          .where((image) => image.isNotEmpty)
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
           .toList();
     }
-
     final imageUrl = data['imageUrl']?.toString().trim() ?? '';
-    if (imageUrl.isNotEmpty) {
-      return [imageUrl];
-    }
-
+    if (imageUrl.isNotEmpty) return [imageUrl];
     if (widget.imageUrls.isNotEmpty) {
       return widget.imageUrls
-          .map((image) => image.trim())
-          .where((image) => image.isNotEmpty)
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
           .toList();
     }
-
-    if (widget.imageUrl.trim().isNotEmpty) {
-      return [widget.imageUrl];
-    }
-
+    if (widget.imageUrl.trim().isNotEmpty) return [widget.imageUrl];
     return [];
   }
 
   String _parseTitle(Map<String, dynamic> data) {
-    final title = data['title']?.toString().trim();
-    if (title != null && title.isNotEmpty) {
-      return title;
-    }
-    return widget.title;
+    final v = data['title']?.toString().trim();
+    return (v != null && v.isNotEmpty) ? v : widget.title;
   }
 
   String _parseDescription(Map<String, dynamic> data) {
-    final description = data['description']?.toString().trim();
-    if (description != null && description.isNotEmpty) {
-      return description;
-    }
-    return widget.description;
+    final v = data['description']?.toString().trim();
+    return (v != null && v.isNotEmpty) ? v : widget.description;
   }
 
   String _parseBoutiqueName(Map<String, dynamic> data) {
-    final boutiqueName = data['boutiqueName']?.toString().trim();
-    if (boutiqueName != null && boutiqueName.isNotEmpty) {
-      return boutiqueName;
-    }
-    return widget.boutiqueName;
+    final v = data['boutiqueName']?.toString().trim();
+    return (v != null && v.isNotEmpty) ? v : widget.boutiqueName;
   }
 
   void _applyDefaultSelections(List<String> sizes, List<String> colors) {
     var changed = false;
-
-    if (selectedSize.isEmpty && sizes.isNotEmpty) {
-      selectedSize = sizes.first;
+    if (_selectedSize.isEmpty && sizes.isNotEmpty) {
+      _selectedSize = sizes.first;
       changed = true;
-    } else if (selectedSize.isNotEmpty &&
+    } else if (_selectedSize.isNotEmpty &&
         sizes.isNotEmpty &&
-        !sizes.contains(selectedSize)) {
-      selectedSize = sizes.first;
+        !sizes.contains(_selectedSize)) {
+      _selectedSize = sizes.first;
       changed = true;
     }
-
     if (colors.isNotEmpty) {
-      if (selectedColor.isEmpty || !colors.contains(selectedColor)) {
-        selectedColor = colors.first;
+      if (_selectedColor.isEmpty || !colors.contains(_selectedColor)) {
+        _selectedColor = colors.first;
         changed = true;
       }
-    } else if (selectedColor.isNotEmpty) {
-      selectedColor = '';
+    } else if (_selectedColor.isNotEmpty) {
+      _selectedColor = '';
       changed = true;
     }
-
-    if (changed && mounted) {
-      setState(() {});
-    }
+    if (changed && mounted) setState(() {});
   }
 
   void _scheduleDefaultSelections(List<String> sizes, List<String> colors) {
     final needsSync =
-        (selectedSize.isEmpty && sizes.isNotEmpty) ||
-        (selectedSize.isNotEmpty &&
+        (_selectedSize.isEmpty && sizes.isNotEmpty) ||
+        (_selectedSize.isNotEmpty &&
             sizes.isNotEmpty &&
-            !sizes.contains(selectedSize)) ||
+            !sizes.contains(_selectedSize)) ||
         (colors.isNotEmpty &&
-            (selectedColor.isEmpty || !colors.contains(selectedColor))) ||
-        (colors.isEmpty && selectedColor.isNotEmpty);
-
-    if (!needsSync) {
-      return;
-    }
-
+            (_selectedColor.isEmpty || !colors.contains(_selectedColor))) ||
+        (colors.isEmpty && _selectedColor.isNotEmpty);
+    if (!needsSync) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _applyDefaultSelections(sizes, colors);
     });
   }
 
-  Future<void> loadSavedStatus() async {
+  // ── Save / cart ───────────────────────────────────────────────────────────
+
+  Future<void> _loadSavedStatus() async {
     try {
       final result = await FirestoreService.isItemSaved(widget.productId);
-
       if (!mounted) return;
       setState(() {
-        liked = result;
-        isLoadingLike = false;
+        _liked = result;
+        _isLoadingLike = false;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        isLoadingLike = false;
-      });
+      setState(() => _isLoadingLike = false);
     }
   }
 
-  Future<void> toggleLike(Map<String, dynamic> data) async {
+  Future<void> _toggleLike(Map<String, dynamic> data) async {
     final images = _galleryImages(data);
-    final mainImageUrl = images.isNotEmpty ? images.first : widget.imageUrl;
-    final sizes = _parseSizes(data);
-    final title = _parseTitle(data);
-    final description = _parseDescription(data);
-    final boutiqueName = _parseBoutiqueName(data);
-    final price = _parsePrice(data);
-    final stock = _parseStock(data);
-
     try {
-      if (liked) {
+      if (_liked) {
         await FirestoreService.removeSavedItem(widget.productId);
       } else {
         await FirestoreService.saveItem(
           productId: widget.productId,
           boutiqueId: widget.boutiqueId,
-          imageUrl: mainImageUrl,
+          imageUrl: images.isNotEmpty ? images.first : widget.imageUrl,
           imageUrls: images,
-          title: title,
-          boutiqueName: boutiqueName,
-          price: price,
-          description: description,
-          sizes: sizes,
-          stock: stock,
+          title: _parseTitle(data),
+          boutiqueName: _parseBoutiqueName(data),
+          price: _parsePrice(data),
+          description: _parseDescription(data),
+          sizes: _parseSizes(data),
+          stock: _parseStock(data),
         );
       }
-
       if (!mounted) return;
-
-      setState(() {
-        liked = !liked;
-      });
-
+      setState(() => _liked = !_liked);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            liked
+            _liked
                 ? AppLocalizations.of(context)!.itemSaved
                 : AppLocalizations.of(context)!.itemRemovedFromSavedItems,
           ),
@@ -318,7 +311,6 @@ class _ProductPageState extends State<ProductPage> {
       );
     } catch (_) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(AppLocalizations.of(context)!.somethingWentWrong),
@@ -328,38 +320,36 @@ class _ProductPageState extends State<ProductPage> {
     }
   }
 
-  Future<void> addProductToCart(Map<String, dynamic> data) async {
+  Future<void> _addProductToCart(Map<String, dynamic> data) async {
+    final l10n = AppLocalizations.of(context)!;
     final images = _galleryImages(data);
-    final mainImageUrl = images.isNotEmpty ? images.first : widget.imageUrl;
     final stock = _parseStock(data);
+    final colors = _parseColors(data);
 
     if (stock <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context)!.thisProductIsOutOfStock),
+          content: Text(l10n.thisProductIsOutOfStock),
           duration: const Duration(seconds: 1),
         ),
       );
       return;
     }
-
-    if (selectedSize.isEmpty) {
+    if (_selectedSize.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context)!.pleaseSelectASize),
+          content: Text(l10n.pleaseSelectASize),
           duration: const Duration(seconds: 1),
         ),
       );
       return;
     }
-
-    final colors = _parseColors(data);
     if (colors.isNotEmpty &&
-        (selectedColor.isEmpty || !colors.contains(selectedColor))) {
+        (_selectedColor.isEmpty || !colors.contains(_selectedColor))) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a colour'),
-          duration: Duration(seconds: 1),
+        SnackBar(
+          content: Text(l10n.pleaseSelectAColour),
+          duration: const Duration(seconds: 1),
         ),
       );
       return;
@@ -369,41 +359,35 @@ class _ProductPageState extends State<ProductPage> {
       await FirestoreService.addToCart(
         productId: widget.productId,
         boutiqueId: widget.boutiqueId,
-        imageUrl: mainImageUrl,
+        imageUrl: images.isNotEmpty ? images.first : widget.imageUrl,
         title: _parseTitle(data),
         description: _parseDescription(data),
-        size: selectedSize,
-        color: colors.isNotEmpty ? selectedColor : '',
+        size: _selectedSize,
+        color: colors.isNotEmpty ? _selectedColor : '',
         price: _parsePrice(data),
       );
-
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context)!.itemAddedToCart),
+          content: Text(l10n.itemAddedToCart),
           duration: const Duration(seconds: 1),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-
-      final loc = AppLocalizations.of(context)!;
-      // Prefer the actual server-side message (e.g. stock unavailable, rate
-      // limited) so the user understands the failure.
       final detail = e is Exception
           ? e.toString().replaceFirst('Exception: ', '')
           : null;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: AppColors.primaryText,
           content: Text(
             (detail == null || detail.isEmpty)
-                ? loc.somethingWentWrong
+                ? l10n.somethingWentWrong
                 : detail,
-            style: AppTextStyles.bodyMedium
-                .copyWith(color: AppColors.background),
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.background,
+            ),
           ),
           duration: const Duration(seconds: 2),
         ),
@@ -411,14 +395,16 @@ class _ProductPageState extends State<ProductPage> {
     }
   }
 
+  // ── Widget builders ───────────────────────────────────────────────────────
+
   Widget _buildHeartButton(Map<String, dynamic> data) {
     return GestureDetector(
-      onTap: isLoadingLike ? null : () => toggleLike(data),
+      onTap: _isLoadingLike ? null : () => _toggleLike(data),
       child: SizedBox(
         width: 32,
         height: 32,
         child: Center(
-          child: isLoadingLike
+          child: _isLoadingLike
               ? const SizedBox(
                   width: 16,
                   height: 16,
@@ -428,8 +414,8 @@ class _ProductPageState extends State<ProductPage> {
                   ),
                 )
               : Icon(
-                  liked ? Icons.favorite : Icons.favorite_border,
-                  color: liked ? AppColors.deepAccent : AppColors.primaryText,
+                  _liked ? Icons.favorite : Icons.favorite_border,
+                  color: _liked ? AppColors.deepAccent : AppColors.primaryText,
                   size: 22,
                 ),
         ),
@@ -437,11 +423,10 @@ class _ProductPageState extends State<ProductPage> {
     );
   }
 
-  Widget buildProductImageGallery(Map<String, dynamic> data) {
+  Widget _buildImageGallery(Map<String, dynamic> data) {
     final images = _galleryImages(data);
-
     return GestureDetector(
-      onDoubleTap: isLoadingLike ? null : () => toggleLike(data),
+      onDoubleTap: _isLoadingLike ? null : () => _toggleLike(data),
       child: Stack(
         children: [
           AspectRatio(
@@ -459,29 +444,24 @@ class _ProductPageState extends State<ProductPage> {
                 : PageView.builder(
                     controller: _pageController,
                     itemCount: images.length,
-                    onPageChanged: (index) {
-                      setState(() {
-                        selectedImageIndex = index;
-                      });
-                    },
-                    itemBuilder: (context, index) {
-                      return CachedNetworkImage(
-                        imageUrl: images[index],
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) =>
-                            Container(color: AppColors.imagePlaceholder),
-                        errorWidget: (context, url, error) => Container(
-                          color: AppColors.imagePlaceholder,
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.image_not_supported_outlined,
-                            size: 40,
-                            color: AppColors.secondaryText,
-                          ),
+                    onPageChanged: (index) =>
+                        setState(() => _selectedImageIndex = index),
+                    itemBuilder: (context, index) => CachedNetworkImage(
+                      imageUrl: images[index],
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) =>
+                          Container(color: AppColors.imagePlaceholder),
+                      errorWidget: (_, __, ___) => Container(
+                        color: AppColors.imagePlaceholder,
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.image_not_supported_outlined,
+                          size: 40,
+                          color: AppColors.secondaryText,
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
           ),
           Positioned(top: 16, right: 16, child: _buildHeartButton(data)),
@@ -490,11 +470,8 @@ class _ProductPageState extends State<ProductPage> {
     );
   }
 
-  Widget buildImageDots(List<String> images) {
-    if (images.length <= 1) {
-      return const SizedBox(height: 24);
-    }
-
+  Widget _buildImageDots(List<String> images) {
+    if (images.length <= 1) return const SizedBox(height: 24);
     return Column(
       children: [
         const SizedBox(height: 12),
@@ -508,17 +485,14 @@ class _ProductPageState extends State<ProductPage> {
                   duration: const Duration(milliseconds: 250),
                   curve: Curves.easeInOut,
                 );
-
-                setState(() {
-                  selectedImageIndex = index;
-                });
+                setState(() => _selectedImageIndex = index);
               },
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: selectedImageIndex == index ? 18 : 10,
+                width: _selectedImageIndex == index ? 18 : 10,
                 height: 10,
                 decoration: BoxDecoration(
-                  color: selectedImageIndex == index
+                  color: _selectedImageIndex == index
                       ? AppColors.deepAccent
                       : Colors.transparent,
                   border: Border.all(color: AppColors.border, width: 0.5),
@@ -532,16 +506,11 @@ class _ProductPageState extends State<ProductPage> {
     );
   }
 
-  Widget buildSizeChip(String size) {
-    final bool isSelected = selectedSize == size;
-
+  Widget _buildSizeChip(String size) {
+    final isSelected = _selectedSize == size;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () {
-        setState(() {
-          selectedSize = size;
-        });
-      },
+      onTap: () => setState(() => _selectedSize = size),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -562,12 +531,11 @@ class _ProductPageState extends State<ProductPage> {
     );
   }
 
-  Widget buildColorChip(String color) {
-    final bool isSelected = selectedColor == color;
-
+  Widget _buildColorChip(String color) {
+    final isSelected = _selectedColor == color;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() => selectedColor = color),
+      onTap: () => setState(() => _selectedColor = color),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -588,47 +556,9 @@ class _ProductPageState extends State<ProductPage> {
     );
   }
 
-  Widget buildDropdownSection({
-    required String title,
-    required bool isOpen,
-    required VoidCallback onTap,
-    required String content,
-  }) {
-    return Column(
-      children: [
-        InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Row(
-              children: [
-                Text(title, style: AppTextStyles.labelLarge),
-                const Spacer(),
-                Icon(
-                  isOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                  color: AppColors.primaryText,
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (isOpen)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: Text(
-              content,
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.secondaryText,
-                height: 1.5,
-              ),
-            ),
-          ),
-        const Divider(color: AppColors.border, thickness: 0.5),
-      ],
-    );
-  }
-
   Widget _buildProductContent(Map<String, dynamic> data) {
+    final l10n = AppLocalizations.of(context)!;
+
     final sizes = _parseSizes(data);
     final colors = _parseColors(data);
     final images = _galleryImages(data);
@@ -637,12 +567,12 @@ class _ProductPageState extends State<ProductPage> {
     final title = _parseTitle(data);
     final description = _parseDescription(data);
     final boutiqueName = _parseBoutiqueName(data);
-    final bool hasSizes = sizes.isNotEmpty;
+    final hasSizes = sizes.isNotEmpty;
 
     _scheduleDefaultSelections(sizes, colors);
 
-    if (selectedImageIndex >= images.length && images.isNotEmpty) {
-      selectedImageIndex = 0;
+    if (_selectedImageIndex >= images.length && images.isNotEmpty) {
+      _selectedImageIndex = 0;
     }
 
     return SingleChildScrollView(
@@ -651,9 +581,9 @@ class _ProductPageState extends State<ProductPage> {
           const AppHeader(showBackButton: true),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: buildProductImageGallery(data),
+            child: _buildImageGallery(data),
           ),
-          buildImageDots(images),
+          _buildImageDots(images),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 22),
             child: Column(
@@ -669,7 +599,7 @@ class _ProductPageState extends State<ProductPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  "${AppLocalizations.of(context)!.by} $boutiqueName",
+                  l10n.byBoutique(boutiqueName),
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppColors.secondaryText,
                   ),
@@ -677,8 +607,8 @@ class _ProductPageState extends State<ProductPage> {
                 const SizedBox(height: 6),
                 Text(
                   stock > 0
-                      ? "${AppLocalizations.of(context)!.inStock}: $stock"
-                      : AppLocalizations.of(context)!.outOfStock,
+                      ? l10n.inStockWithCount(stock.toString())
+                      : l10n.outOfStock,
                   style: AppTextStyles.labelLarge.copyWith(
                     color: stock > 0
                         ? AppColors.primaryText
@@ -694,12 +624,12 @@ class _ProductPageState extends State<ProductPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "${price.toStringAsFixed(0)} KWD",
+                            '${price.toStringAsFixed(0)} KWD',
                             style: AppTextStyles.headingSmall,
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            AppLocalizations.of(context)!.size,
+                            l10n.sizeSection,
                             style: AppTextStyles.labelLarge,
                           ),
                           const SizedBox(height: 8),
@@ -708,23 +638,23 @@ class _ProductPageState extends State<ProductPage> {
                               spacing: 8,
                               runSpacing: 8,
                               children: sizes
-                                  .map((size) => buildSizeChip(size))
+                                  .map((s) => _buildSizeChip(s))
                                   .toList(),
                             )
                           else
                             Text(
-                              AppLocalizations.of(context)!.noSizesAvailable,
+                              l10n.noSizesAvailable,
                               style: AppTextStyles.bodySmall,
                             ),
                           if (colors.isNotEmpty) ...[
                             const SizedBox(height: 16),
-                            Text('COLOURS', style: AppTextStyles.labelLarge),
+                            Text(l10n.colours, style: AppTextStyles.labelLarge),
                             const SizedBox(height: 8),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
                               children: colors
-                                  .map((color) => buildColorChip(color))
+                                  .map((c) => _buildColorChip(c))
                                   .toList(),
                             ),
                           ],
@@ -736,15 +666,15 @@ class _ProductPageState extends State<ProductPage> {
                       width: 145,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: () => addProductToCart(data),
+                        onPressed: () => _addProductToCart(data),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.deepAccent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.zero,
                           ),
                         ),
                         child: Text(
-                          AppLocalizations.of(context)!.addToCart,
+                          l10n.addToCart,
                           style: AppTextStyles.button,
                         ),
                       ),
@@ -752,41 +682,28 @@ class _ProductPageState extends State<ProductPage> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                buildDropdownSection(
-                  title: AppLocalizations.of(context)!.productDetails,
-                  isOpen: showProductDetails,
-                  onTap: () {
-                    setState(() {
-                      showProductDetails = !showProductDetails;
-                    });
-                  },
+                _buildDropdownSection(
+                  title: l10n.productDetails,
+                  isOpen: _showProductDetails,
+                  onTap: () => setState(
+                    () => _showProductDetails = !_showProductDetails,
+                  ),
                   content: description,
                 ),
-                buildDropdownSection(
-                  title: AppLocalizations.of(context)!.materialCare,
-                  isOpen: showMaterialCare,
-                  onTap: () {
-                    setState(() {
-                      showMaterialCare = !showMaterialCare;
-                    });
-                  },
-                  content: AppLocalizations.of(
-                    context,
-                  )!.materialAndCareDetailsCanBeAddedLater,
+                _buildDropdownSection(
+                  title: l10n.materialCare,
+                  isOpen: _showMaterialCare,
+                  onTap: () =>
+                      setState(() => _showMaterialCare = !_showMaterialCare),
+                  content: l10n.materialCareDetails,
                 ),
-                buildDropdownSection(
-                  title: AppLocalizations.of(context)!.sizeFit,
-                  isOpen: showSizeFit,
-                  onTap: () {
-                    setState(() {
-                      showSizeFit = !showSizeFit;
-                    });
-                  },
+                _buildDropdownSection(
+                  title: l10n.sizeFit,
+                  isOpen: _showSizeFit,
+                  onTap: () => setState(() => _showSizeFit = !_showSizeFit),
                   content: hasSizes
-                      ? "${AppLocalizations.of(context)!.availableSizes} ${sizes.join(', ')}"
-                      : AppLocalizations.of(
-                          context,
-                        )!.noSizeInformationAvailable,
+                      ? l10n.availableSizesText(sizes.join(', '))
+                      : l10n.noSizeInformationAvailable,
                 ),
                 const SizedBox(height: 30),
               ],
@@ -799,6 +716,8 @@ class _ProductPageState extends State<ProductPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -817,21 +736,18 @@ class _ProductPageState extends State<ProductPage> {
 
             if (snapshot.hasError) {
               return ErrorStateWidget.inline(
-                title: 'Something went wrong',
-                message: AppLocalizations.of(context)!.somethingWentWrong,
+                title: l10n.somethingWentWrong,
+                message: l10n.somethingWentWrong,
                 onRetry: () => setState(() {}),
                 type: ErrorType.network,
               );
             }
 
-            // If we have a live snapshot but the document no longer exists,
-            // show the branded 404 page rather than rendering stale prop data.
             if (snapshot.hasData && !snapshot.data!.exists) {
               return const NotFoundPage();
             }
 
-            final data = _resolveProductData(snapshot.data);
-            return _buildProductContent(data);
+            return _buildProductContent(_resolveProductData(snapshot.data));
           },
         ),
       ),

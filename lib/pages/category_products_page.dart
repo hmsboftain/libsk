@@ -1,11 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
 import 'product_page.dart';
 
 enum CategorySort { newest, priceLow, priceHigh }
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+double _price(Map<String, dynamic> data) {
+  final v = data['price'] ?? 0;
+  return v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0;
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class CategoryProductsPage extends StatefulWidget {
   final String? category; // null = All
@@ -24,19 +34,22 @@ class CategoryProductsPage extends StatefulWidget {
 class _CategoryProductsPageState extends State<CategoryProductsPage> {
   CategorySort _sort = CategorySort.newest;
 
-  // Fetch ALL products — filter client-side to handle both
-  // old String format and new List format
+  // Full collection stream — category filter is client-side because some
+  // products store category as a String and others as a List.
+  // TODO: migrate all products to List format, then switch to:
+  // .where('category', arrayContains: widget.category)
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _stream;
 
   @override
   void initState() {
     super.initState();
-    _stream =
-        FirebaseFirestore.instance.collectionGroup('products').snapshots();
+    _stream = FirebaseFirestore.instance
+        .collectionGroup('products')
+        .snapshots();
   }
 
   bool _matchesCategory(Map<String, dynamic> data) {
-    if (widget.category == null) return true; // All
+    if (widget.category == null) return true;
     final cat = data['category'];
     if (cat is List) return cat.contains(widget.category);
     if (cat is String) return cat == widget.category;
@@ -46,12 +59,10 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _filterAndSort(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
   ) {
-    // Filter by category (handles String and List)
     final filtered = widget.category == null
         ? docs
         : docs.where((doc) => _matchesCategory(doc.data())).toList();
 
-    // Sort
     final sorted = List.of(filtered);
     switch (_sort) {
       case CategorySort.newest:
@@ -70,11 +81,6 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
         break;
     }
     return sorted;
-  }
-
-  double _price(Map<String, dynamic> data) {
-    final v = data['price'] ?? 0;
-    return v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0;
   }
 
   Widget _sortChip(String label, CategorySort option) {
@@ -103,6 +109,8 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -142,7 +150,7 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                               child: Text(
-                                '${docs.length} ${docs.length == 1 ? 'item' : 'items'} across all boutiques',
+                                l10n.itemsAcrossAllBoutiques(docs.length),
                                 style: AppTextStyles.bodySmall,
                               ),
                             ),
@@ -150,11 +158,20 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                               child: Row(
                                 children: [
-                                  _sortChip('NEWEST', CategorySort.newest),
+                                  _sortChip(
+                                    l10n.sortNewest,
+                                    CategorySort.newest,
+                                  ),
                                   const SizedBox(width: 8),
-                                  _sortChip('PRICE ↑', CategorySort.priceLow),
+                                  _sortChip(
+                                    l10n.sortPriceLow,
+                                    CategorySort.priceLow,
+                                  ),
                                   const SizedBox(width: 8),
-                                  _sortChip('PRICE ↓', CategorySort.priceHigh),
+                                  _sortChip(
+                                    l10n.sortPriceHigh,
+                                    CategorySort.priceHigh,
+                                  ),
                                 ],
                               ),
                             ),
@@ -182,7 +199,9 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                                 ),
                                 const SizedBox(height: 12),
                                 Text(
-                                  'No products in ${widget.displayLabel} yet',
+                                  l10n.noProductsInCategory(
+                                    widget.displayLabel,
+                                  ),
                                   style: AppTextStyles.bodyMedium.copyWith(
                                     color: AppColors.secondaryText,
                                   ),
@@ -195,97 +214,11 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 30),
                           sliver: SliverGrid(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final doc = docs[index];
-                              final product = Product.fromFirestore(doc);
-                              final displayImageUrl = product.displayImageUrl;
-
-                              return GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ProductPage(
-                                        productId: product.id,
-                                        boutiqueId: product.boutiqueId,
-                                        imageUrl: displayImageUrl,
-                                        imageUrls: product.imageUrls,
-                                        title: product.title,
-                                        price: product.price,
-                                        description: product.description,
-                                        sizes: product.sizes,
-                                        stock: product.stock,
-                                        boutiqueName: product.boutiqueName,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: Container(
-                                        width: double.infinity,
-                                        decoration: BoxDecoration(
-                                          color: AppColors.imagePlaceholder,
-                                          border: Border.all(
-                                            color: AppColors.border,
-                                            width: 0.5,
-                                          ),
-                                        ),
-                                        child: displayImageUrl.isNotEmpty
-                                            ? Image.network(
-                                                displayImageUrl,
-                                                fit: BoxFit.cover,
-                                                width: double.infinity,
-                                                errorBuilder: (_, __, ___) =>
-                                                    const Center(
-                                                      child: Icon(
-                                                        Icons
-                                                            .image_not_supported_outlined,
-                                                        size: 24,
-                                                        color: AppColors
-                                                            .softAccent,
-                                                      ),
-                                                    ),
-                                              )
-                                            : const Center(
-                                                child: Icon(
-                                                  Icons
-                                                      .image_not_supported_outlined,
-                                                  size: 24,
-                                                  color: AppColors.softAccent,
-                                                ),
-                                              ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      product.boutiqueName.toUpperCase(),
-                                      style: AppTextStyles.capsLabel,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      product.title,
-                                      style: AppTextStyles.headingSmall,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 5),
-                                    Text(
-                                      'KD ${product.price.toStringAsFixed(0)}',
-                                      style: AppTextStyles.labelLarge,
-                                    ),
-                                    const SizedBox(height: 8),
-                                  ],
-                                ),
-                              );
-                            }, childCount: docs.length),
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) =>
+                                  _CategoryProductCard(doc: docs[index]),
+                              childCount: docs.length,
+                            ),
                             gridDelegate:
                                 const SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: 2,
@@ -302,6 +235,94 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Product grid card widget ──────────────────────────────────────────────────
+
+class _CategoryProductCard extends StatelessWidget {
+  final QueryDocumentSnapshot<Map<String, dynamic>> doc;
+
+  const _CategoryProductCard({required this.doc});
+
+  @override
+  Widget build(BuildContext context) {
+    final product = Product.fromFirestore(doc);
+    final displayImageUrl = product.displayImageUrl;
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProductPage(
+            productId: product.id,
+            boutiqueId: product.boutiqueId,
+            imageUrl: displayImageUrl,
+            imageUrls: product.imageUrls,
+            title: product.title,
+            price: product.price,
+            description: product.description,
+            sizes: product.sizes,
+            stock: product.stock,
+            boutiqueName: product.boutiqueName,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: AppColors.imagePlaceholder,
+                border: Border.all(color: AppColors.border, width: 0.5),
+              ),
+              child: displayImageUrl.isNotEmpty
+                  ? Image.network(
+                      displayImageUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(
+                          Icons.image_not_supported_outlined,
+                          size: 24,
+                          color: AppColors.softAccent,
+                        ),
+                      ),
+                    )
+                  : const Center(
+                      child: Icon(
+                        Icons.image_not_supported_outlined,
+                        size: 24,
+                        color: AppColors.softAccent,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            product.boutiqueName.toUpperCase(),
+            style: AppTextStyles.capsLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 3),
+          Text(
+            product.title,
+            style: AppTextStyles.headingSmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'KD ${product.price.toStringAsFixed(0)}',
+            style: AppTextStyles.labelLarge,
+          ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }

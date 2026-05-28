@@ -1,9 +1,80 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import 'global_order_details_page.dart';
 import '../widgets/theme.dart';
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+String _parseOrderNumber(Map<String, dynamic> data, AppLocalizations l10n) {
+  final v = data['orderNumber']?.toString().trim() ?? '';
+  return v.isNotEmpty ? v : l10n.unknownOrder;
+}
+
+String _parseCustomerName(Map<String, dynamic> data, AppLocalizations l10n) {
+  final v = data['customerName']?.toString().trim() ?? '';
+  return v.isNotEmpty ? v : l10n.unknownCustomer;
+}
+
+String _parseCustomerEmail(Map<String, dynamic> data, AppLocalizations l10n) {
+  final v = data['customerEmail']?.toString().trim() ?? '';
+  return v.isNotEmpty ? v : l10n.noEmail;
+}
+
+String _parseStatus(Map<String, dynamic> data, AppLocalizations l10n) {
+  final v = data['status']?.toString().trim() ?? '';
+  return v.isNotEmpty ? _localizedStatus(v, l10n) : l10n.unknown;
+}
+
+String _parseDate(Map<String, dynamic> data, AppLocalizations l10n) {
+  final v = data['date']?.toString().trim() ?? '';
+  return v.isNotEmpty ? v : l10n.noDate;
+}
+
+String _parseTotal(Map<String, dynamic> data) {
+  final v = data['total'] ?? 0;
+  final amount = v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0;
+  return '${amount.toStringAsFixed(0)} KWD';
+}
+
+String _parseItemCount(Map<String, dynamic> data) {
+  final v = data['itemCount'] ?? 0;
+  if (v is int) return v.toString();
+  return int.tryParse(v.toString())?.toString() ?? '0';
+}
+
+// Search against raw Firestore values — not localized fallbacks
+bool _matchesSearch(Map<String, dynamic> data, String query) {
+  if (query.trim().isEmpty) return true;
+  final q = query.toLowerCase();
+  final orderNumber = data['orderNumber']?.toString().toLowerCase() ?? '';
+  final customerName = data['customerName']?.toString().toLowerCase() ?? '';
+  final customerEmail = data['customerEmail']?.toString().toLowerCase() ?? '';
+  return orderNumber.contains(q) ||
+      customerName.contains(q) ||
+      customerEmail.contains(q);
+}
+
+String _localizedStatus(String status, AppLocalizations l10n) {
+  switch (status.toLowerCase()) {
+    case 'placed':
+      return l10n.statusPlaced;
+    case 'confirmed':
+      return l10n.statusConfirmed;
+    case 'on the way':
+      return l10n.statusOnTheWay;
+    case 'delivered':
+      return l10n.statusDelivered;
+    case 'cancelled':
+      return l10n.statusCancelled;
+    default:
+      return status;
+  }
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class GlobalOrdersPage extends StatefulWidget {
   const GlobalOrdersPage({super.key});
@@ -13,9 +84,9 @@ class GlobalOrdersPage extends StatefulWidget {
 }
 
 class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
-  final TextEditingController searchController = TextEditingController();
-  bool showSearch = false;
-  String searchQuery = '';
+  final searchController = TextEditingController();
+  bool _showSearch = false;
+  String _searchQuery = '';
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _ordersStream;
 
@@ -31,191 +102,35 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
     super.dispose();
   }
 
-  String _buildOrderNumber(Map<String, dynamic> data) {
-    final value = data['orderNumber']?.toString().trim() ?? '';
-    return value.isNotEmpty ? value : 'Unknown Order';
-  }
-
-  String _buildCustomerName(Map<String, dynamic> data) {
-    final value = data['customerName']?.toString().trim() ?? '';
-    return value.isNotEmpty ? value : 'Unknown Customer';
-  }
-
-  String _buildCustomerEmail(Map<String, dynamic> data) {
-    final value = data['customerEmail']?.toString().trim() ?? '';
-    return value.isNotEmpty ? value : 'No email';
-  }
-
-  String _buildStatus(Map<String, dynamic> data) {
-    final value = data['status']?.toString().trim() ?? '';
-    return value.isNotEmpty ? value : 'Unknown';
-  }
-
-  String _buildDate(Map<String, dynamic> data) {
-    final value = data['date']?.toString().trim() ?? '';
-    return value.isNotEmpty ? value : 'No date';
-  }
-
-  String _buildTotal(Map<String, dynamic> data) {
-    final value = data['total'] ?? 0;
-
-    if (value is num) {
-      return '${value.toStringAsFixed(0)} KWD';
-    }
-
-    final parsed = double.tryParse(value.toString()) ?? 0;
-    return '${parsed.toStringAsFixed(0)} KWD';
-  }
-
-  String _buildItemCount(Map<String, dynamic> data) {
-    final value = data['itemCount'] ?? 0;
-
-    if (value is int) return value.toString();
-    return int.tryParse(value.toString())?.toString() ?? '0';
-  }
-
-  bool _matchesSearch(Map<String, dynamic> data) {
-    if (searchQuery.trim().isEmpty) return true;
-
-    final query = searchQuery.toLowerCase();
-
-    final orderNumber = _buildOrderNumber(data).toLowerCase();
-    final customerName = _buildCustomerName(data).toLowerCase();
-    final customerEmail = _buildCustomerEmail(data).toLowerCase();
-
-    return orderNumber.contains(query) ||
-        customerName.contains(query) ||
-        customerEmail.contains(query);
-  }
-
   void _toggleSearch() {
     setState(() {
-      if (showSearch) {
-        showSearch = false;
-        searchQuery = '';
+      if (_showSearch) {
+        _showSearch = false;
+        _searchQuery = '';
         searchController.clear();
       } else {
-        showSearch = true;
+        _showSearch = true;
       }
     });
   }
 
-  Widget buildOrderCard({
-    required BuildContext context,
-    required String orderId,
-    required Map<String, dynamic> data,
-    required String orderNumber,
-    required String customerName,
-    required String customerEmail,
-    required String status,
-    required String total,
-    required String date,
-    required String itemCount,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.zero,
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => GlobalOrderDetailsPage(
-              orderData: data,
-              orderId: orderId,
-            ),
-          ),
-        );
-      },
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.zero,
-          border: Border.all(color: AppColors.border, width: 0.5),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.receipt_long_outlined,
-                  color: AppColors.deepAccent,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    orderNumber,
-                    style: AppTextStyles.bodyLarge.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Text(
-                  total,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              customerName,
-              style: AppTextStyles.bodyMedium.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              customerEmail,
-              style: AppTextStyles.bodySmall,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Status: $status',
-              style: AppTextStyles.bodySmall,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Date: $date',
-              style: AppTextStyles.bodySmall,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Items: $itemCount',
-              style: AppTextStyles.bodySmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSearchField() {
+  Widget _buildSearchField(AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.only(top: 14),
       child: TextField(
         controller: searchController,
-        onChanged: (value) {
-          setState(() {
-            searchQuery = value.trim();
-          });
-        },
+        onChanged: (value) => setState(() => _searchQuery = value.trim()),
         decoration: InputDecoration(
+          hintText: l10n.searchOrders,
           prefixIcon: const Icon(Icons.search, color: AppColors.deepAccent),
-          suffixIcon: searchQuery.isNotEmpty
+          suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
-            icon: const Icon(Icons.close, color: AppColors.deepAccent),
-            onPressed: () {
-              setState(() {
-                searchController.clear();
-                searchQuery = '';
-              });
-            },
-          )
+                  icon: const Icon(Icons.close, color: AppColors.deepAccent),
+                  onPressed: () => setState(() {
+                    searchController.clear();
+                    _searchQuery = '';
+                  }),
+                )
               : null,
           filled: true,
           fillColor: AppColors.field,
@@ -232,10 +147,8 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(4),
-            borderSide: const BorderSide(
-              color: AppColors.deepAccent,
-              width: 1,
-            ),
+            borderSide:
+                const BorderSide(color: AppColors.deepAccent, width: 1),
           ),
         ),
       ),
@@ -244,6 +157,8 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -263,18 +178,18 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                   }
 
                   if (snapshot.hasError) {
-                    return const Center(
+                    return Center(
                       child: Text(
-                        'Failed to load orders',
+                        l10n.failedToLoadOrders,
                         style: AppTextStyles.bodyMedium,
                       ),
                     );
                   }
 
                   final allDocs = snapshot.data?.docs ?? [];
-                  final orderDocs = allDocs.where((doc) {
-                    return _matchesSearch(doc.data());
-                  }).toList();
+                  final orderDocs = allDocs
+                      .where((doc) => _matchesSearch(doc.data(), _searchQuery))
+                      .toList();
 
                   return SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
@@ -283,16 +198,16 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                       children: [
                         Row(
                           children: [
-                            const Expanded(
+                            Expanded(
                               child: Text(
-                                'GLOBAL ORDERS',
+                                l10n.globalOrders,
                                 style: AppTextStyles.displayMedium,
                               ),
                             ),
                             IconButton(
                               onPressed: _toggleSearch,
                               icon: Icon(
-                                showSearch ? Icons.close : Icons.search,
+                                _showSearch ? Icons.close : Icons.search,
                                 color: AppColors.primaryText,
                               ),
                             ),
@@ -300,12 +215,12 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '${orderDocs.length} global orders',
+                          l10n.globalOrdersCount(orderDocs.length),
                           style: AppTextStyles.bodyMedium.copyWith(
                             color: AppColors.secondaryText,
                           ),
                         ),
-                        if (showSearch) _buildSearchField(),
+                        if (_showSearch) _buildSearchField(l10n),
                         const SizedBox(height: 20),
                         if (orderDocs.isEmpty)
                           Container(
@@ -313,34 +228,24 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                             padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
                               color: AppColors.card,
-                              borderRadius: BorderRadius.zero,
                               border: Border.all(
                                 color: AppColors.border,
                                 width: 0.5,
                               ),
                             ),
                             child: Text(
-                              searchQuery.isEmpty
-                                  ? 'No orders found.'
-                                  : 'No matching orders found.',
+                              _searchQuery.isEmpty
+                                  ? l10n.noOrdersFound
+                                  : l10n.noMatchingOrdersFound,
                               style: AppTextStyles.bodyMedium,
                             ),
                           )
                         else
                           ...orderDocs.map((doc) {
                             final data = doc.data();
-
-                            return buildOrderCard(
-                              context: context,
+                            return _GlobalOrderCard(
                               orderId: doc.id,
                               data: data,
-                              orderNumber: _buildOrderNumber(data),
-                              customerName: _buildCustomerName(data),
-                              customerEmail: _buildCustomerEmail(data),
-                              status: _buildStatus(data),
-                              total: _buildTotal(data),
-                              date: _buildDate(data),
-                              itemCount: _buildItemCount(data),
                             );
                           }),
                       ],
@@ -349,6 +254,91 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                 },
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Global order card widget ──────────────────────────────────────────────────
+
+class _GlobalOrderCard extends StatelessWidget {
+  final String orderId;
+  final Map<String, dynamic> data;
+
+  const _GlobalOrderCard({required this.orderId, required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    final orderNumber = _parseOrderNumber(data, l10n);
+    final customerName = _parseCustomerName(data, l10n);
+    final customerEmail = _parseCustomerEmail(data, l10n);
+    final status = _parseStatus(data, l10n);
+    final total = _parseTotal(data);
+    final date = _parseDate(data, l10n);
+    final itemCount = _parseItemCount(data);
+
+    return InkWell(
+      borderRadius: BorderRadius.zero,
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => GlobalOrderDetailsPage(
+            orderData: data,
+            orderId: orderId,
+          ),
+        ),
+      ),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.receipt_long_outlined,
+                  color: AppColors.deepAccent,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    orderNumber,
+                    style: AppTextStyles.bodyLarge
+                        .copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Text(
+                  total,
+                  style: AppTextStyles.bodyMedium
+                      .copyWith(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              customerName,
+              style:
+                  AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(customerEmail, style: AppTextStyles.bodySmall),
+            const SizedBox(height: 10),
+            Text(l10n.statusLabel(status), style: AppTextStyles.bodySmall),
+            const SizedBox(height: 4),
+            Text(l10n.orderDate(date), style: AppTextStyles.bodySmall),
+            const SizedBox(height: 4),
+            Text(l10n.itemsLabel(itemCount), style: AppTextStyles.bodySmall),
           ],
         ),
       ),

@@ -12,13 +12,16 @@ class OrderConfirmationPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final name = (user?.displayName != null && user!.displayName!.isNotEmpty)
-        ? user.displayName!
-        : AppLocalizations.of(context)!.customer;
+    final l10n = AppLocalizations.of(context)!;
 
-    final date =
-        "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}";
+    final user = FirebaseAuth.instance.currentUser;
+    final name =
+        (user?.displayName != null && user!.displayName!.isNotEmpty)
+            ? user.displayName!
+            : l10n.customer;
+
+    final now = DateTime.now();
+    final date = '${now.day}/${now.month}/${now.year}';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -28,10 +31,7 @@ class OrderConfirmationPage extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 20),
-              Text(
-                AppLocalizations.of(context)!.orderConfirmation,
-                style: AppTextStyles.headingLarge,
-              ),
+              Text(l10n.orderConfirmation, style: AppTextStyles.headingLarge),
               const SizedBox(height: 10),
               const Divider(color: AppColors.border, thickness: 0.5),
               const SizedBox(height: 80),
@@ -51,24 +51,24 @@ class OrderConfirmationPage extends StatelessWidget {
               ),
               const SizedBox(height: 40),
               Text(
-                AppLocalizations.of(context)!.yourPaymentWasSuccessful,
+                l10n.yourPaymentWasSuccessful,
                 style: AppTextStyles.bodyLarge.copyWith(
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 18),
               Text(
-                "${AppLocalizations.of(context)!.orderNumberLabel} #$orderNumber",
+                l10n.orderNumber(orderNumber),
                 style: AppTextStyles.bodySmall,
               ),
               const SizedBox(height: 8),
               Text(
-                "${AppLocalizations.of(context)!.dateLabel} $date",
+                l10n.orderDate(date),
                 style: AppTextStyles.bodySmall,
               ),
               const SizedBox(height: 25),
               Text(
-                "${AppLocalizations.of(context)!.thankYou}, $name",
+                l10n.thankYouWithName(name),
                 style: AppTextStyles.headingSmall.copyWith(
                   color: AppColors.secondaryText,
                 ),
@@ -82,22 +82,20 @@ class OrderConfirmationPage extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  MainNavigationPage(onLanguageChange: (_) {}),
-                            ),
-                            (route) => false,
-                          );
-                        },
-                        child: Container(
+                      child: InkWell(
+                        onTap: () => Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                MainNavigationPage(onLanguageChange: (_) {}),
+                          ),
+                          (route) => false,
+                        ),
+                        child: Ink(
                           color: AppColors.deepAccent,
                           child: Center(
                             child: Text(
-                              AppLocalizations.of(context)!.backToHome,
+                              l10n.backToHome,
                               style: AppTextStyles.button,
                             ),
                           ),
@@ -105,19 +103,17 @@ class OrderConfirmationPage extends StatelessWidget {
                       ),
                     ),
                     Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const OrdersPage(),
-                            ),
-                            (route) => false,
-                          );
-                        },
+                      child: InkWell(
+                        onTap: () => Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const OrdersPage(),
+                          ),
+                          (route) => false,
+                        ),
                         child: Center(
                           child: Text(
-                            AppLocalizations.of(context)!.orders,
+                            l10n.orders,
                             style: AppTextStyles.labelLarge,
                           ),
                         ),

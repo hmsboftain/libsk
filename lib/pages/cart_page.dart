@@ -5,9 +5,9 @@ import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/cart_item.dart';
+import '../widgets/theme.dart';
 import 'checkout_page.dart';
 import 'login_page.dart';
-import '../widgets/theme.dart';
 
 class CartPage extends StatefulWidget {
   const CartPage({super.key});
@@ -25,14 +25,14 @@ class _CartPageState extends State<CartPage> {
     _cartStream = FirestoreService.getCartItemsStream();
   }
 
-  Future<void> increaseQuantity(CartItem item) async {
+  Future<void> _increaseQuantity(CartItem item) async {
     await FirestoreService.updateCartItemQuantity(
       docId: item.id,
       quantity: item.quantity + 1,
     );
   }
 
-  Future<void> decreaseQuantity(CartItem item) async {
+  Future<void> _decreaseQuantity(CartItem item) async {
     if (item.quantity > 1) {
       await FirestoreService.updateCartItemQuantity(
         docId: item.id,
@@ -41,11 +41,9 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
-  Future<void> deleteItem(CartItem item) async {
+  Future<void> _deleteItem(CartItem item) async {
     await FirestoreService.deleteCartItem(item.id);
-
     if (!mounted) return;
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(AppLocalizations.of(context)!.itemRemovedFromCart),
@@ -54,8 +52,33 @@ class _CartPageState extends State<CartPage> {
     );
   }
 
+  Future<void> _handleCheckout() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
+      if (result == true && context.mounted) {
+        await FirestoreService.mergeGuestCartToUser();
+        if (!context.mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CheckoutPage()),
+        );
+      }
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CheckoutPage()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -78,22 +101,21 @@ class _CartPageState extends State<CartPage> {
                   if (snapshot.hasError) {
                     return Center(
                       child: Text(
-                        AppLocalizations.of(context)!.somethingWentWrong,
+                        l10n.somethingWentWrong,
                         style: AppTextStyles.bodySmall,
                       ),
                     );
                   }
 
                   final docs = snapshot.data?.docs ?? [];
+                  final cartItems = docs
+                      .map((doc) => CartItem.fromFirestore(doc.id, doc.data()))
+                      .toList();
 
-                  final cartItems = docs.map((doc) {
-                    return CartItem.fromFirestore(doc.id, doc.data());
-                  }).toList();
-
-                  double subtotal = 0;
-                  for (var item in cartItems) {
-                    subtotal += item.price * item.quantity;
-                  }
+                  final subtotal = cartItems.fold<double>(
+                    0.0,
+                    (total, item) => total + item.price * item.quantity,
+                  );
 
                   return Column(
                     children: [
@@ -106,7 +128,7 @@ class _CartPageState extends State<CartPage> {
                               children: [
                                 const SizedBox(height: 8),
                                 Text(
-                                  AppLocalizations.of(context)!.cart,
+                                  l10n.cart,
                                   style: AppTextStyles.headingLarge,
                                 ),
                                 const SizedBox(height: 18),
@@ -115,9 +137,7 @@ class _CartPageState extends State<CartPage> {
                                     padding: const EdgeInsets.only(top: 40),
                                     child: Center(
                                       child: Text(
-                                        AppLocalizations.of(
-                                          context,
-                                        )!.yourCartIsEmpty,
+                                        l10n.yourCartIsEmpty,
                                         style: AppTextStyles.bodyMedium
                                             .copyWith(
                                               color: AppColors.secondaryText,
@@ -140,15 +160,11 @@ class _CartPageState extends State<CartPage> {
                                           color: item.color,
                                           price: item.price,
                                           quantity: item.quantity,
-                                          onIncrease: () async {
-                                            await increaseQuantity(item);
-                                          },
-                                          onDecrease: () async {
-                                            await decreaseQuantity(item);
-                                          },
-                                          onDelete: () async {
-                                            await deleteItem(item);
-                                          },
+                                          onIncrease: () =>
+                                              _increaseQuantity(item),
+                                          onDecrease: () =>
+                                              _decreaseQuantity(item),
+                                          onDelete: () => _deleteItem(item),
                                         ),
                                       );
                                     }).toList(),
@@ -161,9 +177,7 @@ class _CartPageState extends State<CartPage> {
                       ),
                       Container(
                         padding: const EdgeInsets.fromLTRB(22, 18, 22, 20),
-                        decoration: const BoxDecoration(
-                          color: AppColors.background,
-                        ),
+                        color: AppColors.background,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -175,14 +189,14 @@ class _CartPageState extends State<CartPage> {
                             Row(
                               children: [
                                 Text(
-                                  AppLocalizations.of(context)!.subtotal,
+                                  l10n.subtotal,
                                   style: AppTextStyles.labelLarge.copyWith(
                                     color: AppColors.secondaryText,
                                   ),
                                 ),
                                 const Spacer(),
                                 Text(
-                                  "${subtotal.toStringAsFixed(0)} KWD",
+                                  '${subtotal.toStringAsFixed(0)} KWD',
                                   style: AppTextStyles.bodyLarge.copyWith(
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -193,9 +207,7 @@ class _CartPageState extends State<CartPage> {
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                AppLocalizations.of(
-                                  context,
-                                )!.shippingChargesAndDiscountCodesCalculatedAtCheckout,
+                                l10n.shippingChargesAndDiscountCodesCalculatedAtCheckout,
                                 style: AppTextStyles.bodySmall.copyWith(
                                   height: 1.3,
                                 ),
@@ -208,48 +220,13 @@ class _CartPageState extends State<CartPage> {
                               child: ElevatedButton.icon(
                                 onPressed: cartItems.isEmpty
                                     ? null
-                                    : () async {
-                                        final user =
-                                            FirebaseAuth.instance.currentUser;
-
-                                        if (user == null) {
-                                          final result = await Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const LoginPage(),
-                                            ),
-                                          );
-
-                                          if (result == true &&
-                                              context.mounted) {
-                                            await FirestoreService.mergeGuestCartToUser();
-
-                                            if (!context.mounted) return;
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    const CheckoutPage(),
-                                              ),
-                                            );
-                                          }
-                                        } else {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const CheckoutPage(),
-                                            ),
-                                          );
-                                        }
-                                      },
+                                    : _handleCheckout,
                                 icon: const Icon(
                                   Icons.shopping_bag_outlined,
                                   size: 28,
                                 ),
                                 label: Text(
-                                  AppLocalizations.of(context)!.checkoutButton,
+                                  l10n.checkoutButton,
                                   style: AppTextStyles.button,
                                 ),
                                 style: ElevatedButton.styleFrom(
@@ -257,8 +234,8 @@ class _CartPageState extends State<CartPage> {
                                   foregroundColor: Colors.white,
                                   disabledBackgroundColor: AppColors.softAccent,
                                   disabledForegroundColor: Colors.white70,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero,
                                   ),
                                 ),
                               ),

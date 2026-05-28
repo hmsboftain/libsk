@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../services/storage_service.dart';
 import '../widgets/theme.dart';
@@ -20,15 +21,21 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
   final _subtitleController = TextEditingController();
   final _ctaController = TextEditingController();
   File? _selectedImage;
-  bool isUploading = false;
+  bool _isUploading = false;
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _bannersStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _activeBannersStream;
 
   @override
   void initState() {
     super.initState();
     _bannersStream = FirebaseFirestore.instance
         .collection('hero_banners')
+        .orderBy('order')
+        .snapshots();
+    _activeBannersStream = FirebaseFirestore.instance
+        .collection('hero_banners')
+        .where('isActive', isEqualTo: true)
         .orderBy('order')
         .snapshots();
   }
@@ -42,6 +49,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
   }
 
   Future<void> _pickAndCropImage() async {
+    final l10n = AppLocalizations.of(context)!;
     final picker = ImagePicker();
     final file = await picker.pickImage(
       source: ImageSource.gallery,
@@ -56,7 +64,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
       compressQuality: 90,
       uiSettings: [
         AndroidUiSettings(
-          toolbarTitle: 'Crop Banner',
+          toolbarTitle: l10n.cropBanner,
           toolbarColor: const Color(0xFF8E877D),
           toolbarWidgetColor: Colors.white,
           activeControlsWidgetColor: const Color(0xFF8E877D),
@@ -64,7 +72,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
           hideBottomControls: false,
         ),
         IOSUiSettings(
-          title: 'Crop Banner',
+          title: l10n.cropBanner,
           aspectRatioLockEnabled: true,
           resetAspectRatioEnabled: false,
           aspectRatioPickerButtonHidden: true,
@@ -78,14 +86,15 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
   }
 
   Future<void> _uploadBanner() async {
+    final l10n = AppLocalizations.of(context)!;
     if (_selectedImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a banner image')),
+        SnackBar(content: Text(l10n.selectBannerImage)),
       );
       return;
     }
 
-    setState(() => isUploading = true);
+    setState(() => _isUploading = true);
 
     try {
       final imageUrl = await StorageService.uploadImage(
@@ -120,34 +129,35 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
       setState(() => _selectedImage = null);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Banner uploaded successfully')),
+        SnackBar(content: Text(l10n.bannerUploadedSuccessfully)),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+      ).showSnackBar(SnackBar(content: Text('${l10n.uploadFailed}: $e')));
     } finally {
-      if (mounted) setState(() => isUploading = false);
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
   Future<void> _deleteBanner(String docId, String imageUrl) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.background,
         shape: const RoundedRectangleBorder(),
-        title: Text('Delete Banner', style: AppTextStyles.headingSmall),
+        title: Text(l10n.deleteBanner, style: AppTextStyles.headingSmall),
         content: Text(
-          'Are you sure you want to remove this banner?',
+          l10n.confirmDeleteBanner,
           style: AppTextStyles.bodyMedium,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
-              'Cancel',
+              l10n.cancel,
               style: AppTextStyles.labelLarge.copyWith(
                 color: AppColors.secondaryText,
               ),
@@ -163,7 +173,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                 borderRadius: BorderRadius.zero,
               ),
             ),
-            child: Text('Delete', style: AppTextStyles.button),
+            child: Text(l10n.deleteAccountButton, style: AppTextStyles.button),
           ),
         ],
       ),
@@ -180,12 +190,12 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Banner removed')));
+      ).showSnackBar(SnackBar(content: Text(l10n.bannerRemoved)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ).showSnackBar(SnackBar(content: Text('${l10n.error}: $e')));
     }
   }
 
@@ -219,6 +229,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -231,21 +242,19 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Hero Banners', style: AppTextStyles.displayMedium),
+                    Text(l10n.heroBanners, style: AppTextStyles.displayMedium),
                     const SizedBox(height: 4),
                     Text(
-                      'Manage homepage rotating banners.',
+                      l10n.manageHomepageBanners,
                       style: AppTextStyles.bodySmall,
                     ),
                     const SizedBox(height: 20),
 
                     // ── Live preview ────────────────────────────────
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: _bannersStream,
+                      stream: _activeBannersStream,
                       builder: (context, snapshot) {
-                        final banners = (snapshot.data?.docs ?? [])
-                            .where((doc) => doc.data()['isActive'] == true)
-                            .toList();
+                        final banners = snapshot.data?.docs ?? [];
 
                         if (banners.isEmpty) {
                           return Container(
@@ -254,7 +263,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                             color: AppColors.imagePlaceholder,
                             alignment: Alignment.center,
                             child: Text(
-                              'No active banners',
+                              l10n.noActiveBanners,
                               style: AppTextStyles.bodySmall,
                             ),
                           );
@@ -264,7 +273,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'LIVE PREVIEW',
+                              l10n.livePreview,
                               style: AppTextStyles.capsLabel,
                             ),
                             const SizedBox(height: 8),
@@ -277,7 +286,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                     const SizedBox(height: 20),
 
                     // ── All banners list ────────────────────────────
-                    Text('ALL BANNERS', style: AppTextStyles.capsLabel),
+                    Text(l10n.allBanners, style: AppTextStyles.capsLabel),
                     const SizedBox(height: 10),
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                       stream: _bannersStream,
@@ -309,7 +318,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                             ),
                             child: Center(
                               child: Text(
-                                'No banners added yet',
+                                l10n.noBannersAddedYet,
                                 style: AppTextStyles.bodySmall,
                               ),
                             ),
@@ -355,7 +364,9 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          title.isNotEmpty ? title : 'Untitled',
+                                          title.isNotEmpty
+                                              ? title
+                                              : l10n.untitled,
                                           style: AppTextStyles.labelLarge,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -370,7 +381,9 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                                               ? AppColors.deepAccent
                                               : AppColors.softAccent,
                                           child: Text(
-                                            isActive ? 'ACTIVE' : 'HIDDEN',
+                                            isActive
+                                                ? l10n.activeCaps
+                                                : l10n.hiddenCaps,
                                             style: AppTextStyles.capsLabel
                                                 .copyWith(
                                                   fontSize: 9,
@@ -416,7 +429,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                     const SizedBox(height: 20),
 
                     // ── Add new banner ──────────────────────────────
-                    Text('ADD NEW BANNER', style: AppTextStyles.capsLabel),
+                    Text(l10n.addNewBanner, style: AppTextStyles.capsLabel),
                     const SizedBox(height: 6),
 
                     // Guideline info box
@@ -437,7 +450,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Images are cropped to 16:9 ratio. Recommended size: 1920×1080px. The banner displays at full width, 300px tall on the home screen.',
+                              l10n.bannerImageGuideline,
                               style: AppTextStyles.bodySmall,
                             ),
                           ),
@@ -494,7 +507,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                                                   ),
                                               color: AppColors.deepAccent,
                                               child: Text(
-                                                'CHANGE',
+                                                l10n.changeCaps,
                                                 style: AppTextStyles.capsLabel
                                                     .copyWith(
                                                       color: Colors.white,
@@ -517,12 +530,12 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                                         ),
                                         const SizedBox(height: 8),
                                         Text(
-                                          'Tap to select & crop banner image',
+                                          l10n.tapToSelectCropBannerImage,
                                           style: AppTextStyles.bodySmall,
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          'Will be cropped to 16:9',
+                                          l10n.willBeCroppedToRatio,
                                           style: AppTextStyles.bodySmall
                                               .copyWith(
                                                 color: AppColors.softAccent,
@@ -537,26 +550,24 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                           const SizedBox(height: 14),
                           TextField(
                             controller: _titleController,
-                            decoration: _inputDec('Banner title (optional)'),
+                            decoration: _inputDec(l10n.bannerTitleOptional),
                           ),
                           const SizedBox(height: 10),
                           TextField(
                             controller: _subtitleController,
-                            decoration: _inputDec('Subtitle (optional)'),
+                            decoration: _inputDec(l10n.subtitleOptional),
                           ),
                           const SizedBox(height: 10),
                           TextField(
                             controller: _ctaController,
-                            decoration: _inputDec(
-                              'CTA button text (e.g. Explore Now)',
-                            ),
+                            decoration: _inputDec(''),
                           ),
                           const SizedBox(height: 16),
                           SizedBox(
                             width: double.infinity,
                             height: 50,
                             child: ElevatedButton(
-                              onPressed: isUploading ? null : _uploadBanner,
+                              onPressed: _isUploading ? null : _uploadBanner,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.deepAccent,
                                 foregroundColor: Colors.white,
@@ -565,7 +576,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                                   borderRadius: BorderRadius.zero,
                                 ),
                               ),
-                              child: isUploading
+                              child: _isUploading
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
@@ -575,7 +586,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                                       ),
                                     )
                                   : Text(
-                                      'Upload Banner',
+                                      l10n.uploadBannerButton,
                                       style: AppTextStyles.button,
                                     ),
                             ),
@@ -636,6 +647,7 @@ class _AutoRotatingBannerState extends State<_AutoRotatingBanner> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     // Preview matches exact home page ratio: full width, 300px tall
     final previewWidth = MediaQuery.of(context).size.width - 32;
     final previewHeight = previewWidth * 9 / 16;
@@ -711,7 +723,7 @@ class _AutoRotatingBannerState extends State<_AutoRotatingBanner> {
         ),
         const SizedBox(height: 6),
         Text(
-          '↑ Exact preview of how it appears on the home screen',
+          l10n.exactHomePreview,
           style: AppTextStyles.bodySmall.copyWith(
             color: AppColors.softAccent,
             fontSize: 10,

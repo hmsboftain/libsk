@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
 
@@ -23,6 +24,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   }
 
   Future<void> sendResetEmail() async {
+    final l10n = AppLocalizations.of(context)!;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -37,19 +39,17 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Password reset email sent"),
-        ),
+        SnackBar(content: Text(l10n.passwordResetEmailSent)),
       );
 
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
-      String message = "Could not send reset email";
+      String message = l10n.couldNotSendResetEmail;
 
       if (e.code == 'invalid-email') {
-        message = "Invalid email address";
+        message = l10n.invalidEmailAddress;
       } else if (e.code == 'user-not-found') {
-        message = "No account found for this email";
+        message = l10n.noAccountFoundForThisEmail;
       } else if (e.message != null) {
         message = e.message!;
       }
@@ -61,9 +61,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Something went wrong"),
-        ),
+        SnackBar(content: Text(l10n.somethingWentWrong)),
       );
     } finally {
       if (mounted) {
@@ -76,6 +74,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -85,8 +84,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
             const SizedBox(height: 20),
 
-            const Text(
-              "Forgot Password",
+            Text(
+              l10n.forgotPassword,
               style: AppTextStyles.headingLarge,
             ),
 
@@ -103,15 +102,15 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     children: [
                       const SizedBox(height: 32),
 
-                      const Text(
-                        "Enter your email address and we will send you a password reset link.",
+                      Text(
+                        l10n.enterEmailForResetLink,
                         style: AppTextStyles.bodyMedium,
                       ),
 
                       const SizedBox(height: 28),
 
-                      const Text(
-                        "EMAIL ADDRESS",
+                      Text(
+                        l10n.emailAddress,
                         style: AppTextStyles.capsLabel,
                       ),
 
@@ -121,7 +120,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         controller: emailController,
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
-                          hintText: "Enter your email address",
+                          hintText: "",
                           filled: true,
                           fillColor: AppColors.field,
                           border: OutlineInputBorder(
@@ -148,10 +147,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return "Email is required";
+                            return l10n.emailRequired;
                           }
                           if (!value.contains("@") || !value.contains(".")) {
-                            return "Enter a valid email";
+                            return l10n.enterValidEmail;
                           }
                           return null;
                         },
@@ -183,8 +182,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     color: Colors.white,
                   ),
                 )
-                    : const Text(
-                  "SEND RESET LINK",
+                    : Text(
+                  l10n.sendResetLink,
                   style: AppTextStyles.button,
                 ),
               ),

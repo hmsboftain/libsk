@@ -1,7 +1,39 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+InputDecoration _inputDecoration(String hint) {
+  return InputDecoration(
+    hintText: hint,
+    hintStyle: AppTextStyles.bodyMedium.copyWith(
+      color: AppColors.secondaryText,
+    ),
+    filled: true,
+    fillColor: AppColors.field,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(4),
+      borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(4),
+      borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(4),
+      borderSide: const BorderSide(color: AppColors.deepAccent, width: 1),
+    ),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+  );
+}
+
+// Notification target types — labels are built from l10n, not stored here
+const _targetValues = ['all_users', 'boutique_owners', 'admins'];
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class SendNotificationPage extends StatefulWidget {
   const SendNotificationPage({super.key});
@@ -11,122 +43,78 @@ class SendNotificationPage extends StatefulWidget {
 }
 
 class _SendNotificationPageState extends State<SendNotificationPage> {
-  final titleController = TextEditingController();
-  final bodyController = TextEditingController();
+  final _titleController = TextEditingController();
+  final _bodyController = TextEditingController();
 
-  String targetType = 'all_users';
-  bool isLoading = false;
-
-  final List<Map<String, String>> targets = const [
-    {
-      'label': 'All Users',
-      'value': 'all_users',
-    },
-    {
-      'label': 'Boutique Owners',
-      'value': 'boutique_owners',
-    },
-    {
-      'label': 'Admins',
-      'value': 'admins',
-    },
-  ];
+  String _targetType = 'all_users';
+  bool _isLoading = false;
 
   @override
   void dispose() {
-    titleController.dispose();
-    bodyController.dispose();
+    _titleController.dispose();
+    _bodyController.dispose();
     super.dispose();
   }
 
-  Future<void> sendNotification() async {
-    final title = titleController.text.trim();
-    final body = bodyController.text.trim();
-
-    if (title.isEmpty || body.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a title and message'),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      isLoading = true;
-    });
-
-    try {
-      final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
-          .httpsCallable('sendManualNotification');
-
-      final result = await callable.call({
-        'title': title,
-        'body': body,
-        'targetType': targetType,
-      });
-
-      final sentCount = result.data['sentCount'] ?? 0;
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Notification sent to $sentCount users'),
-        ),
-      );
-
-      titleController.clear();
-      bodyController.clear();
-      setState(() {
-        targetType = 'all_users';
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to send notification: $e'),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
+  String _targetLabel(String value, AppLocalizations l10n) {
+    switch (value) {
+      case 'boutique_owners':
+        return l10n.boutiqueOwners;
+      case 'admins':
+        return l10n.admins;
+      default:
+        return l10n.allUsers;
     }
   }
 
-  InputDecoration inputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: AppTextStyles.bodyMedium.copyWith(
-        color: AppColors.secondaryText,
-      ),
-      filled: true,
-      fillColor: AppColors.field,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(
-          color: AppColors.deepAccent,
-          width: 1,
+  Future<void> _sendNotification() async {
+    final l10n = AppLocalizations.of(context)!;
+    final title = _titleController.text.trim();
+    final body = _bodyController.text.trim();
+
+    if (title.isEmpty || body.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.enterTitleAndMessage)));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('sendManualNotification');
+      final result = await callable.call({
+        'title': title,
+        'body': body,
+        'targetType': _targetType,
+      });
+      final sentCount = result.data['sentCount'] ?? 0;
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.notificationSentToUsers(sentCount.toString())),
         ),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    );
+      );
+      _titleController.clear();
+      _bodyController.clear();
+      setState(() => _targetType = 'all_users');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.failedToSendNotification(e.toString()))),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -139,62 +127,54 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'SEND NOTIFICATION',
+                    Text(
+                      l10n.sendNotificationTitle,
                       style: AppTextStyles.displayMedium,
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Send a custom notification to users, boutique owners, or admins.',
+                    Text(
+                      l10n.sendNotificationSubtitle,
                       style: AppTextStyles.bodyMedium,
                     ),
                     const SizedBox(height: 22),
 
-                    const Text(
-                      'Target',
-                      style: AppTextStyles.labelLarge,
-                    ),
+                    Text(l10n.target, style: AppTextStyles.labelLarge),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      initialValue: targetType,
-                      decoration: inputDecoration('Select target'),
-                      items: targets.map((target) {
-                        return DropdownMenuItem<String>(
-                          value: target['value'],
-                          child: Text(target['label']!),
-                        );
-                      }).toList(),
+                      initialValue: _targetType,
+                      decoration: _inputDecoration(l10n.selectTarget),
+                      items: _targetValues
+                          .map(
+                            (v) => DropdownMenuItem<String>(
+                              value: v,
+                              child: Text(_targetLabel(v, l10n)),
+                            ),
+                          )
+                          .toList(),
                       onChanged: (value) {
                         if (value == null) return;
-                        setState(() {
-                          targetType = value;
-                        });
+                        setState(() => _targetType = value);
                       },
                     ),
 
                     const SizedBox(height: 18),
-                    const Text(
-                      'Title',
+                    Text(
+                      l10n.notificationTitleLabel,
                       style: AppTextStyles.labelLarge,
                     ),
                     const SizedBox(height: 8),
                     TextField(
-                      controller: titleController,
-                      decoration: inputDecoration('Example: New update'),
+                      controller: _titleController,
+                      decoration: _inputDecoration(''),
                     ),
 
                     const SizedBox(height: 18),
-                    const Text(
-                      'Message',
-                      style: AppTextStyles.labelLarge,
-                    ),
+                    Text(l10n.message, style: AppTextStyles.labelLarge),
                     const SizedBox(height: 8),
                     TextField(
-                      controller: bodyController,
+                      controller: _bodyController,
                       maxLines: 5,
-                      decoration: inputDecoration(
-                        'Write the notification message...',
-                      ),
+                      decoration: _inputDecoration(''),
                     ),
 
                     const SizedBox(height: 24),
@@ -202,7 +182,7 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: isLoading ? null : sendNotification,
+                        onPressed: _isLoading ? null : _sendNotification,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.deepAccent,
                           foregroundColor: Colors.white,
@@ -212,19 +192,19 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
                             borderRadius: BorderRadius.zero,
                           ),
                         ),
-                        child: isLoading
+                        child: _isLoading
                             ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.4,
-                            color: Colors.white,
-                          ),
-                        )
-                            : const Text(
-                          'Send Notification',
-                          style: AppTextStyles.button,
-                        ),
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                l10n.sendNotificationButton,
+                                style: AppTextStyles.button,
+                              ),
                       ),
                     ),
                   ],

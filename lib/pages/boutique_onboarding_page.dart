@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
 
@@ -64,10 +65,11 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
 
   // Step 1 — look up user by email
   Future<void> _findUser() async {
+    final l10n = AppLocalizations.of(context)!;
     final email = emailController.text.trim().toLowerCase();
     if (email.isEmpty || !email.contains('@')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid email address')),
+        SnackBar(content: Text(l10n.enterValidEmail)),
       );
       return;
     }
@@ -85,9 +87,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
       if (ownerCheck.docs.isNotEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This user is already a boutique owner'),
-          ),
+          SnackBar(content: Text(l10n.userAlreadyBoutiqueOwner)),
         );
         return;
       }
@@ -102,11 +102,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
       if (userQuery.docs.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'No account found with this email. Ask the owner to sign up first.',
-            ),
-          ),
+          SnackBar(content: Text(l10n.noAccountFoundAskSignup)),
         );
         return;
       }
@@ -128,7 +124,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ).showSnackBar(SnackBar(content: Text('${l10n.error}: $e')));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -136,6 +132,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
 
   // Step 2 — create boutique + owner docs
   Future<void> _createBoutique() async {
+    final l10n = AppLocalizations.of(context)!;
     if (!_formKey.currentState!.validate()) return;
     if (_foundUid == null) return;
 
@@ -184,13 +181,13 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
         builder: (ctx) => AlertDialog(
           backgroundColor: AppColors.background,
           shape: const RoundedRectangleBorder(),
-          title: Text('Done', style: AppTextStyles.headingSmall),
+          title: Text(l10n.done, style: AppTextStyles.headingSmall),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${boutiqueNameController.text.trim()} is now live on LIBSK.',
+                l10n.boutiqueNowLiveOnLibsk(boutiqueNameController.text.trim()),
                 style: AppTextStyles.bodyMedium,
               ),
               const SizedBox(height: 12),
@@ -203,7 +200,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('OWNER', style: AppTextStyles.capsLabel),
+                    Text(l10n.ownerLabel, style: AppTextStyles.capsLabel),
                     const SizedBox(height: 4),
                     Text(_foundName ?? '', style: AppTextStyles.labelLarge),
                     const SizedBox(height: 2),
@@ -214,7 +211,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text('TIER', style: AppTextStyles.capsLabel),
+                    Text(l10n.tierLabel, style: AppTextStyles.capsLabel),
                     const SizedBox(height: 4),
                     Text(selectedTier, style: AppTextStyles.labelLarge),
                   ],
@@ -222,7 +219,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
               ),
               const SizedBox(height: 10),
               Text(
-                'The owner can now log in and access their boutique dashboard.',
+                l10n.ownerCanNowLogin,
                 style: AppTextStyles.bodySmall,
               ),
             ],
@@ -241,7 +238,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                   borderRadius: BorderRadius.zero,
                 ),
               ),
-              child: Text('Done', style: AppTextStyles.button),
+              child: Text(l10n.done, style: AppTextStyles.button),
             ),
           ],
         ),
@@ -250,7 +247,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ).showSnackBar(SnackBar(content: Text('${l10n.error}: $e')));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -295,14 +292,14 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
   Widget _stepIndicator() {
     return Row(
       children: [
-        _stepDot(1, 'Find User'),
+        _stepDot(1, AppLocalizations.of(context)!.findUser),
         Expanded(
           child: Container(
             height: 0.5,
             color: _step >= 2 ? AppColors.deepAccent : AppColors.border,
           ),
         ),
-        _stepDot(2, 'Boutique Details'),
+        _stepDot(2, AppLocalizations.of(context)!.boutiqueDetails),
       ],
     );
   }
@@ -353,6 +350,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -366,12 +364,12 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Boutique Onboarding',
+                      l10n.boutiqueOnboarding,
                       style: AppTextStyles.displayMedium,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Upgrade an existing user account to a boutique owner.',
+                      l10n.upgradeUserToBoutiqueOwner,
                       style: AppTextStyles.bodySmall,
                     ),
                     const SizedBox(height: 20),
@@ -387,21 +385,21 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'FIND ACCOUNT',
+                              l10n.findAccount,
                               style: AppTextStyles.capsLabel,
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Enter the email the boutique owner used to sign up.',
+                              l10n.enterOwnerSignupEmail,
                               style: AppTextStyles.bodySmall,
                             ),
                             const SizedBox(height: 16),
-                            _label('Email Address'),
+                            _label(l10n.emailAddress),
                             TextField(
                               controller: emailController,
                               keyboardType: TextInputType.emailAddress,
                               autocorrect: false,
-                              decoration: _inputDec('owner@example.com'),
+                              decoration: _inputDec(''),
                             ),
                             const SizedBox(height: 16),
                             SizedBox(
@@ -426,10 +424,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                                           color: Colors.white,
                                         ),
                                       )
-                                    : Text(
-                                        'Find Account',
-                                        style: AppTextStyles.button,
-                                      ),
+                                    : Text(l10n.findAccount, style: AppTextStyles.button),
                               ),
                             ),
                           ],
@@ -507,27 +502,25 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'BOUTIQUE DETAILS',
+                                    l10n.boutiqueDetails,
                                     style: AppTextStyles.capsLabel,
                                   ),
                                   const SizedBox(height: 14),
-                                  _label('Boutique Name'),
+                                  _label(l10n.boutique),
                                   TextFormField(
                                     controller: boutiqueNameController,
-                                    decoration: _inputDec('e.g. Maison Rima'),
+                                    decoration: _inputDec(''),
                                     validator: (v) =>
                                         v == null || v.trim().isEmpty
-                                        ? 'Required'
+                                        ? l10n.requiredField
                                         : null,
                                   ),
                                   const SizedBox(height: 14),
-                                  _label('Description (optional)'),
+                                  _label(l10n.descriptionOptional),
                                   TextFormField(
                                     controller: boutiqueDescController,
                                     maxLines: 3,
-                                    decoration: _inputDec(
-                                      'Brief description of the boutique',
-                                    ),
+                                    decoration: _inputDec(''),
                                   ),
                                 ],
                               ),
@@ -541,7 +534,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'SELECT TIER',
+                                    l10n.selectTier,
                                     style: AppTextStyles.capsLabel,
                                   ),
                                   const SizedBox(height: 14),
@@ -608,7 +601,11 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                                                   ),
                                                   const SizedBox(height: 6),
                                                   Text(
-                                                    '${tier['commission']} commission · ${tier['products']} · ${tier['images']}',
+                                                    l10n.tierSummary(
+                                                      tier['commission']!,
+                                                      tier['products']!,
+                                                      tier['images']!,
+                                                    ),
                                                     style:
                                                         AppTextStyles.bodySmall,
                                                   ),
@@ -689,10 +686,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                                                 color: Colors.white,
                                               ),
                                             )
-                                          : Text(
-                                              'Create Boutique',
-                                              style: AppTextStyles.button,
-                                            ),
+                                          : Text(l10n.createBoutique, style: AppTextStyles.button),
                                     ),
                                   ),
                                 ),

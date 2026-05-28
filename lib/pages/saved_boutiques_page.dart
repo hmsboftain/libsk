@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
-import 'boutique_storefront_page.dart';
 import '../widgets/theme.dart';
+import 'boutique_storefront_page.dart';
 
 class SavedBoutiquesPage extends StatefulWidget {
   const SavedBoutiquesPage({super.key});
@@ -22,9 +22,27 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
     _savedBoutiquesStream = FirestoreService.getSavedBoutiquesStream();
   }
 
+  Future<void> _removeBoutique(String boutiqueId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      await FirestoreService.removeSavedBoutique(boutiqueId);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l10n.boutiqueRemovedFromSaved),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(l10n.somethingWentWrong)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -49,7 +67,7 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
                   if (snapshot.hasError) {
                     return Center(
                       child: Text(
-                        loc.failedToLoadSavedBoutiques,
+                        l10n.failedToLoadSavedBoutiques,
                         style: AppTextStyles.bodySmall,
                       ),
                     );
@@ -65,22 +83,20 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // ── Title ──────────────────────────────────
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
                             child: Text(
-                              'Saved Boutiques',
+                              l10n.savedBoutiques,
                               style: AppTextStyles.displayMedium,
                             ),
                           ),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                             child: Text(
-                              'Boutiques you follow',
+                              l10n.boutiquesYouFollow,
                               style: AppTextStyles.bodySmall,
                             ),
                           ),
-
                           const Padding(
                             padding: EdgeInsets.symmetric(horizontal: 16),
                             child: Divider(
@@ -88,9 +104,7 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
                               thickness: 0.5,
                             ),
                           ),
-
                           const SizedBox(height: 12),
-
                           if (docs.isEmpty)
                             SizedBox(
                               height: 400,
@@ -105,7 +119,7 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
                                     ),
                                     const SizedBox(height: 16),
                                     Text(
-                                      loc.noSavedBoutiquesYet,
+                                      l10n.noSavedBoutiquesYet,
                                       style: AppTextStyles.bodyMedium.copyWith(
                                         color: AppColors.secondaryText,
                                       ),
@@ -115,142 +129,29 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
                               ),
                             )
                           else ...[
-                            // ── Count ─────────────────────────────────
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                               child: Text(
-                                '${docs.length} ${docs.length == 1 ? 'boutique' : 'boutiques'}',
+                                l10n.boutiquesCount(docs.length),
                                 style: AppTextStyles.capsLabel,
                               ),
                             ),
-
-                            // ── List ──────────────────────────────────
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                               ),
                               child: Column(
-                                children: docs.map((doc) {
-                                  final boutique = doc.data();
-                                  final String boutiqueId =
-                                      boutique['boutiqueId'] ?? '';
-                                  final String imageUrl =
-                                      boutique['imageUrl'] ?? '';
-                                  final String boutiqueName =
-                                      boutique['boutiqueName'] ?? 'Boutique';
-
-                                  return GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              BoutiqueStorefrontPage(
-                                                boutiqueId: boutiqueId,
-                                              ),
-                                        ),
-                                      );
-                                    },
-                                    child: Container(
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.card,
-                                        border: Border.all(
-                                          color: AppColors.border,
-                                          width: 0.5,
-                                        ),
+                                children: docs
+                                    .map(
+                                      (doc) => _SavedBoutiqueCard(
+                                        doc: doc,
+                                        l10n: l10n,
+                                        onRemove: _removeBoutique,
                                       ),
-                                      child: Column(
-                                        children: [
-                                          // Logo banner
-                                          Container(
-                                            width: double.infinity,
-                                            height: 110,
-                                            color: AppColors.imagePlaceholder,
-                                            child: imageUrl.isNotEmpty
-                                                ? Image.network(
-                                                    imageUrl,
-                                                    width: double.infinity,
-                                                    height: 110,
-                                                    fit: BoxFit.cover,
-                                                    errorBuilder:
-                                                        (_, __, ___) =>
-                                                            const SizedBox(),
-                                                  )
-                                                : null,
-                                          ),
-
-                                          // Info row
-                                          Padding(
-                                            padding: const EdgeInsets.fromLTRB(
-                                              14,
-                                              12,
-                                              14,
-                                              12,
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    boutiqueName,
-                                                    style:
-                                                        AppTextStyles.bodyLarge,
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                GestureDetector(
-                                                  onTap: () async {
-                                                    final messenger =
-                                                        ScaffoldMessenger.of(
-                                                          context,
-                                                        );
-                                                    await FirestoreService.removeSavedBoutique(
-                                                      boutiqueId,
-                                                    );
-                                                    if (!mounted) return;
-                                                    messenger.showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(
-                                                          loc.boutiqueRemovedFromSaved,
-                                                        ),
-                                                        duration:
-                                                            const Duration(
-                                                              seconds: 1,
-                                                            ),
-                                                      ),
-                                                    );
-                                                  },
-                                                  child: Container(
-                                                    width: 28,
-                                                    height: 28,
-                                                    decoration: BoxDecoration(
-                                                      border: Border.all(
-                                                        color: AppColors.border,
-                                                        width: 0.5,
-                                                      ),
-                                                    ),
-                                                    child: const Icon(
-                                                      Icons.favorite,
-                                                      size: 14,
-                                                      color:
-                                                          AppColors.deepAccent,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
+                                    )
+                                    .toList(),
                               ),
                             ),
-
                             const SizedBox(height: 30),
                           ],
                         ],
@@ -258,6 +159,93 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
                     ),
                   );
                 },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Saved boutique card widget ────────────────────────────────────────────────
+
+class _SavedBoutiqueCard extends StatelessWidget {
+  final QueryDocumentSnapshot<Map<String, dynamic>> doc;
+  final AppLocalizations l10n;
+  final Future<void> Function(String boutiqueId) onRemove;
+
+  const _SavedBoutiqueCard({
+    required this.doc,
+    required this.l10n,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final boutique = doc.data();
+    final boutiqueId = boutique['boutiqueId']?.toString() ?? '';
+    final imageUrl = boutique['imageUrl']?.toString() ?? '';
+    final boutiqueName = boutique['boutiqueName']?.toString() ?? l10n.boutique;
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BoutiqueStorefrontPage(boutiqueId: boutiqueId),
+        ),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              height: 110,
+              color: AppColors.imagePlaceholder,
+              child: imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      width: double.infinity,
+                      height: 110,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox(),
+                    )
+                  : null,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      boutiqueName,
+                      style: AppTextStyles.bodyLarge,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: () => onRemove(boutiqueId),
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.border, width: 0.5),
+                      ),
+                      child: const Icon(
+                        Icons.favorite,
+                        size: 14,
+                        color: AppColors.deepAccent,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

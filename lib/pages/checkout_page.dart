@@ -67,7 +67,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final result = await callable.call({
       'items': items,
       'deliveryCost': deliveryCost,
-      'currency': 'usd',
+      'currency': 'kwd',
     });
 
     final data = Map<String, dynamic>.from(result.data as Map);
@@ -211,9 +211,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       if (!mounted) return;
 
       messenger.showSnackBar(
-        _brandedErrorSnackBar(
-          e.error.localizedMessage ?? loc.paymentCancelled,
-        ),
+        _brandedErrorSnackBar(e.error.localizedMessage ?? loc.paymentCancelled),
       );
     } catch (e) {
       debugPrint("PLACE ORDER ERROR: $e");
@@ -226,8 +224,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
       final raw = e is FirebaseFunctionsException
           ? (e.message ?? e.code)
           : e is Exception
-              ? e.toString().replaceFirst('Exception: ', '')
-              : 'Something went wrong. Please try again.';
+          ? e.toString().replaceFirst('Exception: ', '')
+          : 'Something went wrong. Please try again.';
 
       messenger.showSnackBar(_brandedErrorSnackBar(raw));
     } finally {

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
 import 'category_products_page.dart';
@@ -28,6 +29,7 @@ class CategoryBrowsePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -43,12 +45,12 @@ class CategoryBrowsePage extends StatelessWidget {
                     // ── Title ──────────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-                      child: Text('Browse', style: AppTextStyles.displayMedium),
+                      child: Text(l10n.browse, style: AppTextStyles.displayMedium),
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: Text(
-                        'Shop by category across all boutiques',
+                        l10n.shopByCategoryAcrossAllBoutiques,
                         style: AppTextStyles.bodySmall,
                       ),
                     ),
@@ -79,6 +81,7 @@ class CategoryBrowsePage extends StatelessWidget {
                           return _CategoryTile(
                             label: cat['label']!,
                             categoryKey: cat['key'],
+                            allProductsLabel: l10n.allProducts,
                           );
                         },
                       ),
@@ -99,8 +102,13 @@ class CategoryBrowsePage extends StatelessWidget {
 class _CategoryTile extends StatelessWidget {
   final String label;
   final String? categoryKey;
+  final String allProductsLabel;
 
-  const _CategoryTile({required this.label, required this.categoryKey});
+  const _CategoryTile({
+    required this.label,
+    required this.categoryKey,
+    required this.allProductsLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -111,9 +119,9 @@ class _CategoryTile extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => const CategoryProductsPage(
+              builder: (_) => CategoryProductsPage(
                 category: null,
-                displayLabel: 'All Products',
+                displayLabel: allProductsLabel,
               ),
             ),
           );

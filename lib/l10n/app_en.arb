@@ -1,4 +1,5 @@
 {
+  "@@locale": "en",
   "appTitle": "LIBSK",
   "home": "Home",
   "cart": "Cart",
@@ -15,9 +16,32 @@
   "language": "Language",
   "english": "English",
   "arabic": "Arabic",
+  "cancel": "Cancel",
+  "save": "Save",
+  "edit": "Edit",
+  "delete": "Delete",
+  "submit": "Submit",
+  "confirm": "Confirm",
+  "or": "or",
+  "and": "and",
+  "send": "Send",
+  "manage": "Manage",
+  "review": "Review",
+  "onboard": "Onboard",
+  "featured": "Featured",
+  "description": "Description",
+  "boutiqueName": "Boutique Name",
+  "stock": "Stock",
+  "by": "By",
+  "size": "Size:",
+  "done": "Done",
+  "add": "Add",
+  "browse": "Browse",
+  "somethingWentWrong": "Something went wrong",
+  "pullDownToRetry": "Pull down to retry",
+  "error": "Error",
   "accountUpdated": "Account information updated",
   "failedToUpdateAccount": "Failed to update account information",
-  "somethingWentWrong": "Something went wrong",
   "accountInformation": "Account Information",
   "username": "Username",
   "email": "Email",
@@ -28,165 +52,74 @@
   "requiredField": "Required",
   "emailNotEditable": "Email cannot be changed here.",
   "saveChanges": "Save Changes",
-  "addDeliveryAddress": "Add Delivery Address",
-  "firstName": "First Name",
-  "lastName": "Last Name",
-  "governorate": "Governorate",
-  "area": "Area",
-  "block": "Block",
-  "street": "Street",
-  "houseBuilding": "House/Building",
-  "floorOptional": "Floor (Optional)",
-  "apartmentOptional": "Apartment (Optional)",
-  "failedToSaveAddress": "Failed to save address",
-  "addNow": "ADD NOW",
-  "boutiques": "Boutiques",
-  "failedToPickImage": "Failed to pick image",
-  "pleaseSelectImage": "Please select an image",
-  "productAddedSuccessfully": "Product added successfully",
-  "failedToAddProduct": "Failed to add product",
-  "addProduct": "ADD PRODUCT",
-  "createNewProductForBoutique": "Create a new product for your boutique.",
-  "productImage": "Product Image",
-  "tapToUploadImage": "Tap to upload image",
-  "productTitle": "Product Title",
-  "enterProductTitle": "Enter product title",
-  "titleRequired": "Title is required",
-  "description": "Description",
-  "enterProductDescription": "Enter product description",
-  "descriptionRequired": "Description is required",
-  "price": "Price",
-  "priceExample": "Example: 35",
-  "priceRequired": "Price is required",
-  "enterValidPrice": "Enter a valid price",
-  "stock": "Stock",
-  "stockExample": "Example: 10",
-  "stockRequired": "Stock is required",
-  "enterValidStockNumber": "Enter a valid stock number",
-  "sizes": "Sizes",
-  "sizesExample": "Example: S,M,L",
-  "sizesRequired": "Sizes are required",
-  "saveProduct": "Save Product",
-  "exploreRamadanCollection": "Explore Ramadan Collection",
-  "featuredPieces": "Featured Pieces",
-  "failedToLoadFeaturedProducts": "Failed to load featured products",
-  "noFeaturedProductsAvailable": "No featured products available",
-  "untitledProduct": "Untitled Product",
-  "noDescription": "No description",
-  "boutique": "Boutique",
-  "exploreBoutiques": "Explore Boutiques",
-  "failedToLoadBoutiques": "Failed to load boutiques",
-  "noBoutiquesAvailable": "No boutiques available",
-  "loginFailed": "Login failed",
-  "noAccountFoundForThisEmail": "No account found for this email",
-  "incorrectPassword": "Incorrect password",
-  "invalidEmailAddress": "Invalid email address",
-  "incorrectEmailOrPassword": "Incorrect email or password",
-  "welcomeBack": "Welcome Back",
-  "emailAddress": "Email Address",
-  "emailExample": "John.Doe1984@gmail.com",
-  "emailRequired": "Email is required",
-  "enterValidEmail": "Enter a valid email",
-  "password": "Password",
-  "passwordHidden": "*************",
-  "passwordRequired": "Password is required",
-  "minimumSixCharacters": "Minimum 6 characters",
-  "forgotPassword": "Forgot Password?",
+  "editPersonalInformation": "Edit Personal Information",
+  "fullNameLabel": "FULL NAME",
+  "emailAddressLabel": "EMAIL ADDRESS",
+  "securitySection": "SECURITY",
   "signIn": "Sign In",
-  "dontHaveAnAccount": "Don't have an account? ",
   "signUp": "Sign Up",
-  "or": "Or",
+  "createAccount": "Create Account",
+  "logout": "Log Out",
   "continueWithGoogle": "Continue with Google",
-  "signUpFailed": "Sign up failed",
-  "emailAlreadyInUse": "This email is already in use",
-  "passwordTooWeak": "Password is too weak",
-  "firstNameRequired": "First name is required",
-  "lastNameRequired": "Last name is required",
-  "phoneNumberRequired": "Phone number is required",
+  "forgotPassword": "Forgot Password?",
+  "welcomeBack": "Welcome back,",
+  "dontHaveAnAccount": "Don't have an account? ",
+  "signInToViewOrders": "Sign in to view your orders",
+  "signInToViewYourOrders": "Sign in to view your orders",
+  "emailAddress": "Email Address",
+  "emailExample": "email@example.com",
+  "emailRequired": "Email is required",
+  "enterValidEmail": "Please enter a valid email address",
+  "password": "Password",
+  "passwordHidden": "••••••",
+  "passwordRequired": "Password is required",
+  "minimumSixCharacters": "Password must be at least 6 characters",
   "confirmPassword": "Confirm Password",
   "pleaseConfirmYourPassword": "Please confirm your password",
   "passwordsDoNotMatch": "Passwords do not match",
-  "createAccount": "Create Account",
+  "passwordMinLength": "Password must be at least 8 characters",
+  "passwordNeedsUppercase": "Password must contain at least one uppercase letter",
+  "passwordNeedsLowercase": "Password must contain at least one lowercase letter",
+  "passwordNeedsNumber": "Password must contain at least one number",
+  "firstName": "First Name",
+  "lastName": "Last Name",
+  "firstNameRequired": "First name is required",
+  "lastNameRequired": "Last name is required",
+  "phoneNumberRequired": "Phone number is required",
+  "byCreatingAccount": "By creating an account you agree to our ",
+  "termsOfUse": "Terms of Use",
+  "privacyPolicy": "Privacy Policy",
+  "strengthWeak": "Weak",
+  "strengthFair": "Fair",
+  "strengthGood": "Good",
+  "strengthStrong": "Strong",
+  "loginFailed": "Login failed. Please try again.",
+  "signUpFailed": "Sign up failed. Please try again.",
+  "emailAlreadyInUse": "An account already exists with this email.",
+  "invalidEmailAddress": "Invalid email address",
+  "passwordTooWeak": "Password is too weak",
+  "noAccountFoundForThisEmail": "No account found for this email.",
+  "incorrectPassword": "Incorrect password.",
+  "incorrectEmailOrPassword": "Incorrect email or password.",
   "passwordResetEmailSent": "Password reset email sent",
   "couldNotSendResetEmail": "Could not send reset email",
   "enterEmailForResetLink": "Enter your email address and we will send you a password reset link.",
   "enterYourEmailAddress": "Enter your email address",
   "sendResetLink": "SEND RESET LINK",
-  "failedToLoadSearchResults": "Failed to load search results",
-  "searchProductsOrBoutiques": "Search products or boutiques",
-  "products": "Products",
-  "noMatchingProductsFound": "No matching products found.",
-  "noMatchingBoutiquesFound": "No matching boutiques found.",
-  "itemSaved": "Item saved",
-  "itemRemovedFromSavedItems": "Item removed from saved items",
-  "thisProductIsOutOfStock": "This product is out of stock",
-  "pleaseSelectASize": "Please select a size",
-  "itemAddedToCart": "Item added to cart",
-  "by": "By",
-  "inStock": "In stock",
-  "outOfStock": "Out of stock",
-  "size": "Size:",
-  "noSizesAvailable": "No sizes available",
-  "productDetails": "Product Details",
-  "materialCare": "Material & Care",
-  "sizeFit": "Size & Fit",
-  "materialAndCareDetailsCanBeAddedLater": "Material and care details can be added later by the boutique owner.",
-  "availableSizes": "Available sizes:",
-  "noSizeInformationAvailable": "No size information available.",
-  "itemRemovedFromCart": "Item removed from cart",
-  "yourCartIsEmpty": "Your cart is empty",
-  "subtotal": "SUBTOTAL",
-  "shippingChargesAndDiscountCodesCalculatedAtCheckout": "*shipping charges and discount codes\nare calculated at checkout.",
-  "checkoutButton": "CHECKOUT",
-  "pleaseLogInToContinueToCheckout": "Please log in to continue to checkout",
   "user": "User",
-  "noEmail": "No email",
-  "couldNotLoadCart": "Could not load cart",
-  "accountDetails": "ACCOUNT DETAILS",
-  "couldNotLoadSavedAddresses": "Could not load saved addresses",
-  "deliveryMethod": "DELIVERY METHOD",
-  "regularDelivery": "Regular Delivery",
-  "sameDayDelivery": "Same Day Delivery",
-  "paymentMethod": "PAYMENT METHOD",
-  "card": "Card",
-  "delivery": "DELIVERY",
-  "pleaseAddADeliveryAddress": "Please add a delivery address",
-  "paymentCancelled": "Payment cancelled",
-  "error": "Error",
-  "placingOrder": "PLACING ORDER...",
-  "changeDeliveryAddress": "Change Delivery Address",
-  "house": "House",
   "customer": "Customer",
-  "orderConfirmation": "Order Confirmation",
-  "yourPaymentWasSuccessful": "Your payment was successful",
-  "orderNumberLabel": "Order Number:",
-  "dateLabel": "Date:",
-  "thankYou": "Thank you",
-  "backToHome": "BACK TO HOME",
-  "signInToViewYourOrders": "Sign in to view your orders",
-  "orderHistoryWillAppearWhenLoggedIn": "Your order history will appear here once you're logged in.",
-  "couldNotLoadOrders": "Could not load orders",
-  "noPastOrdersYet": "No past orders yet",
-  "completedOrdersWillAppearHere": "Your completed orders will appear here.",
-  "orderLabel": "Order",
-  "statusLabel": "Status:",
-  "itemsOrdered": "Items Ordered",
-  "quantityLabel": "Quantity:",
-  "subtotalNormal": "Subtotal",
-  "accountSection": "ACCOUNT",
+  "noEmail": "No email",
   "yourAccount": "Your Account",
-  "savedItems": "Saved Items",
-  "savedBoutiques": "Saved Boutiques",
-  "savedAddresses": "Saved Addresses",
-  "adminSection": "ADMIN",
-  "superAdminDashboard": "Super Admin Dashboard",
-  "adminPanel": "Admin Panel",
-  "boutiqueSection": "BOUTIQUE",
-  "boutiqueDashboard": "Boutique Dashboard",
-  "supportSection": "SUPPORT",
-  "helpSupport": "Help & Support",
-  "logout": "Logout",
+  "accountSection": "ACCOUNT",
   "changePassword": "Change Password",
+  "deleteAccount": "Delete Account",
+  "deleteAccountConfirm": "Are you sure you want to permanently delete your account? This action cannot be undone.",
+  "deleteAccountConfirmation": "Are you sure you want to permanently delete your account? This action cannot be undone.",
+  "deleteAccountButton": "Delete",
+  "deleteButton": "Delete",
+  "confirmPasswordTitle": "Confirm Password",
+  "confirmPasswordDescription": "Please enter your password to confirm account deletion.",
+  "confirmButton": "Confirm",
   "passwordUpdatedSuccessfully": "Password updated successfully",
   "failedToChangePassword": "Failed to change password",
   "currentPasswordIncorrect": "Current password is incorrect",
@@ -196,30 +129,848 @@
   "confirmNewPasswordLabel": "CONFIRM NEW PASSWORD",
   "newPasswordMustBeDifferent": "New password must be different",
   "updatePassword": "UPDATE PASSWORD",
-  "somethingWentWrongWhileLoadingAddresses": "Something went wrong while loading addresses",
-  "noSavedAddressesYet": "No saved addresses yet",
-  "addressRemoved": "Address removed",
-  "floor": "Floor",
-  "apartment": "Apartment",
-  "phone": "Phone",
-  "addNewAddress": "ADD NEW ADDRESS",
-  "failedToLoadSavedItems": "Something went wrong while loading saved items",
-  "noSavedItemsYet": "No saved items yet",
-  "itemRemovedFromSaved": "Item removed from saved items",
-  "failedToLoadSavedBoutiques": "Something went wrong while loading saved boutiques",
-  "noSavedBoutiquesYet": "No saved boutiques yet",
-  "boutiqueRemovedFromSaved": "Boutique removed from saved boutiques",
+  "savedItems": "Saved Items",
+  "savedBoutiques": "Saved Boutiques",
+  "savedAddresses": "Saved Addresses",
+  "adminSection": "ADMIN",
+  "superAdminDashboard": "Super Admin Dashboard",
+  "adminPanel": "Admin Panel",
+  "boutiqueSection": "BOUTIQUE",
+  "boutiqueDashboard": "Boutique Dashboard",
   "languages": "LANGUAGES",
-  "deleteAccount": "Delete Account",
-  "deleteAccountConfirm": "Are you sure you want to permanently delete your account? This action cannot be undone.",
-  "deleteAccountButton": "Delete",
-  "confirmPassword": "Confirm Password",
-  "confirmPasswordDescription": "Please enter your password to confirm account deletion.",
-  "cancel": "Cancel",
-  "confirm": "Confirm",
+  "supportSection": "SUPPORT",
+  "helpSupport": "Help & Support",
   "appearance": "APPEARANCE",
   "darkMode": "Dark Mode",
   "systemDefault": "System Default",
   "light": "Light",
-  "dark": "Dark"
+  "dark": "Dark",
+  "myOrders": "My Orders",
+  "orderNumber": "Order #{n}",
+  "@orderNumber": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "orderDate": "Date: {date}",
+  "@orderDate": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "orderLabel": "Order",
+  "orderNumberLabel": "Order Number:",
+  "dateLabel": "Date:",
+  "statusLabel": "Status: {status}",
+  "@statusLabel": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "statusPlaced": "Placed",
+  "statusConfirmed": "Confirmed",
+  "statusOnTheWay": "On the Way",
+  "statusDelivered": "Delivered",
+  "statusCancelled": "Cancelled",
+  "itemsOrdered": "Items Ordered",
+  "subtotal": "Subtotal",
+  "subtotalNormal": "Subtotal",
+  "noPastOrdersYet": "No past orders yet",
+  "completedOrdersWillAppearHere": "Completed orders will appear here.",
+  "trackYourRecentPurchases": "Track your recent purchases",
+  "orderHistoryWillAppearWhenLoggedIn": "Your order history will appear here once you're logged in.",
+  "couldNotLoadOrders": "Could not load orders",
+  "orderStatus": "Order Status",
+  "placedOrders": "Placed Orders",
+  "processingOrders": "Processing Orders",
+  "shippedOrders": "Shipped Orders",
+  "deliveredOrders": "Delivered Orders",
+  "sizeLabel": "Size: {size}",
+  "@sizeLabel": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "quantityLabel": "Qty: {qty}",
+  "@quantityLabel": {
+    "placeholders": {
+      "qty": {
+        "type": "String"
+      }
+    }
+  },
+  "colourLabel": "Colour: {color}",
+  "@colourLabel": {
+    "placeholders": {
+      "color": {
+        "type": "String"
+      }
+    }
+  },
+  "disputeAlreadySubmitted": "You have already submitted a dispute for this order.",
+  "disputeOrder": "Dispute Order",
+  "disputeWindowPassed": "The 7-day dispute window has passed.",
+  "disputeWrongItem": "Wrong item received",
+  "disputeDamagedItem": "Item is damaged",
+  "disputeNotDelivered": "Not delivered",
+  "disputeOther": "Other",
+  "submitDispute": "Submit Dispute",
+  "disputeIssueQuestion": "What's the issue with your order?",
+  "additionalDetailsOptional": "Additional details (optional)",
+  "disputeSubmittedReviewSoon": "Dispute submitted. We'll review it soon.",
+  "failedToSubmitDispute": "Failed to submit dispute",
+  "orderConfirmation": "Order Confirmation",
+  "yourPaymentWasSuccessful": "Your payment was successful",
+  "thankYou": "Thank you",
+  "thankYouWithName": "Thank you, {name}",
+  "@thankYouWithName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "backToHome": "Back to Home",
+  "yourCartIsEmpty": "Your cart is empty",
+  "itemRemovedFromCart": "Item removed from cart",
+  "shippingChargesAndDiscountCodesCalculatedAtCheckout": "Shipping charges and discount codes are calculated at checkout",
+  "checkoutButton": "Checkout",
+  "pleaseLogInToContinueToCheckout": "Please log in to continue to checkout",
+  "couldNotLoadCart": "Could not load cart",
+  "accountDetails": "ACCOUNT DETAILS",
+  "deliveryMethod": "DELIVERY METHOD",
+  "regularDelivery": "Regular Delivery",
+  "sameDayDelivery": "Same Day Delivery",
+  "paymentMethod": "PAYMENT METHOD",
+  "card": "Card",
+  "delivery": "DELIVERY",
+  "pleaseAddADeliveryAddress": "Please add a delivery address",
+  "paymentCancelled": "Payment cancelled",
+  "placingOrder": "PLACING ORDER...",
+  "changeDeliveryAddress": "Change Delivery Address",
+  "house": "House",
+  "products": "Products",
+  "addProduct": "Add Product",
+  "editProduct": "Edit Product",
+  "deleteProduct": "Delete Product",
+  "deleteProductConfirm": "Are you sure you want to delete this product? This action cannot be undone.",
+  "productDeleted": "Product deleted",
+  "failedToDeleteProduct": "Failed to delete product",
+  "failedToLoadProducts": "Failed to load products",
+  "noMatchingProductsFound": "No matching products found",
+  "noMatchingBoutiquesFound": "No matching boutiques found.",
+  "noDescriptionAddedYet": "No description added yet.",
+  "untitledProduct": "Untitled Product",
+  "noDescription": "No description",
+  "productAddedSuccessfully": "Product added successfully",
+  "failedToAddProduct": "Failed to add product",
+  "createNewProductForBoutique": "Create a new product for your boutique.",
+  "productImage": "Product Image",
+  "tapToUploadImage": "Tap to upload image",
+  "productImages": "Product images",
+  "tapToUploadImages": "Tap to upload product images",
+  "productTitle": "Product Title",
+  "enterProductTitle": "Enter product title",
+  "titleRequired": "Title is required",
+  "enterProductDescription": "Enter product description",
+  "descriptionRequired": "Description is required",
+  "price": "Price",
+  "priceExample": "Example: 35",
+  "priceRequired": "Price is required",
+  "enterValidPrice": "Enter a valid price",
+  "stockExample": "Example: 10",
+  "stockRequired": "Stock is required",
+  "enterValidStockNumber": "Enter a valid stock number",
+  "stockLabel": "Stock: {value}",
+  "@stockLabel": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "stockLeft": "{count} left",
+  "@stockLeft": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "inStock": "{count} in stock",
+  "@inStock": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "inStockWithCount": "In Stock: {count}",
+  "@inStockWithCount": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "outOfStock": "Out of stock",
+  "soldOut": "Sold Out",
+  "noSalesYet": "No sales yet",
+  "noProductsFound": "No products found",
+  "noProductsAvailableYet": "No products available yet",
+  "noFeaturedProductsAvailable": "No featured products available",
+  "failedToLoadFeaturedProducts": "Failed to load featured products",
+  "noProductNotesYet": "No product notes yet.",
+  "lowStock": "Low Stock",
+  "lowStockSubtitle": "Low stock",
+  "stockLooksGood": "Stock looks good",
+  "sizes": "Sizes",
+  "sizesExample": "Example: S,M,L",
+  "sizesRequired": "Sizes are required",
+  "saveProduct": "Save Product",
+  "sizeSection": "SIZE",
+  "noSizesAvailable": "No sizes available",
+  "sizesAndStock": "Sizes & stock",
+  "addEachSizeWithStockCount": "Add each size with its own stock count",
+  "sizeHint": "Size (e.g. S, M, 38)",
+  "addSize": "Add size",
+  "sizeStockEntry": "{sizeName} — {stock} in stock",
+  "@sizeStockEntry": {
+    "placeholders": {
+      "sizeName": {
+        "type": "String"
+      },
+      "stock": {
+        "type": "String"
+      }
+    }
+  },
+  "productDetails": "Product Details",
+  "materialCare": "Material & Care",
+  "materialCareDetails": "Material and care details can be added later.",
+  "materialAndCareDetailsCanBeAddedLater": "Material and care details can be added later by the boutique owner.",
+  "sizeFit": "Size & Fit",
+  "availableSizes": "Available sizes:",
+  "availableSizesText": "Available sizes: {sizes}",
+  "@availableSizesText": {
+    "placeholders": {
+      "sizes": {
+        "type": "String"
+      }
+    }
+  },
+  "noSizeInformationAvailable": "No size information available.",
+  "colours": "COLOURS",
+  "addAColour": "Add a colour",
+  "madeToOrder": "Made to order",
+  "madeToOrderSubtitle": "Enable if this item is produced after purchase",
+  "deliveryTimeframe": "Delivery timeframe",
+  "deliveryTimeframeHint": "e.g. 7–10 business days",
+  "atLeastOneImageRequired": "Please add at least one product image",
+  "atLeastOneCategoryRequired": "Please select at least one category",
+  "atLeastOneSizeRequired": "Please add at least one size",
+  "deliveryTimeframeRequired": "Please enter a delivery timeframe",
+  "enterSizeName": "Please enter a size name",
+  "enterValidStock": "Please enter a valid stock number",
+  "categories": "Categories",
+  "selectAllThatApply": "Select all that apply",
+  "pleaseSelectASize": "Please select a size",
+  "pleaseSelectAColour": "Please select a colour",
+  "itemSaved": "Item saved",
+  "itemRemovedFromSavedItems": "Removed from saved items",
+  "itemRemovedFromSaved": "Removed from saved",
+  "itemAddedToCart": "Item added to cart",
+  "thisProductIsOutOfStock": "This product is out of stock",
+  "byBoutique": "by {boutiqueName}",
+  "@byBoutique": {
+    "placeholders": {
+      "boutiqueName": {
+        "type": "String"
+      }
+    }
+  },
+  "boutique": "Boutique",
+  "boutiques": "Boutiques",
+  "myBoutique": "My Boutique",
+  "myBoutiqueDescription": "View and manage your boutique details.",
+  "myBoutiqueDefault": "My Boutique",
+  "editBoutique": "Edit Boutique",
+  "logoImage": "Logo Image",
+  "bannerImage": "Banner Image",
+  "failedToLoadBoutique": "Failed to load boutique",
+  "failedToLoadBoutiques": "Failed to load boutiques",
+  "imageCouldNotLoad": "Image could not load",
+  "noImageUploaded": "No image uploaded",
+  "noBoutiqueFound": "No boutique found",
+  "noBoutiquesAvailable": "No boutiques available",
+  "boutiqueNotFound": "Boutique not found",
+  "boutiqueNoLongerAvailable": "This boutique is no longer available.",
+  "exploreBoutiques": "Explore Boutiques",
+  "boutiquesYouFollow": "Boutiques you follow",
+  "boutiquesCount": "{count} boutiques",
+  "@boutiquesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noBoutiquesFound": "No boutiques found",
+  "noSavedBoutiquesYet": "No saved boutiques yet",
+  "failedToLoadSavedBoutiques": "Failed to load saved boutiques",
+  "boutiqueRemovedFromSaved": "Boutique removed from saved",
+  "boutiquesAndProducts": "Boutiques & products",
+  "noDescriptionAvailable": "No description available.",
+  "soldCount": "{count} sold",
+  "@soldCount": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "productsCount": "{count} products",
+  "@productsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noSavedItemsYet": "No saved items yet",
+  "failedToLoadSavedItems": "Failed to load saved items",
+  "yourCuratedWishlist": "Your curated wishlist",
+  "addDeliveryAddress": "Add Delivery Address",
+  "governorate": "Governorate",
+  "area": "Area",
+  "block": "Block",
+  "street": "Street",
+  "houseBuilding": "House/Building",
+  "floorOptional": "Floor (Optional)",
+  "apartmentOptional": "Apartment (Optional)",
+  "failedToSaveAddress": "Failed to save address",
+  "floor": "Floor",
+  "apartment": "Apartment",
+  "phone": "Phone",
+  "somethingWentWrongWhileLoadingAddresses": "Something went wrong while loading addresses",
+  "noSavedAddressesYet": "No saved addresses yet.",
+  "addressRemoved": "Address removed",
+  "failedToRemoveAddress": "Failed to remove address",
+  "addNewAddress": "Add New Address",
+  "addNow": "ADD NOW",
+  "couldNotLoadSavedAddresses": "Could not load saved addresses",
+  "blockStreetLine": "Block {block}, Street {street}",
+  "@blockStreetLine": {
+    "placeholders": {
+      "block": {
+        "type": "String"
+      },
+      "street": {
+        "type": "String"
+      }
+    }
+  },
+  "houseBuildingValue": "House/Building: {value}",
+  "@houseBuildingValue": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "floorValue": "Floor: {value}",
+  "@floorValue": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "apartmentValue": "Apartment: {value}",
+  "@apartmentValue": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "phoneValue": "Phone: {value}",
+  "@phoneValue": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "searchHint": "Search products, boutiques...",
+  "searchForProductsOrBoutiques": "Search for products or boutiques",
+  "searchProductsOrBoutiques": "Search products or boutiques",
+  "searchBoutiquesHint": "Search boutiques...",
+  "failedToLoadSearchResults": "Failed to load search results",
+  "productsTab": "PRODUCTS",
+  "boutiquesTab": "BOUTIQUES",
+  "productsTabWithCount": "PRODUCTS ({count})",
+  "@productsTabWithCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "boutiquesTabWithCount": "BOUTIQUES ({count})",
+  "@boutiquesTabWithCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "itemsCount": "{count} items",
+  "@itemsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noMatchingBoutiquesFound2": "No matching boutiques found.",
+  "shopByCategoryAcrossAllBoutiques": "Shop by category across all boutiques",
+  "allProducts": "All Products",
+  "sortNewest": "Newest",
+  "sortOldest": "Oldest",
+  "sortPriceLow": "Price ↑",
+  "sortPriceHigh": "Price ↓",
+  "featuredPieces": "Featured Pieces",
+  "topBoutiques": "Top Boutiques",
+  "exploreRamadanCollection": "Explore Ramadan Collection",
+  "curatedIndependentLabels": "Curated independent labels",
+  "failedToPickImage": "Failed to pick image",
+  "pleaseSelectImage": "Please select an image",
+  "welcomeBack2": "Welcome back,",
+  "ownerFallback": "Owner",
+  "dashboardDescription": "Manage your boutique, products, and sales from one place.",
+  "todaysSales": "Today's Sales",
+  "updatedFromRealOrders": "Updated from real orders",
+  "noSalesToday": "No sales today",
+  "activeListings": "Active listings",
+  "ordersCountSubtitle": "{count} total orders",
+  "@ordersCountSubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "needsRestock": "Needs restock",
+  "needRestock": "Need restock",
+  "salesOverview": "Sales Overview",
+  "weeklySales": "Weekly Sales",
+  "weeklySalesDescription": "Based on real order totals from the last 7 days.",
+  "dayMon": "Mon",
+  "dayTue": "Tue",
+  "dayWed": "Wed",
+  "dayThu": "Thu",
+  "dayFri": "Fri",
+  "daySat": "Sat",
+  "daySun": "Sun",
+  "quickActions": "Quick Actions",
+  "viewBoutiqueDetails": "View boutique details",
+  "myProducts": "My Products",
+  "manageProductList": "Manage product list",
+  "createANewListing": "Create a new listing",
+  "trackIncomingSales": "Track incoming sales",
+  "inventoryNotes": "Inventory Notes",
+  "failedToLoadDashboard": "Failed to load dashboard",
+  "analytics": "Analytics",
+  "marketplacePerformanceOverview": "Marketplace performance overview",
+  "marketplaceActivityOverview": "Overview of your marketplace activity.",
+  "failedToLoadAnalytics": "Failed to load analytics",
+  "allTime": "All time",
+  "today": "Today",
+  "thisWeek": "This week",
+  "thisMonth": "This month",
+  "totalRevenue": "Total Revenue",
+  "totalOrders": "Total Orders",
+  "ordersInSelectedPeriod": "Orders in selected period",
+  "averageOrderValue": "Average Order Value",
+  "revenueDividedByOrderCount": "Revenue ÷ order count",
+  "topBoutique": "Top Boutique",
+  "basedOnTotalSales": "Based on total sales",
+  "amountKwd": "{amount} KWD",
+  "@amountKwd": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "superAdmin": "SUPER ADMIN",
+  "overview": "Overview",
+  "totalUsers": "Total Users",
+  "allRegisteredUsers": "All registered users",
+  "recentlyActive": "Recently Active",
+  "seenInLast5Min": "Seen in last 5 min",
+  "allBoutiques": "All Boutiques",
+  "allBoutiqueDocuments": "All boutique documents",
+  "globalOrders": "Global Orders",
+  "acrossAllBoutiques": "Across all boutiques",
+  "totalSales": "Total Sales",
+  "tapToViewBoutiqueSales": "Tap to view boutique sales",
+  "userManagement": "User Management",
+  "regularUsers": "Regular Users",
+  "customerAccounts": "Customer accounts",
+  "boutiqueOwners": "Boutique Owners",
+  "ownerAccounts": "Owner accounts",
+  "admins": "Admins",
+  "adminAccounts": "Admin accounts",
+  "fullAccessAccount": "Full access account",
+  "marketplaceControl": "Marketplace Control",
+  "homepage": "Homepage",
+  "heroBanners": "Hero Banners",
+  "uploadAndScheduleBanners": "Upload & schedule banners",
+  "disputes": "Disputes",
+  "customerOrderDisputes": "Customer order disputes",
+  "notifications": "Notifications",
+  "messageUsers": "Message users",
+  "reports": "Reports",
+  "viewInsights": "View insights",
+  "revenue": "Revenue",
+  "breakdown": "Breakdown",
+  "commissionsAndSubscriptions": "Commissions & subscriptions",
+  "boutiqueManagement": "Boutique Management",
+  "boutiqueOnboarding": "Boutique Onboarding",
+  "boutiqueOnboardingSubtitle": "Register a new boutique owner with tier selection",
+  "findUser": "Find User",
+  "boutiqueDetails": "Boutique Details",
+  "upgradeUserToBoutiqueOwner": "Upgrade an existing user account to a boutique owner.",
+  "findAccount": "Find Account",
+  "enterOwnerSignupEmail": "Enter the email the boutique owner used to sign up.",
+  "userAlreadyBoutiqueOwner": "This user is already a boutique owner",
+  "noAccountFoundAskSignup": "No account found with this email. Ask the owner to sign up first.",
+  "ownerLabel": "OWNER",
+  "tierLabel": "TIER",
+  "ownerCanNowLogin": "The owner can now log in and access their boutique dashboard.",
+  "boutiqueNowLiveOnLibsk": "{boutiqueName} is now live on LIBSK.",
+  "@boutiqueNowLiveOnLibsk": {
+    "placeholders": {
+      "boutiqueName": {
+        "type": "String"
+      }
+    }
+  },
+  "descriptionOptional": "Description (optional)",
+  "selectTier": "SELECT TIER",
+  "commission": "commission",
+  "createBoutique": "Create Boutique",
+  "tierSummary": "{commission} commission · {products} · {images}",
+  "@tierSummary": {
+    "placeholders": {
+      "commission": {
+        "type": "String"
+      },
+      "products": {
+        "type": "String"
+      },
+      "images": {
+        "type": "String"
+      }
+    }
+  },
+  "cropBanner": "Crop Banner",
+  "selectBannerImage": "Please select a banner image",
+  "bannerUploadedSuccessfully": "Banner uploaded successfully",
+  "uploadFailed": "Upload failed",
+  "deleteBanner": "Delete Banner",
+  "confirmDeleteBanner": "Are you sure you want to remove this banner?",
+  "bannerRemoved": "Banner removed",
+  "manageHomepageBanners": "Manage homepage rotating banners.",
+  "noActiveBanners": "No active banners",
+  "livePreview": "LIVE PREVIEW",
+  "allBanners": "ALL BANNERS",
+  "noBannersAddedYet": "No banners added yet",
+  "untitled": "Untitled",
+  "activeCaps": "ACTIVE",
+  "hiddenCaps": "HIDDEN",
+  "addNewBanner": "ADD NEW BANNER",
+  "bannerImageGuideline": "Images are cropped to 16:9 ratio. Recommended size: 1920×1080px. The banner displays at full width, 300px tall on the home screen.",
+  "changeCaps": "CHANGE",
+  "tapToSelectCropBannerImage": "Tap to select & crop banner image",
+  "willBeCroppedToRatio": "Will be cropped to 16:9",
+  "bannerTitleOptional": "Banner title (optional)",
+  "subtitleOptional": "Subtitle (optional)",
+  "exactHomePreview": "↑ Exact preview of how it appears on the home screen",
+  "uploadBannerButton": "Upload Banner",
+  "sendNotificationTitle": "Send Notification",
+  "sendNotificationSubtitle": "Send a push notification to your users.",
+  "target": "Target",
+  "selectTarget": "Select target",
+  "allUsers": "All Users",
+  "notificationTitleLabel": "Notification Title",
+  "message": "Message",
+  "sendNotificationButton": "Send Notification",
+  "enterTitleAndMessage": "Please enter a title and message",
+  "notificationSentToUsers": "Notification sent to {count} users",
+  "@notificationSentToUsers": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "failedToSendNotification": "Failed to send notification: {error}",
+  "@failedToSendNotification": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "libskTagline": "Shop Local. Dress Global.",
+  "libskDescription": "LIBSK is Kuwait's fashion marketplace connecting shoppers with the best independent local boutiques, all in one place. Browse, order, and receive from your favourite Kuwait brands with ease.",
+  "howCanWeHelpYouToday": "How can we help you today?",
+  "contactUs": "CONTACT US",
+  "emailSupport": "Email Support",
+  "sendAMessage": "SEND A MESSAGE",
+  "yourName": "Your name",
+  "yourEmail": "Your email",
+  "describeYourIssue": "Describe your issue or question",
+  "sendMessage": "Send Message",
+  "messageSentSuccessfully": "Your message has been sent. We will get back to you shortly.",
+  "fillAllFields": "Please fill in all fields",
+  "helpTopicOrders": "Orders",
+  "helpTopicDelivery": "Delivery",
+  "helpTopicReturns": "Returns",
+  "helpTopicPayment": "Payment",
+  "helpTopicAccount": "Account",
+  "helpTopicBoutiques": "Boutiques",
+  "helpOrdersQ1": "How do I track my order?",
+  "helpOrdersA1": "Once your order is placed, you can track it from the Orders section in your profile. You will see real-time status updates as your order is processed and delivered.",
+  "helpOrdersQ2": "Can I cancel my order?",
+  "helpOrdersA2": "Orders can be cancelled within 1 hour of placement. After that, the boutique may have already begun processing it. Contact us immediately if you need to cancel.",
+  "helpOrdersQ3": "My order shows delivered but I have not received it.",
+  "helpOrdersA3": "Please check with neighbours or building reception first. If the item is still missing, contact our support team within 48 hours and we will investigate.",
+  "helpOrdersQ4": "How do I open a dispute?",
+  "helpOrdersA4": "You have 7 days from the delivery date to open a dispute. Go to your Orders, select the relevant order, and tap Open Dispute. Describe your issue and submit. Please note that boutique owners and admins have the right to review and reject disputes based on the nature and validity of the claim.",
+  "helpDeliveryQ1": "What areas do you deliver to?",
+  "helpDeliveryA1": "We currently deliver across all governorates in Kuwait including Capital, Hawalli, Farwaniya, Ahmadi, Jahra, and Mubarak Al-Kabeer.",
+  "helpDeliveryQ2": "How long does delivery take?",
+  "helpDeliveryA2": "Delivery times depend on the delivery type you select and your location. Standard delivery typically takes 2 to 4 business days. Same-day delivery is available for select areas.",
+  "helpDeliveryQ3": "How much does delivery cost?",
+  "helpDeliveryA3": "Delivery fees depend on the type of delivery selected and the delivery area. The exact fee will be shown at checkout before you confirm your order.",
+  "helpReturnsQ1": "What is the return policy?",
+  "helpReturnsA1": "LIBSK has a 7-day return window from the date of delivery. Return eligibility may also depend on the individual boutique requirements. Please check the boutique storefront for any additional conditions before purchasing.",
+  "helpReturnsQ2": "How do I return an item?",
+  "helpReturnsA2": "To initiate a return, go to your Orders, select the item, and tap Request Return. Our team will coordinate with the boutique on your behalf.",
+  "helpReturnsQ3": "How long do refunds take?",
+  "helpReturnsA3": "Once a return is approved, refunds are processed within 5 to 7 business days depending on your payment method.",
+  "helpPaymentQ1": "What payment methods are accepted?",
+  "helpPaymentA1": "We accept KNet, Visa, Mastercard, Apple Pay, debit cards, credit cards, and Deema.",
+  "helpPaymentQ2": "Is my payment information secure?",
+  "helpPaymentA2": "Yes. We do not store any card details. All transactions are processed through secure, encrypted payment gateways.",
+  "helpPaymentQ3": "I was charged but my order was not placed.",
+  "helpPaymentA3": "This can happen due to a connection issue. Please contact us immediately with your payment reference and we will resolve it within 24 hours.",
+  "helpAccountQ1": "How do I change my password?",
+  "helpAccountA1": "Go to Profile, tap Your Account, then tap Change Password. You will receive a reset link to your registered email.",
+  "helpAccountQ2": "How do I update my delivery address?",
+  "helpAccountA2": "Go to Profile, then Saved Addresses. You can add, edit, or remove addresses at any time.",
+  "helpAccountQ3": "How do I delete my account?",
+  "helpAccountA3": "You can delete your account from the Profile page under Your Account settings. Account deletion is permanent and cannot be undone.",
+  "helpBoutiquesQ1": "How do I become a boutique owner on LIBSK?",
+  "helpBoutiquesA1": "Send us an email at boutiques@libsk.com with details about your boutique. Our team will review your application and get back to you within 3 business days.",
+  "helpBoutiquesQ2": "Can I save a boutique to view later?",
+  "helpBoutiquesA2": "Yes. Tap the save icon on any boutique storefront to add it to your Saved Boutiques in your profile.",
+  "helpBoutiquesQ3": "A boutique is not responding to my order.",
+  "helpBoutiquesA3": "If a boutique has not updated your order status within 48 hours, contact our support team and we will follow up on your behalf.",
+  "homepageControl": "Homepage Control",
+  "homepageControlDescription": "Manage featured boutiques and products on the home screen.",
+  "homepageBoutiques": "Homepage Boutiques",
+  "homepageBoutiquesDescription": "Boutiques shown in the top carousel.",
+  "noOrderSet": "No order set",
+  "featuredProducts": "Featured Products",
+  "featuredProductsDescription": "Products shown in the featured section.",
+  "thisYear": "This Year",
+  "revenueBreakdown": "Revenue Breakdown",
+  "revenueBreakdownDescription": "Commissions, subscriptions, and promotional slots.",
+  "commissions": "Commissions",
+  "commissionsSubtitle": "From completed orders",
+  "subscriptions": "Subscriptions",
+  "subscriptionsSubtitle": "Boutique tier subscriptions",
+  "promoSlots": "Promo Slots",
+  "promoSlotsSubtitle": "Paid placement revenue",
+  "promoSlotTypes": "Promo Slot Types",
+  "homepageBanner": "Homepage Banner",
+  "promoHomepageBannerPricing": "From 50 KWD/week",
+  "featuredBoutiques": "Featured Boutiques",
+  "promoFeaturedBoutiquesPricing": "From 30 KWD/week",
+  "promoFeaturedProductsPricing": "From 20 KWD/week",
+  "searchPlacement": "Search Placement",
+  "promoSearchPlacementPricing": "From 15 KWD/week",
+  "unknownOwner": "Unknown owner",
+  "failedToLoadBoutiqueOverview": "Failed to load boutique overview",
+  "totalProducts": "Total products",
+  "boutiqueOrders": "Boutique orders",
+  "sales": "Sales",
+  "totalBoutiqueSales": "Total boutique sales",
+  "ownerDetails": "Owner Details",
+  "ownerName": "Owner name",
+  "ownerEmail": "Owner email",
+  "ownerUid": "Owner UID",
+  "openStorefront": "Open Storefront",
+  "cropLogo": "Crop Logo",
+  "failedToPickLogoImage": "Failed to pick logo image",
+  "failedToPickBannerImage": "Failed to pick banner image",
+  "boutiqueUpdatedSuccessfully": "Boutique updated successfully",
+  "failedToUpdateBoutique": "Failed to update boutique",
+  "editBoutiqueDescription": "Update your boutique name, description, and images.",
+  "enterBoutiqueName": "Enter boutique name",
+  "boutiqueNameRequired": "Boutique name is required",
+  "enterBoutiqueDescription": "Enter boutique description",
+  "tapToUploadLogo": "Tap to upload logo",
+  "logoCouldNotLoad": "Logo could not load",
+  "tapToUploadBanner": "Tap to upload banner",
+  "bannerCouldNotLoad": "Banner could not load",
+  "failedToPickImages": "Failed to pick images",
+  "productMustHaveAtLeastOneImage": "Product must have at least one image",
+  "productUpdatedSuccessfully": "Product updated successfully",
+  "failedToUpdateProduct": "Failed to update product",
+  "tapToAddMoreImages": "Tap to add more images",
+  "mainImage": "Main",
+  "makeMain": "Make main",
+  "editProductDescription": "Update product details, images, and inventory.",
+  "failedToLoadAddresses": "Failed to load addresses",
+  "failedToLoadOrders": "Failed to load orders",
+  "homepageOrderSubtitle": "Order: {order}",
+  "@homepageOrderSubtitle": {
+    "placeholders": {
+      "order": {
+        "type": "String"
+      }
+    }
+  },
+  "featuredOrderSubtitle": "{boutiqueName} · Order: {order}",
+  "@featuredOrderSubtitle": {
+    "placeholders": {
+      "boutiqueName": {
+        "type": "String"
+      },
+      "order": {
+        "type": "String"
+      }
+    }
+  },
+  "percentOfTotalRevenue": "{percent}% of total revenue",
+  "@percentOfTotalRevenue": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "itemsAcrossAllBoutiques": "{count} items across all boutiques",
+  "@itemsAcrossAllBoutiques": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noProductsInCategory": "No products in {category}",
+  "@noProductsInCategory": {
+    "placeholders": {
+      "category": {
+        "type": "String"
+      }
+    }
+  },
+  "filterAll": "All",
+  "disputeStatusOpen": "Open",
+  "disputeStatusUnderReview": "Under Review",
+  "disputeStatusResolved": "Resolved",
+  "disputeStatusRejected": "Rejected",
+  "resolveDispute": "Resolve Dispute",
+  "resolveDisputeQuestion": "How would you like to resolve this dispute?",
+  "resolveNoRefund": "Resolve — No Refund",
+  "resolveWithRefund": "Resolve + Refund",
+  "noPaymentIntentFound": "No payment intent found for this order",
+  "disputeResolvedWithRefund": "Dispute resolved and refund issued successfully",
+  "failedToProcessRefund": "Failed to process refund",
+  "disputeResolved": "Dispute resolved successfully",
+  "failedToUpdateDispute": "Failed to update dispute",
+  "failedToLoadDisputes": "Failed to load disputes",
+  "noDisputesFound": "No disputes found",
+  "unknown": "Unknown",
+  "refundIssued": "Refund issued",
+  "unknownOrder": "Unknown order",
+  "unknownCustomer": "Unknown customer",
+  "noDate": "No date",
+  "searchOrders": "Search orders...",
+  "noOrdersFound": "No orders found",
+  "noMatchingOrdersFound": "No matching orders found",
+  "failedToLoadBoutiqueOrders": "Failed to load boutique orders",
+  "orderStatusUpdated": "Order status updated successfully",
+  "failedToUpdateOrderStatus": "Failed to update order status",
+  "noOrdersYet": "No orders yet",
+  "cancelOrder": "Cancel Order",
+  "cancelOrderConfirmation": "Are you sure you want to cancel this order?",
+  "back": "Back",
+  "noAddressAvailable": "No address available",
+  "address": "Address",
+  "items": "Items",
+  "confirmOrder": "Confirm Order",
+  "disputeMarkedAs": "Dispute marked as {status}",
+  "@disputeMarkedAs": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "disputesCount": "{count} disputes",
+  "@disputesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "orderTotalKwd": "Order total: {amount} KWD",
+  "@orderTotalKwd": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "globalOrdersCount": "{count} global orders",
+  "@globalOrdersCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "itemsLabel": "Items: {count}",
+  "@itemsLabel": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "totalKwd": "Total: {amount} KWD",
+  "@totalKwd": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  }
 }

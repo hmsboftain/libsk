@@ -1,15 +1,25 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
-import 'product_page.dart';
 import '../widgets/boutique_logo_avatar.dart';
 import '../widgets/error_state_widget.dart';
 import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
+import 'product_page.dart';
 
 enum SortOption { newest, oldest, priceLow, priceHigh }
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+double _p(Map<String, dynamic> data) {
+  final v = data['price'] ?? 0;
+  return v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0;
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class BoutiqueStorefrontPage extends StatefulWidget {
   final String boutiqueId;
@@ -69,17 +79,12 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
     return sorted;
   }
 
-  double _p(Map<String, dynamic> data) {
-    final v = data['price'] ?? 0;
-    return v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0;
-  }
-
-  Widget _buildSortBar(int count) {
-    const options = [
-      (SortOption.newest, 'Newest'),
-      (SortOption.oldest, 'Oldest'),
-      (SortOption.priceLow, 'Price ↑'),
-      (SortOption.priceHigh, 'Price ↓'),
+  Widget _buildSortBar(int count, AppLocalizations l10n) {
+    final options = [
+      (SortOption.newest, l10n.sortNewest),
+      (SortOption.oldest, l10n.sortOldest),
+      (SortOption.priceLow, l10n.sortPriceLow),
+      (SortOption.priceHigh, l10n.sortPriceHigh),
     ];
 
     return Padding(
@@ -87,7 +92,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
       child: Row(
         children: [
           Text(
-            '$count ${count == 1 ? 'product' : 'products'}',
+            l10n.productsCount(count),
             style: AppTextStyles.capsLabel,
           ),
           const Spacer(),
@@ -141,6 +146,8 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -157,22 +164,19 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
             }
             if (boutiqueSnapshot.hasError) {
               return ErrorStateWidget.inline(
-                title: 'Something went wrong',
-                message: 'Pull down to retry',
+                title: l10n.somethingWentWrong,
+                message: l10n.pullDownToRetry,
                 onRetry: () => setState(() {}),
                 type: ErrorType.network,
               );
             }
-            if (boutiqueSnapshot.hasData &&
-                !boutiqueSnapshot.data!.exists) {
-              return const NotFoundPage(
-                message: 'This boutique is no longer available.',
-              );
+            if (boutiqueSnapshot.hasData && !boutiqueSnapshot.data!.exists) {
+              return NotFoundPage(message: l10n.boutiqueNoLongerAvailable);
             }
             if (!boutiqueSnapshot.hasData) {
               return Center(
                 child: Text(
-                  'Boutique not found',
+                  l10n.boutiqueNotFound,
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppColors.secondaryText,
                   ),
@@ -181,10 +185,11 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
             }
 
             final boutiqueData = boutiqueSnapshot.data!.data() ?? {};
-            final boutiqueName = boutiqueData['name']?.toString() ?? 'Boutique';
+            final boutiqueName =
+                boutiqueData['name']?.toString() ?? l10n.boutique;
             final boutiqueDescription =
                 boutiqueData['description']?.toString() ??
-                'No description available.';
+                l10n.noDescriptionAvailable;
             final logoPath = boutiqueData['logoPath']?.toString() ?? '';
             final bannerPath = boutiqueData['bannerPath']?.toString() ?? '';
 
@@ -197,7 +202,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                   children: [
                     const AppHeader(showBackButton: true),
 
-                    // Banner + logo
+                    // ── Banner + logo ──────────────────────────────
                     Stack(
                       clipBehavior: Clip.none,
                       alignment: Alignment.center,
@@ -208,11 +213,11 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                                 height: 220,
                                 width: double.infinity,
                                 fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
+                                placeholder: (_, __) => Container(
                                   height: 220,
                                   color: AppColors.field,
                                 ),
-                                errorWidget: (context, url, error) => Container(
+                                errorWidget: (_, __, ___) => Container(
                                   height: 220,
                                   color: AppColors.field,
                                 ),
@@ -292,7 +297,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                     ),
                     const SizedBox(height: 14),
 
-                    // Products
+                    // ── Products ───────────────────────────────────
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                       stream: _productsStream,
                       builder: (context, productsSnapshot) {
@@ -310,7 +315,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                             padding: const EdgeInsets.symmetric(vertical: 60),
                             child: Center(
                               child: Text(
-                                'No products available yet',
+                                l10n.noProductsAvailableYet,
                                 style: AppTextStyles.bodyMedium.copyWith(
                                   color: AppColors.secondaryText,
                                 ),
@@ -320,11 +325,10 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                         }
 
                         final docs = _sortDocs(rawDocs);
-
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildSortBar(docs.length),
+                            _buildSortBar(docs.length, l10n),
                             const SizedBox(height: 16),
                             Padding(
                               padding: const EdgeInsets.symmetric(
@@ -341,142 +345,13 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                                       mainAxisSpacing: 20,
                                       childAspectRatio: 0.58,
                                     ),
-                                itemBuilder: (context, index) {
-                                  final doc = docs[index];
-                                  final product = Product.fromFirestore(doc);
-                                  final title = product.title.isNotEmpty
-                                      ? product.title
-                                      : 'Untitled Product';
-                                  final description =
-                                      product.description.isNotEmpty
-                                      ? product.description
-                                      : 'No description';
-                                  final displayImageUrl = product.displayImageUrl;
-                                  final stock = product.stock;
-
-                                  return GestureDetector(
-                                    onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => ProductPage(
-                                          productId: product.id,
-                                          boutiqueId: widget.boutiqueId,
-                                          imageUrl: displayImageUrl,
-                                          imageUrls: product.imageUrls,
-                                          title: title,
-                                          price: product.price,
-                                          description: description,
-                                          sizes: product.sizes,
-                                          stock: stock,
-                                          boutiqueName: boutiqueName,
-                                        ),
-                                      ),
+                                itemBuilder: (context, index) =>
+                                    _StorefrontProductCard(
+                                      doc: docs[index],
+                                      boutiqueId: widget.boutiqueId,
+                                      boutiqueName: boutiqueName,
+                                      l10n: l10n,
                                     ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Stack(
-                                          children: [
-                                            AspectRatio(
-                                              aspectRatio: 4 / 5,
-                                              child: displayImageUrl.isNotEmpty
-                                                  ? CachedNetworkImage(
-                                                      imageUrl: displayImageUrl,
-                                                      width: double.infinity,
-                                                      fit: BoxFit.cover,
-                                                      placeholder:
-                                                          (
-                                                            context,
-                                                            url,
-                                                          ) => Container(
-                                                            color: AppColors
-                                                                .imagePlaceholder,
-                                                          ),
-                                                      errorWidget:
-                                                          (
-                                                            context,
-                                                            url,
-                                                            error,
-                                                          ) => Container(
-                                                            color: AppColors
-                                                                .imagePlaceholder,
-                                                            alignment: Alignment
-                                                                .center,
-                                                            child: const Icon(
-                                                              Icons
-                                                                  .image_not_supported_outlined,
-                                                              color: AppColors
-                                                                  .secondaryText,
-                                                              size: 30,
-                                                            ),
-                                                          ),
-                                                    )
-                                                  : Container(
-                                                      color: AppColors
-                                                          .imagePlaceholder,
-                                                      alignment:
-                                                          Alignment.center,
-                                                      child: const Icon(
-                                                        Icons
-                                                            .image_not_supported_outlined,
-                                                        color: AppColors
-                                                            .secondaryText,
-                                                        size: 30,
-                                                      ),
-                                                    ),
-                                            ),
-                                            if (stock <= 0)
-                                              Positioned(
-                                                top: 10,
-                                                left: 10,
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.deepAccent
-                                                        .withValues(alpha: 0.9),
-                                                    border: Border.all(
-                                                      color: AppColors.border,
-                                                      width: 0.5,
-                                                    ),
-                                                  ),
-                                                  child: Text(
-                                                    'Sold Out',
-                                                    style: AppTextStyles
-                                                        .labelSmall
-                                                        .copyWith(
-                                                          color: Colors.white,
-                                                        ),
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Text(
-                                          title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: AppTextStyles.labelLarge,
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          boutiqueName,
-                                          style: AppTextStyles.bodySmall,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '${product.price.toStringAsFixed(0)} KWD',
-                                          style: AppTextStyles.labelLarge,
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
                               ),
                             ),
                           ],
@@ -489,6 +364,128 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+// ── Storefront product card widget ────────────────────────────────────────────
+
+class _StorefrontProductCard extends StatelessWidget {
+  final QueryDocumentSnapshot<Map<String, dynamic>> doc;
+  final String boutiqueId;
+  final String boutiqueName;
+  final AppLocalizations l10n;
+
+  const _StorefrontProductCard({
+    required this.doc,
+    required this.boutiqueId,
+    required this.boutiqueName,
+    required this.l10n,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final product = Product.fromFirestore(doc);
+    final title = product.title.isNotEmpty
+        ? product.title
+        : l10n.untitledProduct;
+    final description = product.description.isNotEmpty
+        ? product.description
+        : l10n.noDescription;
+    final displayImageUrl = product.displayImageUrl;
+    final stock = product.stock;
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProductPage(
+            productId: product.id,
+            boutiqueId: boutiqueId,
+            imageUrl: displayImageUrl,
+            imageUrls: product.imageUrls,
+            title: title,
+            price: product.price,
+            description: description,
+            sizes: product.sizes,
+            stock: stock,
+            boutiqueName: boutiqueName,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            children: [
+              AspectRatio(
+                aspectRatio: 4 / 5,
+                child: displayImageUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: displayImageUrl,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) =>
+                            Container(color: AppColors.imagePlaceholder),
+                        errorWidget: (_, __, ___) => Container(
+                          color: AppColors.imagePlaceholder,
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.image_not_supported_outlined,
+                            color: AppColors.secondaryText,
+                            size: 30,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        color: AppColors.imagePlaceholder,
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.image_not_supported_outlined,
+                          color: AppColors.secondaryText,
+                          size: 30,
+                        ),
+                      ),
+              ),
+              if (stock <= 0)
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.deepAccent.withValues(alpha: 0.9),
+                      border: Border.all(color: AppColors.border, width: 0.5),
+                    ),
+                    child: Text(
+                      l10n.soldOut,
+                      style: AppTextStyles.labelSmall.copyWith(
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.labelLarge,
+          ),
+          const SizedBox(height: 2),
+          Text(boutiqueName, style: AppTextStyles.bodySmall),
+          const SizedBox(height: 4),
+          Text(
+            '${product.price.toStringAsFixed(0)} KWD',
+            style: AppTextStyles.labelLarge,
+          ),
+        ],
       ),
     );
   }

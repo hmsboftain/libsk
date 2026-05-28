@@ -1,10 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
+import '../widgets/cart_item.dart';
 import '../widgets/order_item.dart';
 import '../widgets/theme.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+double _calculateSubtotal(List<CartItem> items) {
+  return items.fold(0.0, (total, item) => total + item.price * item.quantity);
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class OrderDetailsPage extends StatefulWidget {
   final OrderItem order;
@@ -19,17 +28,19 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
   bool _isSubmittingDispute = false;
   bool _disputeAlreadySubmitted = false;
 
-  final List<String> _disputeCategories = [
-    'Wrong Item',
-    'Damaged Item',
-    'Not Delivered',
-    'Other',
-  ];
+  // Declared as a field so it can be properly disposed
+  final _descController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _checkExistingDispute();
+  }
+
+  @override
+  void dispose() {
+    _descController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkExistingDispute() async {
@@ -51,13 +62,19 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     if (widget.order.status.toLowerCase() != 'delivered') return false;
     if (_disputeAlreadySubmitted) return false;
     if (widget.order.createdAt == null) return true;
-    final daysSince = DateTime.now().difference(widget.order.createdAt!).inDays;
-    return daysSince <= 7;
+    return DateTime.now().difference(widget.order.createdAt!).inDays <= 7;
   }
 
   Future<void> _showDisputeDialog() async {
+    final l10n = AppLocalizations.of(context)!;
+    final disputeCategories = [
+      l10n.disputeWrongItem,
+      l10n.disputeDamagedItem,
+      l10n.disputeNotDelivered,
+      l10n.disputeOther,
+    ];
     String? selectedCategory;
-    final descController = TextEditingController();
+    _descController.clear();
 
     await showDialog(
       context: context,
@@ -65,18 +82,15 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: AppColors.background,
           shape: const RoundedRectangleBorder(),
-          title: Text('Submit Dispute', style: AppTextStyles.headingSmall),
+          title: Text(l10n.submitDispute, style: AppTextStyles.headingSmall),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'What is the issue with your order?',
-                  style: AppTextStyles.bodySmall,
-                ),
+                Text(l10n.disputeIssueQuestion, style: AppTextStyles.bodySmall),
                 const SizedBox(height: 16),
-                ..._disputeCategories.map((category) {
+                ...disputeCategories.map((category) {
                   final isSelected = selectedCategory == category;
                   return GestureDetector(
                     onTap: () =>
@@ -127,20 +141,16 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                 }),
                 const SizedBox(height: 16),
                 Text(
-                  'Additional details (optional)',
+                  l10n.additionalDetailsOptional,
                   style: AppTextStyles.labelLarge.copyWith(
                     color: AppColors.secondaryText,
                   ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
-                  controller: descController,
+                  controller: _descController,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    hintText: 'Describe the issue...',
-                    hintStyle: AppTextStyles.labelLarge.copyWith(
-                      color: AppColors.secondaryText,
-                    ),
                     filled: true,
                     fillColor: AppColors.field,
                     border: OutlineInputBorder(
@@ -166,7 +176,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text(
-                'Cancel',
+                l10n.cancel,
                 style: AppTextStyles.labelLarge.copyWith(
                   color: AppColors.secondaryText,
                 ),
@@ -179,18 +189,18 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                       Navigator.pop(ctx);
                       await _submitDispute(
                         category: selectedCategory!,
-                        description: descController.text.trim(),
+                        description: _descController.text.trim(),
                       );
                     },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.deepAccent,
                 foregroundColor: Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero,
                 ),
               ),
-              child: Text('Submit', style: AppTextStyles.button),
+              child: Text(l10n.submit, style: AppTextStyles.button),
             ),
           ],
         ),
@@ -202,6 +212,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     required String category,
     required String description,
   }) async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _isSubmittingDispute = true);
 
     try {
@@ -216,29 +227,23 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
       });
 
       if (!mounted) return;
-
       setState(() => _disputeAlreadySubmitted = true);
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Dispute submitted. Our team will review it within 24 hours.',
-          ),
-          duration: Duration(seconds: 3),
+        SnackBar(
+          content: Text(l10n.disputeSubmittedReviewSoon),
+          duration: const Duration(seconds: 3),
         ),
       );
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Failed to submit dispute')),
+        SnackBar(content: Text(e.message ?? l10n.failedToSubmitDispute)),
       );
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Failed to submit dispute')));
+      ).showSnackBar(SnackBar(content: Text(l10n.failedToSubmitDispute)));
     } finally {
       if (mounted) setState(() => _isSubmittingDispute = false);
     }
@@ -246,10 +251,8 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    double subtotal = 0;
-    for (var item in widget.order.orderedItems) {
-      subtotal += item.price * item.quantity;
-    }
+    final l10n = AppLocalizations.of(context)!;
+    final subtotal = _calculateSubtotal(widget.order.orderedItems);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -265,14 +268,14 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                   children: [
                     const SizedBox(height: 8),
                     Text(
-                      "${AppLocalizations.of(context)!.orderLabel} #${widget.order.orderNumber}",
+                      l10n.orderNumber(widget.order.orderNumber),
                       style: AppTextStyles.headingLarge,
                     ),
                     const SizedBox(height: 8),
                     const Divider(color: AppColors.border, thickness: 0.5),
                     const SizedBox(height: 18),
                     Text(
-                      "${AppLocalizations.of(context)!.dateLabel} ${widget.order.displayDate}",
+                      l10n.orderDate(widget.order.displayDate),
                       style: AppTextStyles.bodyMedium.copyWith(
                         color: AppColors.secondaryText,
                       ),
@@ -288,113 +291,23 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                         border: Border.all(color: AppColors.border, width: 0.5),
                       ),
                       child: Text(
-                        "${AppLocalizations.of(context)!.statusLabel} ${widget.order.status}",
+                        '${l10n.statusLabel} ${widget.order.status}',
                         style: AppTextStyles.labelLarge,
                       ),
                     ),
                     const SizedBox(height: 24),
-                    Text(
-                      AppLocalizations.of(context)!.itemsOrdered,
-                      style: AppTextStyles.headingMedium,
-                    ),
+                    Text(l10n.itemsOrdered, style: AppTextStyles.headingMedium),
                     const SizedBox(height: 16),
-                    ...widget.order.orderedItems.map((item) {
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 14),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.card,
-                          border: Border.all(
-                            color: AppColors.border,
-                            width: 0.5,
-                          ),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                              width: 70,
-                              child: AspectRatio(
-                                aspectRatio: 4 / 5,
-                                child: item.imageUrl.isNotEmpty
-                                    ? Image.network(
-                                        item.imageUrl,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return Container(
-                                            color: AppColors.imagePlaceholder,
-                                            alignment: Alignment.center,
-                                            child: const Icon(
-                                              Icons
-                                                  .image_not_supported_outlined,
-                                              color: AppColors.secondaryText,
-                                            ),
-                                          );
-                                        },
-                                      )
-                                    : Container(
-                                        color: AppColors.imagePlaceholder,
-                                        alignment: Alignment.center,
-                                        child: const Icon(
-                                          Icons.image_not_supported_outlined,
-                                          color: AppColors.secondaryText,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.title,
-                                    style: AppTextStyles.labelLarge,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    item.description,
-                                    style: AppTextStyles.bodySmall,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    "${AppLocalizations.of(context)!.size} ${item.size}",
-                                    style: AppTextStyles.bodyMedium,
-                                  ),
-                                  if (item.color.trim().isNotEmpty) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Colour: ${item.color}',
-                                      style: AppTextStyles.bodyMedium,
-                                    ),
-                                  ],
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    "${AppLocalizations.of(context)!.quantityLabel} ${item.quantity}",
-                                    style: AppTextStyles.bodyMedium,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              "${item.price.toStringAsFixed(0)} KWD",
-                              style: AppTextStyles.labelLarge,
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
+                    ...widget.order.orderedItems.map(
+                      (item) => _OrderItemRow(item: item, l10n: l10n),
+                    ),
                     const SizedBox(height: 20),
                     Row(
                       children: [
-                        Text(
-                          AppLocalizations.of(context)!.subtotalNormal,
-                          style: AppTextStyles.bodyMedium,
-                        ),
+                        Text(l10n.subtotal, style: AppTextStyles.bodyMedium),
                         const Spacer(),
                         Text(
-                          "${subtotal.toStringAsFixed(0)} KWD",
+                          '${subtotal.toStringAsFixed(0)} KWD',
                           style: AppTextStyles.bodyMedium,
                         ),
                       ],
@@ -402,19 +315,16 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        Text(
-                          AppLocalizations.of(context)!.total,
-                          style: AppTextStyles.headingSmall,
-                        ),
+                        Text(l10n.total, style: AppTextStyles.headingSmall),
                         const Spacer(),
                         Text(
-                          "${widget.order.total.toStringAsFixed(0)} KWD",
+                          '${widget.order.total.toStringAsFixed(0)} KWD',
                           style: AppTextStyles.headingSmall,
                         ),
                       ],
                     ),
 
-                    // Dispute section
+                    // ── Dispute section ───────────────────────────────
                     if (widget.order.status.toLowerCase() == 'delivered') ...[
                       const SizedBox(height: 30),
                       const Divider(color: AppColors.border, thickness: 0.5),
@@ -440,7 +350,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  'A dispute has already been submitted for this order.',
+                                  l10n.disputeAlreadySubmitted,
                                   style: AppTextStyles.bodySmall.copyWith(
                                     color: AppColors.deepAccent,
                                   ),
@@ -470,7 +380,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                                     color: AppColors.deepAccent,
                                   ),
                             label: Text(
-                              'Dispute Order',
+                              l10n.disputeOrder,
                               style: AppTextStyles.button.copyWith(
                                 color: AppColors.deepAccent,
                               ),
@@ -481,8 +391,8 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                                 color: AppColors.deepAccent,
                                 width: 0.5,
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.zero,
                               ),
                             ),
                           ),
@@ -499,13 +409,12 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                             ),
                           ),
                           child: Text(
-                            'The 7-day dispute window for this order has passed.',
+                            l10n.disputeWindowPassed,
                             style: AppTextStyles.bodySmall,
                             textAlign: TextAlign.center,
                           ),
                         ),
                     ],
-
                     const SizedBox(height: 30),
                   ],
                 ),
@@ -513,6 +422,92 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Order item row widget ─────────────────────────────────────────────────────
+
+class _OrderItemRow extends StatelessWidget {
+  final CartItem item;
+  final AppLocalizations l10n;
+
+  const _OrderItemRow({required this.item, required this.l10n});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        border: Border.all(color: AppColors.border, width: 0.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 70,
+            child: AspectRatio(
+              aspectRatio: 4 / 5,
+              child: item.imageUrl.isNotEmpty
+                  ? Image.network(
+                      item.imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: AppColors.imagePlaceholder,
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.image_not_supported_outlined,
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: AppColors.imagePlaceholder,
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.image_not_supported_outlined,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.title, style: AppTextStyles.labelLarge),
+                const SizedBox(height: 6),
+                Text(item.description, style: AppTextStyles.bodySmall),
+                const SizedBox(height: 6),
+                Text(
+                  l10n.sizeLabel(item.size),
+                  style: AppTextStyles.bodyMedium,
+                ),
+                if (item.color.trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${l10n.colourLabel}: ${item.color}',
+                    style: AppTextStyles.bodyMedium,
+                  ),
+                ],
+                const SizedBox(height: 4),
+                Text(
+                  '${l10n.quantityLabel} ${item.quantity}',
+                  style: AppTextStyles.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '${item.price.toStringAsFixed(0)} KWD',
+            style: AppTextStyles.labelLarge,
+          ),
+        ],
       ),
     );
   }

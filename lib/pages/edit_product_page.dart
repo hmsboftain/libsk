@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 
 import '../core/constants/app_categories.dart';
 import '../core/utils/validators.dart';
@@ -10,6 +11,77 @@ import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/theme.dart';
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+const _border = OutlineInputBorder(
+  borderRadius: BorderRadius.zero,
+  borderSide: BorderSide(color: AppColors.border, width: 0.5),
+);
+
+InputDecoration _inputDecoration(String hintText) {
+  return InputDecoration(
+    hintText: hintText,
+    filled: true,
+    fillColor: AppColors.field,
+    hintStyle: AppTextStyles.bodyMedium.copyWith(
+      color: AppColors.secondaryText,
+    ),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    border: _border,
+    enabledBorder: _border,
+    focusedBorder: const OutlineInputBorder(
+      borderRadius: BorderRadius.zero,
+      borderSide: BorderSide(color: AppColors.deepAccent, width: 1),
+    ),
+    errorBorder: _border,
+    focusedErrorBorder: _border,
+  );
+}
+
+Widget _buildLabel(String text) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(text, style: AppTextStyles.labelLarge),
+  );
+}
+
+Widget _buildSectionCard({required Widget child}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: AppColors.card,
+      border: Border.all(color: AppColors.border, width: 0.5),
+    ),
+    child: child,
+  );
+}
+
+Widget _buildImagePreview({
+  required Widget image,
+  required VoidCallback onRemove,
+}) {
+  return Stack(
+    children: [
+      image,
+      Positioned(
+        top: 6,
+        right: 6,
+        child: GestureDetector(
+          onTap: onRemove,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            color: AppColors.deepAccent,
+            child: const Icon(Icons.close, color: Colors.white, size: 14),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class EditProductPage extends StatefulWidget {
   final String productId;
@@ -27,22 +99,22 @@ class EditProductPage extends StatefulWidget {
 
 class _EditProductPageState extends State<EditProductPage> {
   final _formKey = GlobalKey<FormState>();
+  final _picker = ImagePicker();
 
   late final TextEditingController titleController;
   late final TextEditingController descriptionController;
   late final TextEditingController priceController;
-  final TextEditingController colorInputController = TextEditingController();
-  final TextEditingController deliveryTimeframeController =
-      TextEditingController();
-  final TextEditingController sizeNameController = TextEditingController();
-  final TextEditingController sizeStockController = TextEditingController();
+  final colorInputController = TextEditingController();
+  final deliveryTimeframeController = TextEditingController();
+  final sizeNameController = TextEditingController();
+  final sizeStockController = TextEditingController();
 
-  bool isLoading = false;
-  bool madeToOrder = false;
+  bool _isLoading = false;
+  bool _madeToOrder = false;
 
   List<String> currentImageUrls = [];
   List<File> selectedNewImages = [];
-  List<String> imagesToDelete = [];
+  List<String> _imagesToDelete = [];
 
   List<String> selectedCategories = [];
   List<Map<String, dynamic>> sizeEntries = [];
@@ -52,12 +124,11 @@ class _EditProductPageState extends State<EditProductPage> {
   void initState() {
     super.initState();
 
-    final imageUrl = widget.productData['imageUrl']?.toString() ?? '';
     final imageUrlsData = widget.productData['imageUrls'];
+    final imageUrl = widget.productData['imageUrl']?.toString() ?? '';
 
     if (imageUrlsData is List && imageUrlsData.isNotEmpty) {
-      currentImageUrls =
-          imageUrlsData.map((image) => image.toString()).toList();
+      currentImageUrls = imageUrlsData.map((e) => e.toString()).toList();
     } else if (imageUrl.isNotEmpty) {
       currentImageUrls = [imageUrl];
     }
@@ -76,45 +147,43 @@ class _EditProductPageState extends State<EditProductPage> {
     _loadSizeEntries();
     _loadColors();
 
-    madeToOrder = widget.productData['madeToOrder'] == true;
+    _madeToOrder = widget.productData['madeToOrder'] == true;
     deliveryTimeframeController.text =
         widget.productData['deliveryTimeframe']?.toString() ?? '';
   }
 
   void _loadCategories() {
-    final categoryData = widget.productData['category'];
-
-    if (categoryData is List) {
-      selectedCategories = categoryData
-          .map((item) => item.toString())
-          .where((item) => item.isNotEmpty)
+    final data = widget.productData['category'];
+    if (data is List) {
+      selectedCategories = data
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
           .toList();
-    } else if (categoryData is String && categoryData.isNotEmpty) {
-      selectedCategories = [categoryData];
+    } else if (data is String && data.isNotEmpty) {
+      selectedCategories = [data];
     }
   }
 
   void _loadSizeEntries() {
-    final sizeEntriesData = widget.productData['sizeEntries'];
-
-    if (sizeEntriesData is List && sizeEntriesData.isNotEmpty) {
-      sizeEntries = sizeEntriesData.map((entry) {
-        if (entry is Map) {
-          final stockValue = entry['stock'];
-          final stock = stockValue is int
-              ? stockValue
-              : int.tryParse(stockValue?.toString() ?? '') ?? 0;
-
-          return {
-            'name': entry['name']?.toString() ?? '',
-            'stock': stock,
-          };
-        }
-        return {'name': '', 'stock': 0};
-      }).where((entry) => (entry['name'] as String).isNotEmpty).toList();
+    final data = widget.productData['sizeEntries'];
+    if (data is List && data.isNotEmpty) {
+      sizeEntries = data
+          .map((entry) {
+            if (entry is Map) {
+              final stockValue = entry['stock'];
+              final stock = stockValue is int
+                  ? stockValue
+                  : int.tryParse(stockValue?.toString() ?? '') ?? 0;
+              return {'name': entry['name']?.toString() ?? '', 'stock': stock};
+            }
+            return {'name': '', 'stock': 0};
+          })
+          .where((e) => (e['name'] as String).isNotEmpty)
+          .toList();
       return;
     }
 
+    // Legacy: flat sizes list with single stock count
     final sizes = widget.productData['sizes'];
     final stockValue = widget.productData['stock'];
     final totalStock = stockValue is int
@@ -132,12 +201,11 @@ class _EditProductPageState extends State<EditProductPage> {
   }
 
   void _loadColors() {
-    final colorsData = widget.productData['colors'];
-
-    if (colorsData is List) {
-      colorTags = colorsData
-          .map((color) => color.toString())
-          .where((color) => color.isNotEmpty)
+    final data = widget.productData['colors'];
+    if (data is List) {
+      colorTags = data
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
           .toList();
     }
   }
@@ -154,54 +222,90 @@ class _EditProductPageState extends State<EditProductPage> {
     super.dispose();
   }
 
-  Future<void> pickNewImages() async {
+  // ── Image management ──────────────────────────────────────────────────────
+
+  Future<void> _pickNewImages() async {
     try {
-      final picker = ImagePicker();
-      final images = await picker.pickMultiImage(imageQuality: 85);
-
-      if (images.isEmpty) return;
-
-      if (!mounted) return;
+      final images = await _picker.pickMultiImage(imageQuality: 85);
+      if (images.isEmpty || !mounted) return;
       setState(() {
-        selectedNewImages.addAll(images.map((image) => File(image.path)));
+        selectedNewImages.addAll(images.map((e) => File(e.path)));
       });
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to pick images')),
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.failedToPickImages),
+        ),
       );
     }
   }
 
-  void toggleCategory(String category) {
+  void _removeCurrentImage(int index) {
+    if (currentImageUrls.length + selectedNewImages.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!.productMustHaveAtLeastOneImage,
+          ),
+        ),
+      );
+      return;
+    }
     setState(() {
-      if (selectedCategories.contains(category)) {
-        selectedCategories.remove(category);
-      } else {
-        selectedCategories.add(category);
-      }
+      _imagesToDelete.add(currentImageUrls[index]);
+      currentImageUrls.removeAt(index);
     });
   }
 
-  void addSizeEntry() {
+  void _makeCurrentImageMain(int index) {
+    if (index == 0) return;
+    setState(() {
+      currentImageUrls.insert(0, currentImageUrls.removeAt(index));
+    });
+  }
+
+  void _removeNewImage(int index) {
+    if (currentImageUrls.length + selectedNewImages.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!.productMustHaveAtLeastOneImage,
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() => selectedNewImages.removeAt(index));
+  }
+
+  // ── Category / sizes / colours ────────────────────────────────────────────
+
+  void _toggleCategory(String category) {
+    setState(() {
+      selectedCategories.contains(category)
+          ? selectedCategories.remove(category)
+          : selectedCategories.add(category);
+    });
+  }
+
+  void _addSizeEntry() {
+    final l10n = AppLocalizations.of(context)!;
     final name = sizeNameController.text.trim();
     final stock = int.tryParse(sizeStockController.text.trim());
 
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a size name')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.enterSizeName)));
       return;
     }
-
     if (stock == null || stock < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid stock number')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.enterValidStock)));
       return;
     }
-
     setState(() {
       sizeEntries.add({'name': name, 'stock': stock});
       sizeNameController.clear();
@@ -209,275 +313,159 @@ class _EditProductPageState extends State<EditProductPage> {
     });
   }
 
-  void removeSizeEntry(int index) {
-    setState(() {
-      sizeEntries.removeAt(index);
-    });
-  }
+  void _removeSizeEntry(int index) =>
+      setState(() => sizeEntries.removeAt(index));
 
-  void addColorTag() {
+  void _addColorTag() {
     final color = colorInputController.text.trim();
-    if (color.isEmpty) return;
-
-    if (colorTags.contains(color)) {
+    if (color.isEmpty || colorTags.contains(color)) {
       colorInputController.clear();
       return;
     }
-
     setState(() {
       colorTags.add(color);
       colorInputController.clear();
     });
   }
 
-  void removeColorTag(String color) {
-    setState(() {
-      colorTags.remove(color);
-    });
-  }
+  void _removeColorTag(String color) => setState(() => colorTags.remove(color));
 
-  Future<void> updateProduct() async {
+  // ── Update ────────────────────────────────────────────────────────────────
+
+  Future<void> _updateProduct() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final l10n = AppLocalizations.of(context)!;
     final title = titleController.text.trim();
     final description = descriptionController.text.trim();
     final priceText = priceController.text.trim();
 
-    final preflight = Validators.combine(title, [
-          (v) => Validators.required(v, 'Title'),
-          (v) => Validators.maxLength(v, 100, 'Title'),
-        ]) ??
-        Validators.combine(description, [
-          (v) => Validators.required(v, 'Description'),
-          (v) => Validators.maxLength(v, 2000, 'Description'),
-        ]) ??
+    final preflight =
+        Validators.maxLength(title, 100, 'Title') ??
+        Validators.maxLength(description, 2000, 'Description') ??
         Validators.price(priceText);
     if (preflight != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(preflight)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(preflight)));
       return;
     }
 
     if (currentImageUrls.isEmpty && selectedNewImages.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one product image')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.atLeastOneImageRequired)));
       return;
     }
-
     if (selectedCategories.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least one category')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.atLeastOneCategoryRequired)));
       return;
     }
-
     if (sizeEntries.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one size')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.atLeastOneSizeRequired)));
+      return;
+    }
+    if (_madeToOrder && deliveryTimeframeController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.deliveryTimeframeRequired)));
       return;
     }
 
-    if (madeToOrder && deliveryTimeframeController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a delivery timeframe')),
-      );
-      return;
-    }
+    setState(() => _isLoading = true);
 
-    setState(() {
-      isLoading = true;
-    });
+    List<String> uploadedNewUrls = [];
 
     try {
       final boutiqueId = await FirestoreService.getCurrentOwnerBoutiqueId();
-
-      if (boutiqueId == null) {
-        throw Exception('No boutique found for current owner');
-      }
+      if (boutiqueId == null) throw Exception('No boutique found');
 
       final price = double.parse(priceText);
-
       final sizes = sizeEntries
-          .map((entry) => entry['name']?.toString() ?? '')
-          .where((name) => name.isNotEmpty)
+          .map((e) => e['name']?.toString() ?? '')
+          .where((n) => n.isNotEmpty)
           .toList();
-
       final totalStock = sizeEntries.fold<int>(
         0,
-        (total, entry) => total + ((entry['stock'] as int?) ?? 0),
+        (total, e) => total + ((e['stock'] as int?) ?? 0),
       );
 
-      final uploadedNewUrls = await StorageService.uploadImages(
+      // Upload new images — track for cleanup if Firestore write fails
+      uploadedNewUrls = await StorageService.uploadImages(
         selectedNewImages,
         'product_images',
       );
-      final allImageUrls = [...currentImageUrls, ...uploadedNewUrls];
-      final mainImageUrl = allImageUrls.first;
 
+      final allImageUrls = [...currentImageUrls, ...uploadedNewUrls];
+
+      // Single Firestore write — imageUrls[0] is the primary, no separate imageUrl field
       await FirebaseFirestore.instance
           .collection('boutiques')
           .doc(boutiqueId)
           .collection('products')
           .doc(widget.productId)
           .update({
-        'title': title,
-        'description': description,
-        'price': price,
-        'imageUrl': mainImageUrl,
-        'imageUrls': allImageUrls,
-        'stock': totalStock,
-        'sizes': sizes,
-        'sizeEntries': sizeEntries,
-        'category': selectedCategories,
-        'colors': colorTags,
-        'madeToOrder': madeToOrder,
-        'deliveryTimeframe':
-            madeToOrder ? deliveryTimeframeController.text.trim() : null,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+            'title': title,
+            'description': description,
+            'price': price,
+            'imageUrls': allImageUrls,
+            'stock': totalStock,
+            'sizes': sizes,
+            'sizeEntries': sizeEntries,
+            'category': selectedCategories,
+            'colors': colorTags,
+            'madeToOrder': _madeToOrder,
+            'deliveryTimeframe': _madeToOrder
+                ? deliveryTimeframeController.text.trim()
+                : null,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
-      for (final imageUrl in imagesToDelete) {
-        await StorageService.deleteImageByUrl(imageUrl);
+      // Firestore write confirmed — safe to delete removed images
+      for (final url in _imagesToDelete) {
+        await StorageService.deleteImageByUrl(
+          url,
+        ).catchError((e) => debugPrint('Image delete error: $e'));
       }
 
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Product updated successfully')),
-      );
-
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.productUpdatedSuccessfully)));
       Navigator.pop(context, true);
     } catch (e) {
       debugPrint('UPDATE PRODUCT ERROR: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
+
+      // Firestore write failed — clean up newly uploaded images
+      for (final url in uploadedNewUrls) {
+        await StorageService.deleteImageByUrl(
+          url,
+        ).catchError((err) => debugPrint('Cleanup error: $err'));
       }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.failedToUpdateProduct)));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void removeCurrentImage(int index) {
-    if (currentImageUrls.length + selectedNewImages.length <= 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Product must have at least one image')),
-      );
-      return;
-    }
+  // ── Section builders ──────────────────────────────────────────────────────
 
-    final removedImage = currentImageUrls[index];
-
-    setState(() {
-      currentImageUrls.removeAt(index);
-      imagesToDelete.add(removedImage);
-    });
-  }
-
-  void makeCurrentImageMain(int index) {
-    if (index == 0) return;
-
-    setState(() {
-      final selectedImage = currentImageUrls.removeAt(index);
-      currentImageUrls.insert(0, selectedImage);
-    });
-  }
-
-  void removeNewImage(int index) {
-    if (currentImageUrls.length + selectedNewImages.length <= 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Product must have at least one image')),
-      );
-      return;
-    }
-
-    setState(() {
-      selectedNewImages.removeAt(index);
-    });
-  }
-
-  InputDecoration buildInputDecoration(String hintText) {
-    const border = OutlineInputBorder(
-      borderRadius: BorderRadius.zero,
-      borderSide: BorderSide(color: AppColors.border, width: 0.5),
-    );
-
-    return InputDecoration(
-      hintText: hintText,
-      filled: true,
-      fillColor: AppColors.field,
-      hintStyle: AppTextStyles.bodyMedium.copyWith(
-        color: AppColors.secondaryText,
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: border,
-      enabledBorder: border,
-      focusedBorder: const OutlineInputBorder(
-        borderRadius: BorderRadius.zero,
-        borderSide: BorderSide(color: AppColors.deepAccent, width: 1),
-      ),
-      errorBorder: border,
-      focusedErrorBorder: border,
-    );
-  }
-
-  Widget buildLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(text, style: AppTextStyles.labelLarge),
-    );
-  }
-
-  Widget buildSectionCard({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        border: Border.all(color: AppColors.border, width: 0.5),
-      ),
-      child: child,
-    );
-  }
-
-  Widget buildImagePreview({
-    required Widget image,
-    required VoidCallback onRemove,
-  }) {
-    return Stack(
-      children: [
-        image,
-        Positioned(
-          top: 6,
-          right: 6,
-          child: GestureDetector(
-            onTap: onRemove,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              color: AppColors.deepAccent,
-              child: const Icon(Icons.close, color: Colors.white, size: 14),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget buildImagePicker() {
+  Widget _buildImagePickerSection(AppLocalizations l10n) {
     final totalImages = currentImageUrls.length + selectedNewImages.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GestureDetector(
-          onTap: pickNewImages,
+          onTap: _pickNewImages,
           child: Container(
             width: double.infinity,
             height: 120,
@@ -495,7 +483,7 @@ class _EditProductPageState extends State<EditProductPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Tap to add more images',
+                  l10n.tapToAddMoreImages,
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppColors.secondaryText,
                   ),
@@ -520,28 +508,28 @@ class _EditProductPageState extends State<EditProductPage> {
                     padding: const EdgeInsets.only(right: 10),
                     child: Stack(
                       children: [
-                        buildImagePreview(
+                        _buildImagePreview(
                           image: Image.network(
                             imageUrl,
                             width: 96,
                             height: 120,
                             fit: BoxFit.cover,
                           ),
-                          onRemove: () => removeCurrentImage(index),
+                          onRemove: () => _removeCurrentImage(index),
                         ),
                         Positioned(
                           bottom: 6,
                           left: 6,
                           right: 6,
                           child: GestureDetector(
-                            onTap: () => makeCurrentImageMain(index),
+                            onTap: () => _makeCurrentImageMain(index),
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 5),
                               color: isMain
                                   ? AppColors.deepAccent
                                   : AppColors.deepAccent.withValues(alpha: 0.7),
                               child: Text(
-                                isMain ? 'Main' : 'Make main',
+                                isMain ? l10n.mainImage : l10n.makeMain,
                                 textAlign: TextAlign.center,
                                 style: AppTextStyles.labelSmall.copyWith(
                                   color: Colors.white,
@@ -557,18 +545,16 @@ class _EditProductPageState extends State<EditProductPage> {
                 }),
                 ...selectedNewImages.asMap().entries.map((entry) {
                   final index = entry.key;
-                  final imageFile = entry.value;
-
                   return Padding(
                     padding: const EdgeInsets.only(right: 10),
-                    child: buildImagePreview(
+                    child: _buildImagePreview(
                       image: Image.file(
-                        imageFile,
+                        entry.value,
                         width: 96,
                         height: 120,
                         fit: BoxFit.cover,
                       ),
-                      onRemove: () => removeNewImage(index),
+                      onRemove: () => _removeNewImage(index),
                     ),
                   );
                 }),
@@ -579,15 +565,12 @@ class _EditProductPageState extends State<EditProductPage> {
     );
   }
 
-  Widget _buildCategorySection() {
+  Widget _buildCategorySection(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildLabel('Categories'),
-        Text(
-          'Select all that apply',
-          style: AppTextStyles.bodySmall,
-        ),
+        _buildLabel(l10n.categories),
+        Text(l10n.selectAllThatApply, style: AppTextStyles.bodySmall),
         const SizedBox(height: 10),
         if (selectedCategories.isNotEmpty) ...[
           Wrap(
@@ -597,7 +580,7 @@ class _EditProductPageState extends State<EditProductPage> {
               return InputChip(
                 label: Text(category, style: AppTextStyles.labelSmall),
                 deleteIconColor: AppColors.deepAccent,
-                onDeleted: () => toggleCategory(category),
+                onDeleted: () => _toggleCategory(category),
                 backgroundColor: AppColors.selectedSoft,
                 side: const BorderSide(color: AppColors.border, width: 0.5),
                 shape: const RoundedRectangleBorder(
@@ -625,11 +608,10 @@ class _EditProductPageState extends State<EditProductPage> {
             itemBuilder: (context, index) {
               final category = AppCategories.all[index];
               final isSelected = selectedCategories.contains(category);
-
               return Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: () => toggleCategory(category),
+                  onTap: () => _toggleCategory(category),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -668,15 +650,12 @@ class _EditProductPageState extends State<EditProductPage> {
     );
   }
 
-  Widget _buildSizesSection() {
+  Widget _buildSizesSection(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildLabel('Sizes & stock'),
-        Text(
-          'Add each size with its own stock count',
-          style: AppTextStyles.bodySmall,
-        ),
+        _buildLabel(l10n.sizesAndStock),
+        Text(l10n.addEachSizeWithStockCount, style: AppTextStyles.bodySmall),
         const SizedBox(height: 12),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -685,7 +664,7 @@ class _EditProductPageState extends State<EditProductPage> {
               flex: 2,
               child: TextFormField(
                 controller: sizeNameController,
-                decoration: buildInputDecoration('Size (e.g. S, M, 38)'),
+                decoration: _inputDecoration(l10n.sizeHint),
                 textCapitalization: TextCapitalization.characters,
               ),
             ),
@@ -694,7 +673,7 @@ class _EditProductPageState extends State<EditProductPage> {
               child: TextFormField(
                 controller: sizeStockController,
                 keyboardType: TextInputType.number,
-                decoration: buildInputDecoration('Stock'),
+                decoration: _inputDecoration(l10n.stock),
               ),
             ),
           ],
@@ -703,7 +682,7 @@ class _EditProductPageState extends State<EditProductPage> {
         Align(
           alignment: Alignment.centerLeft,
           child: OutlinedButton(
-            onPressed: addSizeEntry,
+            onPressed: _addSizeEntry,
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.deepAccent,
               side: const BorderSide(color: AppColors.deepAccent, width: 0.5),
@@ -712,7 +691,7 @@ class _EditProductPageState extends State<EditProductPage> {
               ),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
-            child: Text('Add size', style: AppTextStyles.labelLarge),
+            child: Text(l10n.addSize, style: AppTextStyles.labelLarge),
           ),
         ),
         if (sizeEntries.isNotEmpty) ...[
@@ -720,9 +699,6 @@ class _EditProductPageState extends State<EditProductPage> {
           ...sizeEntries.asMap().entries.map((entry) {
             final index = entry.key;
             final item = entry.value;
-            final name = item['name']?.toString() ?? '';
-            final stock = item['stock']?.toString() ?? '0';
-
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -734,12 +710,15 @@ class _EditProductPageState extends State<EditProductPage> {
                 children: [
                   Expanded(
                     child: Text(
-                      '$name — $stock in stock',
+                      l10n.sizeStockEntry(
+                        item['name'].toString(),
+                        item['stock'].toString(),
+                      ),
                       style: AppTextStyles.bodyMedium,
                     ),
                   ),
                   GestureDetector(
-                    onTap: () => removeSizeEntry(index),
+                    onTap: () => _removeSizeEntry(index),
                     child: const Icon(
                       Icons.close,
                       size: 18,
@@ -755,33 +734,36 @@ class _EditProductPageState extends State<EditProductPage> {
     );
   }
 
-  Widget _buildColorsSection() {
+  Widget _buildColorsSection(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildLabel('Colours'),
+        _buildLabel(l10n.colours),
         Row(
           children: [
             Expanded(
               child: TextFormField(
                 controller: colorInputController,
-                decoration: buildInputDecoration('Add a colour'),
+                decoration: _inputDecoration(l10n.addAColour),
                 textCapitalization: TextCapitalization.words,
-                onFieldSubmitted: (_) => addColorTag(),
+                onFieldSubmitted: (_) => _addColorTag(),
               ),
             ),
             const SizedBox(width: 10),
             OutlinedButton(
-              onPressed: addColorTag,
+              onPressed: _addColorTag,
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.deepAccent,
                 side: const BorderSide(color: AppColors.deepAccent, width: 0.5),
                 shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.zero,
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
-              child: const Text('Add'),
+              child: Text(l10n.add),
             ),
           ],
         ),
@@ -794,7 +776,7 @@ class _EditProductPageState extends State<EditProductPage> {
               return InputChip(
                 label: Text(color, style: AppTextStyles.labelSmall),
                 deleteIconColor: AppColors.deepAccent,
-                onDeleted: () => removeColorTag(color),
+                onDeleted: () => _removeColorTag(color),
                 backgroundColor: AppColors.selectedSoft,
                 side: const BorderSide(color: AppColors.border, width: 0.5),
                 shape: const RoundedRectangleBorder(
@@ -808,7 +790,7 @@ class _EditProductPageState extends State<EditProductPage> {
     );
   }
 
-  Widget _buildMadeToOrderSection() {
+  Widget _buildMadeToOrderSection(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -818,23 +800,21 @@ class _EditProductPageState extends State<EditProductPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Made to order', style: AppTextStyles.labelLarge),
+                  Text(l10n.madeToOrder, style: AppTextStyles.labelLarge),
                   const SizedBox(height: 4),
                   Text(
-                    'Enable if this item is produced after purchase',
+                    l10n.madeToOrderSubtitle,
                     style: AppTextStyles.bodySmall,
                   ),
                 ],
               ),
             ),
             Switch(
-              value: madeToOrder,
+              value: _madeToOrder,
               onChanged: (value) {
                 setState(() {
-                  madeToOrder = value;
-                  if (!value) {
-                    deliveryTimeframeController.clear();
-                  }
+                  _madeToOrder = value;
+                  if (!value) deliveryTimeframeController.clear();
                 });
               },
               activeThumbColor: AppColors.deepAccent,
@@ -842,20 +822,24 @@ class _EditProductPageState extends State<EditProductPage> {
             ),
           ],
         ),
-        if (madeToOrder) ...[
+        if (_madeToOrder) ...[
           const SizedBox(height: 14),
-          buildLabel('Delivery timeframe'),
+          _buildLabel(l10n.deliveryTimeframe),
           TextFormField(
             controller: deliveryTimeframeController,
-            decoration: buildInputDecoration('e.g. 7–10 business days'),
+            decoration: _inputDecoration(l10n.deliveryTimeframeHint),
           ),
         ],
       ],
     );
   }
 
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -871,70 +855,70 @@ class _EditProductPageState extends State<EditProductPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'EDIT PRODUCT',
+                        l10n.editProduct,
                         style: AppTextStyles.headingMedium.copyWith(
                           letterSpacing: 0.2,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Update your product details and images.',
+                        l10n.editProductDescription,
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.secondaryText,
                           height: 1.4,
                         ),
                       ),
                       const SizedBox(height: 20),
-                      buildSectionCard(
+                      _buildSectionCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            buildLabel('Product images'),
-                            buildImagePicker(),
+                            _buildLabel(l10n.productImages),
+                            _buildImagePickerSection(l10n),
                             const SizedBox(height: 18),
-                            buildLabel('Product title'),
+                            _buildLabel(l10n.productTitle),
                             TextFormField(
                               controller: titleController,
-                              decoration: buildInputDecoration(
-                                'Enter product title',
+                              decoration: _inputDecoration(
+                                l10n.enterProductTitle,
                               ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Title is required';
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return l10n.titleRequired;
                                 }
                                 return null;
                               },
                             ),
                             const SizedBox(height: 18),
-                            buildLabel('Description'),
+                            _buildLabel(l10n.description),
                             TextFormField(
                               controller: descriptionController,
                               maxLines: 4,
-                              decoration: buildInputDecoration(
-                                'Enter product description',
+                              decoration: _inputDecoration(
+                                l10n.enterProductDescription,
                               ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Description is required';
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return l10n.descriptionRequired;
                                 }
                                 return null;
                               },
                             ),
                             const SizedBox(height: 18),
-                            buildLabel('Price'),
+                            _buildLabel(l10n.price),
                             TextFormField(
                               controller: priceController,
                               keyboardType:
                                   const TextInputType.numberWithOptions(
-                                decimal: true,
-                              ),
-                              decoration: buildInputDecoration('Example: 35'),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Price is required';
+                                    decimal: true,
+                                  ),
+                              decoration: _inputDecoration(l10n.priceExample),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return l10n.priceRequired;
                                 }
-                                if (double.tryParse(value.trim()) == null) {
-                                  return 'Enter a valid price';
+                                if (double.tryParse(v.trim()) == null) {
+                                  return l10n.enterValidPrice;
                                 }
                                 return null;
                               },
@@ -943,19 +927,19 @@ class _EditProductPageState extends State<EditProductPage> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      buildSectionCard(child: _buildCategorySection()),
+                      _buildSectionCard(child: _buildCategorySection(l10n)),
                       const SizedBox(height: 16),
-                      buildSectionCard(child: _buildSizesSection()),
+                      _buildSectionCard(child: _buildSizesSection(l10n)),
                       const SizedBox(height: 16),
-                      buildSectionCard(child: _buildColorsSection()),
+                      _buildSectionCard(child: _buildColorsSection(l10n)),
                       const SizedBox(height: 16),
-                      buildSectionCard(child: _buildMadeToOrderSection()),
+                      _buildSectionCard(child: _buildMadeToOrderSection(l10n)),
                       const SizedBox(height: 22),
                       SizedBox(
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: isLoading ? null : updateProduct,
+                          onPressed: _isLoading ? null : _updateProduct,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.deepAccent,
                             foregroundColor: Colors.white,
@@ -964,7 +948,7 @@ class _EditProductPageState extends State<EditProductPage> {
                               borderRadius: BorderRadius.zero,
                             ),
                           ),
-                          child: isLoading
+                          child: _isLoading
                               ? const SizedBox(
                                   width: 22,
                                   height: 22,
@@ -973,8 +957,8 @@ class _EditProductPageState extends State<EditProductPage> {
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Text(
-                                  'Save changes',
+                              : Text(
+                                  l10n.saveChanges,
                                   style: AppTextStyles.button,
                                 ),
                         ),

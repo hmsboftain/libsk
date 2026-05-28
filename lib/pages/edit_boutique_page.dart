@@ -1,117 +1,203 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../services/storage_service.dart';
-import 'package:image_cropper/image_cropper.dart';
 import '../widgets/theme.dart';
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+Future<void> _deleteOldImage(String? imageUrl) async {
+  if (imageUrl == null || imageUrl.isEmpty) return;
+  await StorageService.deleteImageByUrl(imageUrl);
+}
+
+Future<File?> _cropImage(
+  String imagePath, {
+  required int maxWidth,
+  required int maxHeight,
+  required CropAspectRatio aspectRatio,
+  required CropAspectRatioPreset preset,
+  required String toolbarTitle,
+}) async {
+  final cropped = await ImageCropper().cropImage(
+    sourcePath: imagePath,
+    compressFormat: ImageCompressFormat.jpg,
+    compressQuality: 90,
+    maxWidth: maxWidth,
+    maxHeight: maxHeight,
+    aspectRatio: aspectRatio,
+    uiSettings: [
+      AndroidUiSettings(
+        toolbarTitle: toolbarTitle,
+        toolbarColor: Colors.black,
+        toolbarWidgetColor: Colors.white,
+        lockAspectRatio: true,
+        initAspectRatio: preset,
+        hideBottomControls: false,
+        statusBarLight: false,
+        backgroundColor: Colors.black,
+      ),
+      IOSUiSettings(title: toolbarTitle, aspectRatioLockEnabled: true),
+    ],
+  );
+  if (cropped == null) return null;
+  return File(cropped.path);
+}
+
+Widget _buildLabel(String text) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(text, style: AppTextStyles.labelLarge),
+  );
+}
+
+Widget _buildSectionCard({required Widget child}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: AppColors.card,
+      border: Border.all(color: AppColors.border, width: 0.5),
+    ),
+    child: child,
+  );
+}
+
+InputDecoration _inputDecoration(String hintText) {
+  return InputDecoration(
+    hintText: hintText,
+    hintStyle: AppTextStyles.bodyMedium.copyWith(
+      color: AppColors.secondaryText,
+    ),
+  );
+}
+
+Widget _buildImagePicker({
+  required VoidCallback onTap,
+  required File? selectedImage,
+  required String? currentImageUrl,
+  required String emptyText,
+  required String errorText,
+  required double height,
+  required bool isCircle,
+}) {
+  Widget imageContent;
+
+  if (selectedImage != null) {
+    imageContent = Image.file(
+      selectedImage,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: height,
+      errorBuilder: (_, __, ___) => Center(
+        child: Text(
+          errorText,
+          style: AppTextStyles.bodyMedium.copyWith(
+            color: AppColors.secondaryText,
+          ),
+        ),
+      ),
+    );
+  } else if (currentImageUrl != null && currentImageUrl.isNotEmpty) {
+    imageContent = Image.network(
+      currentImageUrl,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: height,
+      errorBuilder: (_, __, ___) => Center(
+        child: Text(
+          errorText,
+          style: AppTextStyles.bodyMedium.copyWith(
+            color: AppColors.secondaryText,
+          ),
+        ),
+      ),
+    );
+  } else {
+    imageContent = Center(
+      child: Text(
+        emptyText,
+        textAlign: TextAlign.center,
+        style: AppTextStyles.bodyMedium.copyWith(
+          color: AppColors.secondaryText,
+        ),
+      ),
+    );
+  }
+
+  if (isCircle) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Center(
+        child: Container(
+          width: 140,
+          height: 140,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.imagePlaceholder,
+            border: Border.all(color: AppColors.border, width: 0.5),
+          ),
+          child: ClipOval(child: imageContent),
+        ),
+      ),
+    );
+  }
+
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: double.infinity,
+      height: height,
+      decoration: BoxDecoration(
+        color: AppColors.imagePlaceholder,
+        border: Border.all(color: AppColors.border, width: 0.5),
+      ),
+      child: imageContent,
+    ),
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class EditBoutiquePage extends StatefulWidget {
   final Map<String, dynamic> boutiqueData;
 
-  const EditBoutiquePage({
-    super.key,
-    required this.boutiqueData,
-  });
+  const EditBoutiquePage({super.key, required this.boutiqueData});
 
   @override
   State<EditBoutiquePage> createState() => _EditBoutiquePageState();
 }
 
 class _EditBoutiquePageState extends State<EditBoutiquePage> {
-  Future<File?> cropLogoImage(String imagePath) async {
-    final croppedFile = await ImageCropper().cropImage(
-      sourcePath: imagePath,
-      compressFormat: ImageCompressFormat.jpg,
-      compressQuality: 90,
-      maxWidth: 800,
-      maxHeight: 800,
-      aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Crop Logo',
-          toolbarColor: Colors.black,
-          toolbarWidgetColor: Colors.white,
-          lockAspectRatio: true,
-          initAspectRatio: CropAspectRatioPreset.square,
-          hideBottomControls: false,
-          statusBarLight: false,
-          backgroundColor: Colors.black,
-        ),
-        IOSUiSettings(
-          title: 'Crop Logo',
-          aspectRatioLockEnabled: true,
-        ),
-      ],
-    );
-
-    if (croppedFile == null) return null;
-    return File(croppedFile.path);
-  }
-
-  Future<void> deleteOldImage(String? imageUrl) async {
-    if (imageUrl == null || imageUrl.isEmpty) return;
-    await StorageService.deleteImageByUrl(imageUrl);
-  }
-
-  Future<File?> cropBannerImage(String imagePath) async {
-    final croppedFile = await ImageCropper().cropImage(
-      sourcePath: imagePath,
-      compressFormat: ImageCompressFormat.jpg,
-      compressQuality: 90,
-      maxWidth: 1600,
-      maxHeight: 900,
-      aspectRatio: const CropAspectRatio(ratioX: 16, ratioY: 9),
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Crop Banner',
-          toolbarColor: Colors.black,
-          toolbarWidgetColor: Colors.white,
-          lockAspectRatio: true,
-          initAspectRatio: CropAspectRatioPreset.ratio16x9,
-          hideBottomControls: false,
-          statusBarLight: false,
-          backgroundColor: Colors.black,
-        ),
-        IOSUiSettings(
-          title: 'Crop Banner',
-          aspectRatioLockEnabled: true,
-        ),
-      ],
-    );
-
-    if (croppedFile == null) return null;
-    return File(croppedFile.path);
-  }
-
   final _formKey = GlobalKey<FormState>();
+  final _picker = ImagePicker();
 
   late final TextEditingController nameController;
   late final TextEditingController descriptionController;
 
-  bool isLoading = false;
+  bool _isLoading = false;
 
-  File? selectedLogoImage;
-  File? selectedBannerImage;
+  File? _selectedLogoImage;
+  File? _selectedBannerImage;
 
-  String? currentLogoUrl;
-  String? currentBannerUrl;
+  String? _currentLogoUrl;
+  String? _currentBannerUrl;
 
   @override
   void initState() {
     super.initState();
-
     nameController = TextEditingController(
       text: widget.boutiqueData['name']?.toString() ?? '',
     );
-
     descriptionController = TextEditingController(
       text: widget.boutiqueData['description']?.toString() ?? '',
     );
-
-    currentLogoUrl = widget.boutiqueData['logoPath']?.toString();
-    currentBannerUrl = widget.boutiqueData['bannerPath']?.toString();
+    _currentLogoUrl = widget.boutiqueData['logoPath']?.toString();
+    _currentBannerUrl = widget.boutiqueData['bannerPath']?.toString();
   }
 
   @override
@@ -121,90 +207,99 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
     super.dispose();
   }
 
-  Future<void> pickLogoImage() async {
+  // ── Image picking ─────────────────────────────────────────────────────────
+
+  Future<void> _pickLogoImage() async {
+    final l10n = AppLocalizations.of(context)!;
     try {
-      final picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
+      final image = await _picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 70,
         maxWidth: 1200,
         maxHeight: 1200,
       );
-
       if (image == null) return;
 
-      final croppedImage = await cropLogoImage(image.path);
-      if (croppedImage == null) return;
+      final cropped = await _cropImage(
+        image.path,
+        maxWidth: 800,
+        maxHeight: 800,
+        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+        preset: CropAspectRatioPreset.square,
+        toolbarTitle: l10n.cropLogo,
+      );
+      if (cropped == null || !mounted) return;
 
-      if (!mounted) return;
-      setState(() {
-        selectedLogoImage = croppedImage;
-      });
+      setState(() => _selectedLogoImage = cropped);
     } catch (e) {
       debugPrint('pickLogoImage error: $e');
-
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to pick logo image: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.failedToPickLogoImage)));
     }
   }
 
-  Future<void> pickBannerImage() async {
+  Future<void> _pickBannerImage() async {
+    final l10n = AppLocalizations.of(context)!;
     try {
-      final picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
+      final image = await _picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 70,
         maxWidth: 1600,
         maxHeight: 1200,
       );
-
       if (image == null) return;
 
-      final croppedImage = await cropBannerImage(image.path);
-      if (croppedImage == null) return;
+      final cropped = await _cropImage(
+        image.path,
+        maxWidth: 1600,
+        maxHeight: 900,
+        aspectRatio: const CropAspectRatio(ratioX: 16, ratioY: 9),
+        preset: CropAspectRatioPreset.ratio16x9,
+        toolbarTitle: l10n.cropBanner,
+      );
+      if (cropped == null || !mounted) return;
 
-      if (!mounted) return;
-      setState(() {
-        selectedBannerImage = croppedImage;
-      });
+      setState(() => _selectedBannerImage = cropped);
     } catch (e) {
       debugPrint('pickBannerImage error: $e');
-
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to pick banner image: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.failedToPickBannerImage)));
     }
   }
 
-  Future<void> saveBoutiqueChanges() async {
+  // ── Save ──────────────────────────────────────────────────────────────────
+
+  Future<void> _saveBoutiqueChanges() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      isLoading = true;
-    });
+    setState(() => _isLoading = true);
+
+    // Track newly uploaded URLs so we can clean them up if Firestore fails
+    String? newLogoUrl;
+    String? newBannerUrl;
 
     try {
-      String? logoUrl = currentLogoUrl;
-      String? bannerUrl = currentBannerUrl;
+      String? logoUrl = _currentLogoUrl;
+      String? bannerUrl = _currentBannerUrl;
 
-      final oldLogoUrl = currentLogoUrl;
-      final oldBannerUrl = currentBannerUrl;
-
-      if (selectedLogoImage != null) {
-        logoUrl = await StorageService.uploadImage(
-          selectedLogoImage!,
+      if (_selectedLogoImage != null) {
+        newLogoUrl = await StorageService.uploadImage(
+          _selectedLogoImage!,
           'boutique_logos',
         );
+        logoUrl = newLogoUrl;
       }
 
-      if (selectedBannerImage != null) {
-        bannerUrl = await StorageService.uploadImage(
-          selectedBannerImage!,
+      if (_selectedBannerImage != null) {
+        newBannerUrl = await StorageService.uploadImage(
+          _selectedBannerImage!,
           'boutique_banners',
         );
+        bannerUrl = newBannerUrl;
       }
 
       await FirestoreService.updateCurrentOwnerBoutique(
@@ -214,160 +309,47 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
         bannerPath: bannerUrl,
       );
 
-      if (selectedLogoImage != null && oldLogoUrl != logoUrl) {
-        await deleteOldImage(oldLogoUrl);
-      }
-
-      if (selectedBannerImage != null && oldBannerUrl != bannerUrl) {
-        await deleteOldImage(oldBannerUrl);
-      }
+      // Firestore write confirmed — safe to delete old Storage files
+      if (newLogoUrl != null) await _deleteOldImage(_currentLogoUrl);
+      if (newBannerUrl != null) await _deleteOldImage(_currentBannerUrl);
 
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Boutique updated successfully')),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!.boutiqueUpdatedSuccessfully,
+          ),
+        ),
       );
-
       Navigator.pop(context, true);
     } catch (e) {
-      if (!mounted) return;
+      // Firestore write failed — delete any newly uploaded files to avoid orphans
+      if (newLogoUrl != null) {
+        await StorageService.deleteImageByUrl(
+          newLogoUrl,
+        ).catchError((err) => debugPrint('Logo cleanup error: $err'));
+      }
+      if (newBannerUrl != null) {
+        await StorageService.deleteImageByUrl(
+          newBannerUrl,
+        ).catchError((err) => debugPrint('Banner cleanup error: $err'));
+      }
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update boutique')),
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.failedToUpdateBoutique),
+        ),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  InputDecoration buildInputDecoration(String hintText) {
-    return InputDecoration(
-      hintText: hintText,
-      hintStyle: AppTextStyles.bodyMedium.copyWith(
-        color: AppColors.secondaryText,
-      ),
-    );
-  }
-
-  Widget buildLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text,
-        style: AppTextStyles.labelLarge,
-      ),
-    );
-  }
-
-  Widget buildSectionCard({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        border: Border.all(color: AppColors.border, width: 0.5),
-      ),
-      child: child,
-    );
-  }
-
-  Widget buildImagePicker({
-    required VoidCallback onTap,
-    required File? selectedImage,
-    required String? currentImageUrl,
-    required String emptyText,
-    required String errorText,
-    required double height,
-    required bool isCircle,
-  }) {
-    Widget imageContent;
-
-    if (selectedImage != null) {
-      imageContent = Image.file(
-        selectedImage,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: height,
-        errorBuilder: (context, error, stackTrace) {
-          return Center(
-            child: Text(
-              errorText,
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.secondaryText,
-              ),
-            ),
-          );
-        },
-      );
-    } else if (currentImageUrl != null && currentImageUrl.isNotEmpty) {
-      imageContent = Image.network(
-        currentImageUrl,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: height,
-        errorBuilder: (context, error, stackTrace) {
-          return Center(
-            child: Text(
-              errorText,
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.secondaryText,
-              ),
-            ),
-          );
-        },
-      );
-    } else {
-      imageContent = Center(
-        child: Text(
-          emptyText,
-          textAlign: TextAlign.center,
-          style: AppTextStyles.bodyMedium.copyWith(
-            color: AppColors.secondaryText,
-          ),
-        ),
-      );
-    }
-
-    if (isCircle) {
-      return GestureDetector(
-        onTap: onTap,
-        child: Center(
-          child: Container(
-            width: 140,
-            height: 140,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.imagePlaceholder,
-              border: Border.all(color: AppColors.border, width: 0.5),
-            ),
-            child: ClipOval(
-              child: imageContent,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        height: height,
-        decoration: BoxDecoration(
-          color: AppColors.imagePlaceholder,
-          border: Border.all(color: AppColors.border, width: 0.5),
-        ),
-        child: imageContent,
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -383,69 +365,69 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'EDIT BOUTIQUE',
+                        l10n.editBoutique,
                         style: AppTextStyles.headingMedium,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Update your boutique details and images.',
+                        l10n.editBoutiqueDescription,
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.secondaryText,
                           height: 1.4,
                         ),
                       ),
                       const SizedBox(height: 20),
-                      buildSectionCard(
+                      _buildSectionCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            buildLabel('Boutique Name'),
+                            _buildLabel(l10n.boutiqueName),
                             TextFormField(
                               controller: nameController,
-                              decoration: buildInputDecoration(
-                                'Enter boutique name',
+                              decoration: _inputDecoration(
+                                l10n.enterBoutiqueName,
                               ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Boutique name is required';
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return l10n.boutiqueNameRequired;
                                 }
                                 return null;
                               },
                             ),
                             const SizedBox(height: 18),
-                            buildLabel('Description'),
+                            _buildLabel(l10n.description),
                             TextFormField(
                               controller: descriptionController,
                               maxLines: 4,
-                              decoration: buildInputDecoration(
-                                'Enter boutique description',
+                              decoration: _inputDecoration(
+                                l10n.enterBoutiqueDescription,
                               ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Description is required';
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return l10n.descriptionRequired;
                                 }
                                 return null;
                               },
                             ),
                             const SizedBox(height: 18),
-                            buildLabel('Logo Image'),
-                            buildImagePicker(
-                              onTap: pickLogoImage,
-                              selectedImage: selectedLogoImage,
-                              currentImageUrl: currentLogoUrl,
-                              emptyText: 'Tap to upload logo image',
-                              errorText: 'Logo could not load',
+                            _buildLabel(l10n.logoImage),
+                            _buildImagePicker(
+                              onTap: _pickLogoImage,
+                              selectedImage: _selectedLogoImage,
+                              currentImageUrl: _currentLogoUrl,
+                              emptyText: l10n.tapToUploadLogo,
+                              errorText: l10n.logoCouldNotLoad,
                               height: 140,
                               isCircle: true,
                             ),
                             const SizedBox(height: 18),
-                            buildLabel('Banner Image'),
-                            buildImagePicker(
-                              onTap: pickBannerImage,
-                              selectedImage: selectedBannerImage,
-                              currentImageUrl: currentBannerUrl,
-                              emptyText: 'Tap to upload banner image',
-                              errorText: 'Banner could not load',
+                            _buildLabel(l10n.bannerImage),
+                            _buildImagePicker(
+                              onTap: _pickBannerImage,
+                              selectedImage: _selectedBannerImage,
+                              currentImageUrl: _currentBannerUrl,
+                              emptyText: l10n.tapToUploadBanner,
+                              errorText: l10n.bannerCouldNotLoad,
                               height: 180,
                               isCircle: false,
                             ),
@@ -457,17 +439,28 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: isLoading ? null : saveBoutiqueChanges,
-                          child: isLoading
-                              ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
+                          onPressed: _isLoading ? null : _saveBoutiqueChanges,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.deepAccent,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.zero,
                             ),
-                          )
-                              : const Text('Save Changes'),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  l10n.saveChanges,
+                                  style: AppTextStyles.button,
+                                ),
                         ),
                       ),
                     ],

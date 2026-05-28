@@ -1,12 +1,193 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/utils/validators.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+int _getPasswordStrength(String password) {
+  int score = 0;
+  if (password.length >= 8) score++;
+  if (password.contains(RegExp(r'[A-Z]'))) score++;
+  if (password.contains(RegExp(r'[a-z]'))) score++;
+  if (password.contains(RegExp(r'[0-9]'))) score++;
+  return score;
+}
+
+String _strengthLabel(int strength, AppLocalizations l10n) {
+  switch (strength) {
+    case 0:
+    case 1:
+      return l10n.strengthWeak;
+    case 2:
+      return l10n.strengthFair;
+    case 3:
+      return l10n.strengthGood;
+    case 4:
+      return l10n.strengthStrong;
+    default:
+      return '';
+  }
+}
+
+Color _strengthColor(int strength) {
+  switch (strength) {
+    case 0:
+    case 1:
+      return AppColors.secondaryText;
+    case 2:
+      return AppColors.softAccent;
+    case 3:
+      return AppColors.deepAccent;
+    case 4:
+      return AppColors.primaryText;
+    default:
+      return AppColors.border;
+  }
+}
+
+Widget _criteriaChip(String label, bool met) {
+  return AnimatedContainer(
+    duration: const Duration(milliseconds: 250),
+    margin: const EdgeInsets.only(right: 5),
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      color: met ? AppColors.selectedSoft : AppColors.field,
+      border: Border.all(
+        color: met ? AppColors.deepAccent : AppColors.border,
+        width: 0.5,
+      ),
+    ),
+    child: Text(
+      label,
+      style: AppTextStyles.labelSmall.copyWith(
+        fontWeight: FontWeight.w500,
+        color: met ? AppColors.deepAccent : AppColors.secondaryText,
+      ),
+    ),
+  );
+}
+
+Widget _buildStrengthMeter(String password, AppLocalizations l10n) {
+  if (password.isEmpty) return const SizedBox.shrink();
+  final strength = _getPasswordStrength(password);
+  final color = _strengthColor(strength);
+  final label = _strengthLabel(strength, l10n);
+
+  return Padding(
+    padding: const EdgeInsets.only(top: 10),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: List.generate(4, (index) {
+            final filled = index < strength;
+            return Expanded(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+                margin: EdgeInsets.only(right: index < 3 ? 5 : 0),
+                height: 5,
+                decoration: BoxDecoration(
+                  color: filled ? color : AppColors.border,
+                ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Text(
+                label,
+                key: ValueKey(label),
+                style: AppTextStyles.bodySmall.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            _criteriaChip('8+ chars', password.length >= 8),
+            _criteriaChip('A-Z', password.contains(RegExp(r'[A-Z]'))),
+            _criteriaChip('a-z', password.contains(RegExp(r'[a-z]'))),
+            _criteriaChip('0-9', password.contains(RegExp(r'[0-9]'))),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildInput({
+  required String label,
+  required TextEditingController controller,
+  bool obscureText = false,
+  Widget? suffixIcon,
+  String? Function(String?)? validator,
+  TextInputType? keyboardType,
+  Widget? belowField,
+}) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: AppTextStyles.labelLarge.copyWith(
+          color: AppColors.secondaryText,
+        ),
+      ),
+      const SizedBox(height: 8),
+      TextFormField(
+        controller: controller,
+        obscureText: obscureText,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(
+          filled: true,
+          fillColor: AppColors.field,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: AppColors.deepAccent, width: 1),
+          ),
+          suffixIcon: suffixIcon,
+        ),
+        validator: validator,
+      ),
+      if (belowField != null) belowField,
+    ],
+  );
+}
+
+Future<void> _launchUrl(String url) async {
+  final uri = Uri.parse(url);
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -16,29 +197,27 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> {
-  final TextEditingController firstNameController = TextEditingController();
-  final TextEditingController lastNameController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController phoneController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController =
-      TextEditingController();
+  final firstNameController = TextEditingController();
+  final lastNameController = TextEditingController();
+  final emailController = TextEditingController();
+  final phoneController = TextEditingController();
+  final passwordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
 
   final _formKey = GlobalKey<FormState>();
+  final _googleSignIn = GoogleSignIn();
 
-  bool obscurePassword = true;
-  bool obscureConfirmPassword = true;
-  bool isLoading = false;
-  bool isGoogleLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
+  bool _isGoogleLoading = false;
   String _currentPassword = '';
 
   @override
   void initState() {
     super.initState();
     passwordController.addListener(() {
-      setState(() {
-        _currentPassword = passwordController.text;
-      });
+      setState(() => _currentPassword = passwordController.text);
     });
   }
 
@@ -53,191 +232,10 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
-  Future<void> _launchUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  int _getPasswordStrength(String password) {
-    int score = 0;
-    if (password.length >= 8) score++;
-    if (password.contains(RegExp(r'[A-Z]'))) score++;
-    if (password.contains(RegExp(r'[a-z]'))) score++;
-    if (password.contains(RegExp(r'[0-9]'))) score++;
-    return score;
-  }
-
-  String _strengthLabel(int strength) {
-    switch (strength) {
-      case 0:
-      case 1:
-        return 'Weak';
-      case 2:
-        return 'Fair';
-      case 3:
-        return 'Good';
-      case 4:
-        return 'Strong';
-      default:
-        return '';
-    }
-  }
-
-  Color _strengthColor(int strength) {
-    switch (strength) {
-      case 0:
-      case 1:
-        return AppColors.secondaryText;
-      case 2:
-        return AppColors.softAccent;
-      case 3:
-        return AppColors.deepAccent;
-      case 4:
-        return AppColors.primaryText;
-      default:
-        return AppColors.border;
-    }
-  }
-
-  Widget _buildStrengthMeter(String password) {
-    if (password.isEmpty) return const SizedBox.shrink();
-
-    final strength = _getPasswordStrength(password);
-    final color = _strengthColor(strength);
-    final label = _strengthLabel(strength);
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: List.generate(4, (index) {
-              final filled = index < strength;
-              return Expanded(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOut,
-                  margin: EdgeInsets.only(right: index < 3 ? 5 : 0),
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: filled ? color : AppColors.border,
-                    borderRadius: BorderRadius.zero,
-                  ),
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 6),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: Text(
-                  label,
-                  key: ValueKey(label),
-                  style: AppTextStyles.bodySmall.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: color,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              _criteriaChip('8+ chars', password.length >= 8),
-              _criteriaChip('A-Z', password.contains(RegExp(r'[A-Z]'))),
-              _criteriaChip('a-z', password.contains(RegExp(r'[a-z]'))),
-              _criteriaChip('0-9', password.contains(RegExp(r'[0-9]'))),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _criteriaChip(String label, bool met) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      margin: const EdgeInsets.only(right: 5),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: met ? AppColors.selectedSoft : AppColors.field,
-        border: Border.all(
-          color: met ? AppColors.deepAccent : AppColors.border,
-          width: 0.5,
-        ),
-      ),
-      child: Text(
-        label,
-        style: AppTextStyles.labelSmall.copyWith(
-          fontWeight: FontWeight.w500,
-          color: met ? AppColors.deepAccent : AppColors.secondaryText,
-        ),
-      ),
-    );
-  }
-
-  Widget buildInput({
-    required String label,
-    required TextEditingController controller,
-    bool obscureText = false,
-    Widget? suffixIcon,
-    String? Function(String?)? validator,
-    TextInputType? keyboardType,
-    Widget? belowField,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: AppTextStyles.labelLarge.copyWith(
-            color: AppColors.secondaryText,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: AppColors.field,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(
-                color: AppColors.deepAccent,
-                width: 1,
-              ),
-            ),
-            suffixIcon: suffixIcon,
-          ),
-          validator: validator,
-        ),
-        if (belowField != null) belowField,
-      ],
-    );
-  }
-
-  Future<void> createAccount() async {
+  Future<void> _createAccount() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final l10n = AppLocalizations.of(context)!;
     final firstName = firstNameController.text.trim();
     final lastName = lastNameController.text.trim();
     final phone = phoneController.text.trim();
@@ -245,20 +243,11 @@ class _SignUpPageState extends State<SignUpPage> {
     final password = passwordController.text.trim();
 
     final preflight =
-        Validators.combine(firstName, [
-          (v) => Validators.required(v, 'First name'),
-          (v) => Validators.maxLength(v, 50, 'First name'),
-        ]) ??
-        Validators.combine(lastName, [
-          (v) => Validators.required(v, 'Last name'),
-          (v) => Validators.maxLength(v, 50, 'Last name'),
-        ]) ??
+        Validators.maxLength(firstName, 50, 'First name') ??
+        Validators.maxLength(lastName, 50, 'Last name') ??
         Validators.email(email) ??
         Validators.phone(phone) ??
-        Validators.combine(password, [
-          (v) => Validators.required(v, 'Password'),
-          (v) => Validators.minLength(v, 8, 'Password'),
-        ]);
+        Validators.minLength(password, 8, 'Password');
     if (preflight != null) {
       ScaffoldMessenger.of(
         context,
@@ -266,16 +255,12 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
 
-    setState(() {
-      isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final fullName = '$firstName $lastName'.trim();
-
       final credential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: email, password: password);
-
       await credential.user?.updateDisplayName(fullName);
       await credential.user?.getIdToken(true);
 
@@ -294,24 +279,22 @@ class _SignUpPageState extends State<SignUpPage> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } on FirebaseAuthException catch (e) {
-      String message = AppLocalizations.of(context)!.signUpFailed;
-
-      if (e.code == 'email-already-in-use') {
-        message = AppLocalizations.of(context)!.emailAlreadyInUse;
-      } else if (e.code == 'invalid-email') {
-        message = AppLocalizations.of(context)!.invalidEmailAddress;
-      } else if (e.code == 'weak-password') {
-        message = AppLocalizations.of(context)!.passwordTooWeak;
-      } else if (e.message != null) {
+      String message = l10n.signUpFailed;
+      if (e.code == 'email-already-in-use')
+        message = l10n.emailAlreadyInUse;
+      else if (e.code == 'invalid-email')
+        message = l10n.invalidEmailAddress;
+      else if (e.code == 'weak-password')
+        message = l10n.passwordTooWeak;
+      else if (e.message != null)
         message = e.message!;
-      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
-      debugPrint("SIGNUP ERROR: $e");
+      debugPrint('SIGNUP ERROR: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -319,52 +302,33 @@ class _SignUpPageState extends State<SignUpPage> {
         ),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> signInWithGoogle() async {
-    setState(() {
-      isGoogleLoading = true;
-    });
-
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isGoogleLoading = true);
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return;
 
-      if (googleUser == null) {
-        return;
-      }
-
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
+      final googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-
       final userCredential = await FirebaseAuth.instance.signInWithCredential(
         credential,
       );
-
       final user = userCredential.user;
+
       if (user != null) {
         await user.getIdToken(true);
-
         final nameParts = (user.displayName ?? '').split(' ');
-        final firstName = nameParts.isNotEmpty ? nameParts.first : '';
-        final lastName = nameParts.length > 1
-            ? nameParts.sublist(1).join(' ')
-            : '';
-
         await FirestoreService.createUserProfile(
           uid: user.uid,
-          firstName: firstName,
-          lastName: lastName,
+          firstName: nameParts.isNotEmpty ? nameParts.first : '',
+          lastName: nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '',
           email: user.email ?? '',
           phone: '',
         );
@@ -377,7 +341,7 @@ class _SignUpPageState extends State<SignUpPage> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      debugPrint("GOOGLE SIGN IN ERROR: $e");
+      debugPrint('GOOGLE SIGN IN ERROR: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -385,16 +349,14 @@ class _SignUpPageState extends State<SignUpPage> {
         ),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          isGoogleLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -414,27 +376,24 @@ class _SignUpPageState extends State<SignUpPage> {
               children: [
                 const SizedBox(height: 30),
                 Image.asset(
-                  "assets/libsk_logo.png",
+                  'assets/libsk_logo.png',
                   height: 90,
                   fit: BoxFit.contain,
                 ),
                 const SizedBox(height: 60),
-                Text(
-                  AppLocalizations.of(context)!.signUp,
-                  style: AppTextStyles.headingLarge,
-                ),
+                Text(l10n.signUp, style: AppTextStyles.headingLarge),
                 const SizedBox(height: 36),
+
+                // ── Name row ────────────────────────────────────
                 Row(
                   children: [
                     Expanded(
-                      child: buildInput(
-                        label: AppLocalizations.of(context)!.firstName,
+                      child: _buildInput(
+                        label: l10n.firstName,
                         controller: firstNameController,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return AppLocalizations.of(
-                              context,
-                            )!.firstNameRequired;
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return l10n.firstNameRequired;
                           }
                           return null;
                         },
@@ -442,14 +401,12 @@ class _SignUpPageState extends State<SignUpPage> {
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: buildInput(
-                        label: AppLocalizations.of(context)!.lastName,
+                      child: _buildInput(
+                        label: l10n.lastName,
                         controller: lastNameController,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return AppLocalizations.of(
-                              context,
-                            )!.lastNameRequired;
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return l10n.lastNameRequired;
                           }
                           return null;
                         },
@@ -458,101 +415,94 @@ class _SignUpPageState extends State<SignUpPage> {
                   ],
                 ),
                 const SizedBox(height: 22),
-                buildInput(
-                  label: AppLocalizations.of(context)!.emailAddress,
+
+                _buildInput(
+                  label: l10n.emailAddress,
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return AppLocalizations.of(context)!.emailRequired;
-                    }
-                    if (!value.contains("@") || !value.contains(".")) {
-                      return AppLocalizations.of(context)!.enterValidEmail;
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty)
+                      return l10n.emailRequired;
+                    if (!v.contains('@') || !v.contains('.')) {
+                      return l10n.enterValidEmail;
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 22),
-                buildInput(
-                  label: AppLocalizations.of(context)!.phoneNumber,
+
+                _buildInput(
+                  label: l10n.phoneNumber,
                   controller: phoneController,
                   keyboardType: TextInputType.phone,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return AppLocalizations.of(context)!.phoneNumberRequired;
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return l10n.phoneNumberRequired;
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 22),
-                buildInput(
-                  label: AppLocalizations.of(context)!.password,
+
+                _buildInput(
+                  label: l10n.password,
                   controller: passwordController,
-                  obscureText: obscurePassword,
+                  obscureText: _obscurePassword,
                   suffixIcon: IconButton(
                     icon: Icon(
-                      obscurePassword
+                      _obscurePassword
                           ? Icons.visibility_outlined
                           : Icons.visibility_off_outlined,
                     ),
-                    onPressed: () {
-                      setState(() {
-                        obscurePassword = !obscurePassword;
-                      });
-                    },
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return AppLocalizations.of(context)!.passwordRequired;
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty)
+                      return l10n.passwordRequired;
+                    if (v.length < 8) return l10n.passwordMinLength;
+                    if (!v.contains(RegExp(r'[A-Z]'))) {
+                      return l10n.passwordNeedsUppercase;
                     }
-                    if (value.length < 8) {
-                      return 'Password must be at least 8 characters';
+                    if (!v.contains(RegExp(r'[a-z]'))) {
+                      return l10n.passwordNeedsLowercase;
                     }
-                    if (!value.contains(RegExp(r'[A-Z]'))) {
-                      return 'Password must contain at least one uppercase letter';
-                    }
-                    if (!value.contains(RegExp(r'[a-z]'))) {
-                      return 'Password must contain at least one lowercase letter';
-                    }
-                    if (!value.contains(RegExp(r'[0-9]'))) {
-                      return 'Password must contain at least one number';
+                    if (!v.contains(RegExp(r'[0-9]'))) {
+                      return l10n.passwordNeedsNumber;
                     }
                     return null;
                   },
-                  belowField: _buildStrengthMeter(_currentPassword),
+                  belowField: _buildStrengthMeter(_currentPassword, l10n),
                 ),
                 const SizedBox(height: 22),
-                buildInput(
-                  label: AppLocalizations.of(context)!.confirmPassword,
+
+                _buildInput(
+                  label: l10n.confirmPassword,
                   controller: confirmPasswordController,
-                  obscureText: obscureConfirmPassword,
+                  obscureText: _obscureConfirmPassword,
                   suffixIcon: IconButton(
                     icon: Icon(
-                      obscureConfirmPassword
+                      _obscureConfirmPassword
                           ? Icons.visibility_outlined
                           : Icons.visibility_off_outlined,
                     ),
-                    onPressed: () {
-                      setState(() {
-                        obscureConfirmPassword = !obscureConfirmPassword;
-                      });
-                    },
+                    onPressed: () => setState(
+                      () => _obscureConfirmPassword = !_obscureConfirmPassword,
+                    ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return AppLocalizations.of(
-                        context,
-                      )!.pleaseConfirmYourPassword;
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return l10n.pleaseConfirmYourPassword;
                     }
-                    if (value != passwordController.text) {
-                      return AppLocalizations.of(context)!.passwordsDoNotMatch;
+                    if (v != passwordController.text) {
+                      return l10n.passwordsDoNotMatch;
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 24),
 
-                // ── Terms & Privacy notice ──
+                // ── Terms & Privacy ──────────────────────────────
                 RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
@@ -560,11 +510,9 @@ class _SignUpPageState extends State<SignUpPage> {
                       color: AppColors.secondaryText,
                     ),
                     children: [
-                      const TextSpan(
-                        text: 'By creating an account you agree to our ',
-                      ),
+                      TextSpan(text: l10n.byCreatingAccount),
                       TextSpan(
-                        text: 'Terms of Use',
+                        text: l10n.termsOfUse,
                         style: AppTextStyles.bodySmall.copyWith(
                           color: AppColors.primaryText,
                           decoration: TextDecoration.underline,
@@ -573,9 +521,9 @@ class _SignUpPageState extends State<SignUpPage> {
                           ..onTap = () =>
                               _launchUrl('https://libsk.com/terms.html'),
                       ),
-                      const TextSpan(text: ' and '),
+                      TextSpan(text: ' ${l10n.and} '),
                       TextSpan(
-                        text: 'Privacy Policy',
+                        text: l10n.privacyPolicy,
                         style: AppTextStyles.bodySmall.copyWith(
                           color: AppColors.primaryText,
                           decoration: TextDecoration.underline,
@@ -594,15 +542,15 @@ class _SignUpPageState extends State<SignUpPage> {
                   width: double.infinity,
                   height: 58,
                   child: ElevatedButton(
-                    onPressed: isLoading ? null : createAccount,
+                    onPressed: _isLoading ? null : _createAccount,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.deepAccent,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.zero,
                       ),
                     ),
-                    child: isLoading
+                    child: _isLoading
                         ? const SizedBox(
                             height: 22,
                             width: 22,
@@ -611,20 +559,18 @@ class _SignUpPageState extends State<SignUpPage> {
                               color: Colors.white,
                             ),
                           )
-                        : Text(
-                            AppLocalizations.of(context)!.createAccount,
-                            style: AppTextStyles.button,
-                          ),
+                        : Text(l10n.createAccount, style: AppTextStyles.button),
                   ),
                 ),
                 const SizedBox(height: 36),
+
                 Row(
                   children: [
                     const Expanded(child: Divider()),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 18),
                       child: Text(
-                        AppLocalizations.of(context)!.or,
+                        l10n.or,
                         style: AppTextStyles.labelLarge.copyWith(
                           color: AppColors.secondaryText,
                         ),
@@ -634,8 +580,9 @@ class _SignUpPageState extends State<SignUpPage> {
                   ],
                 ),
                 const SizedBox(height: 24),
+
                 GestureDetector(
-                  onTap: isGoogleLoading ? null : signInWithGoogle,
+                  onTap: _isGoogleLoading ? null : _signInWithGoogle,
                   child: Container(
                     width: double.infinity,
                     height: 54,
@@ -643,7 +590,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       color: AppColors.card,
                       border: Border.all(color: AppColors.border, width: 0.5),
                     ),
-                    child: isGoogleLoading
+                    child: _isGoogleLoading
                         ? const Center(
                             child: SizedBox(
                               width: 22,
@@ -664,9 +611,7 @@ class _SignUpPageState extends State<SignUpPage> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                AppLocalizations.of(
-                                  context,
-                                )!.continueWithGoogle,
+                                l10n.continueWithGoogle,
                                 style: AppTextStyles.labelLarge,
                               ),
                             ],

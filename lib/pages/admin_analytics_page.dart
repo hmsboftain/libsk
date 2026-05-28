@@ -1,10 +1,104 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
-import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
 
 enum AnalyticsFilter { allTime, today, thisWeek, thisMonth }
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+double _parseTotal(dynamic value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString()) ?? 0;
+}
+
+int _countStatus(
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  String status,
+) {
+  return docs
+      .where((doc) =>
+          doc.data()['status']?.toString().toLowerCase() ==
+          status.toLowerCase())
+      .length;
+}
+
+// Returns null when there are no sales — caller handles display
+String? _topBoutiqueName(
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+) {
+  final Map<String, double> boutiqueSales = {};
+  final Map<String, String> boutiqueNames = {};
+
+  for (final doc in docs) {
+    final data = doc.data();
+    final total = _parseTotal(data['total']);
+    final items = data['items'];
+    if (items is! List || items.isEmpty) continue;
+
+    final first = Map<String, dynamic>.from(items.first as Map);
+    final boutiqueId = first['boutiqueId']?.toString() ?? '';
+    final boutiqueName = first['boutiqueName']?.toString() ?? '';
+    if (boutiqueId.isEmpty) continue;
+
+    boutiqueSales[boutiqueId] = (boutiqueSales[boutiqueId] ?? 0) + total;
+    boutiqueNames[boutiqueId] = boutiqueName;
+  }
+
+  if (boutiqueSales.isEmpty) return null;
+
+  final top =
+      boutiqueSales.entries.reduce((a, b) => a.value >= b.value ? a : b);
+  return boutiqueNames[top.key];
+}
+
+String _filterLabel(AnalyticsFilter filter, AppLocalizations l10n) {
+  switch (filter) {
+    case AnalyticsFilter.allTime:
+      return l10n.allTime;
+    case AnalyticsFilter.today:
+      return l10n.today;
+    case AnalyticsFilter.thisWeek:
+      return l10n.thisWeek;
+    case AnalyticsFilter.thisMonth:
+      return l10n.thisMonth;
+  }
+}
+
+DateTime _filterStartDate(AnalyticsFilter filter) {
+  final now = DateTime.now();
+  switch (filter) {
+    case AnalyticsFilter.today:
+      return DateTime(now.year, now.month, now.day);
+    case AnalyticsFilter.thisWeek:
+      final start = now.subtract(Duration(days: now.weekday - 1));
+      return DateTime(start.year, start.month, start.day);
+    case AnalyticsFilter.thisMonth:
+      return DateTime(now.year, now.month, 1);
+    case AnalyticsFilter.allTime:
+      return DateTime(2000); // unused
+  }
+}
+
+// Builds a Firestore query with both filters applied server-side —
+// only matching documents are transferred over the wire.
+Query<Map<String, dynamic>> _buildOrdersQuery(AnalyticsFilter filter) {
+  Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+      .collectionGroup('orders')
+      .where('sourceUserOrderId', isNotEqualTo: null);
+
+  if (filter != AnalyticsFilter.allTime) {
+    query = query.where(
+      'createdAt',
+      isGreaterThanOrEqualTo: Timestamp.fromDate(_filterStartDate(filter)),
+    );
+  }
+
+  return query;
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class AdminAnalyticsPage extends StatefulWidget {
   const AdminAnalyticsPage({super.key});
@@ -14,146 +108,38 @@ class AdminAnalyticsPage extends StatefulWidget {
 }
 
 class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
-  AnalyticsFilter selectedFilter = AnalyticsFilter.allTime;
-
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _ordersStream;
+  AnalyticsFilter _selectedFilter = AnalyticsFilter.allTime;
+  late Future<QuerySnapshot<Map<String, dynamic>>> _analyticsFuture;
 
   @override
   void initState() {
     super.initState();
-    _ordersStream = FirestoreService.getAllBoutiqueOrdersStream();
+    _analyticsFuture = _buildOrdersQuery(_selectedFilter).get();
   }
 
-  double _parseTotal(dynamic value) {
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString()) ?? 0;
+  void _applyFilter(AnalyticsFilter filter) {
+    setState(() {
+      _selectedFilter = filter;
+      _analyticsFuture = _buildOrdersQuery(filter).get();
+    });
   }
 
-  DateTime? _getCreatedAt(Map<String, dynamic> data) {
-    final value = data['createdAt'];
-    if (value is Timestamp) return value.toDate();
-    return null;
-  }
-
-
-  // filters orders by date range based on the selected chip
-  bool _isInsideSelectedFilter(Map<String, dynamic> data) {
-    if (selectedFilter == AnalyticsFilter.allTime) return true;
-
-    final createdAt = _getCreatedAt(data);
-    if (createdAt == null) return false;
-
-    final now = DateTime.now();
-
-    if (selectedFilter == AnalyticsFilter.today) {
-      return createdAt.year == now.year &&
-          createdAt.month == now.month &&
-          createdAt.day == now.day;
-    }
-
-    if (selectedFilter == AnalyticsFilter.thisWeek) {
-      final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-      final start = DateTime(
-        startOfWeek.year,
-        startOfWeek.month,
-        startOfWeek.day,
-      );
-      return createdAt.isAfter(start) || createdAt.isAtSameMomentAs(start);
-    }
-
-    if (selectedFilter == AnalyticsFilter.thisMonth) {
-      return createdAt.year == now.year && createdAt.month == now.month;
-    }
-
-    return true;
-  }
-
-  int _countStatus(
-      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
-      String status,
-      ) {
-    return docs.where((doc) {
-      return doc.data()['status']?.toString().toLowerCase() ==
-          status.toLowerCase();
-    }).length;
-  }
-
-
-  // finds the boutique with the highest combined sales across all orders
-  String _topBoutiqueName(
-      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
-      ) {
-    final Map<String, double> boutiqueSales = {};
-    final Map<String, String> boutiqueNames = {};
-
-    for (final doc in docs) {
-      final data = doc.data();
-      final total = _parseTotal(data['total']);
-      final items = data['items'];
-
-      if (items is List && items.isNotEmpty) {
-        final firstItem = Map<String, dynamic>.from(items.first as Map);
-        final boutiqueId = firstItem['boutiqueId']?.toString() ?? '';
-        final boutiqueName =
-            firstItem['boutiqueName']?.toString() ?? 'Boutique';
-
-        if (boutiqueId.isNotEmpty) {
-          boutiqueSales[boutiqueId] = (boutiqueSales[boutiqueId] ?? 0) + total;
-          boutiqueNames[boutiqueId] = boutiqueName;
-        }
-      }
-    }
-
-    if (boutiqueSales.isEmpty) return 'No sales yet';
-
-    String topBoutiqueId = boutiqueSales.keys.first;
-    double topSales = boutiqueSales[topBoutiqueId] ?? 0;
-
-    for (final entry in boutiqueSales.entries) {
-      if (entry.value > topSales) {
-        topBoutiqueId = entry.key;
-        topSales = entry.value;
-      }
-    }
-
-    return boutiqueNames[topBoutiqueId] ?? 'Boutique';
-  }
-
-  String _filterLabel(AnalyticsFilter filter) {
-    switch (filter) {
-      case AnalyticsFilter.allTime:
-        return 'All Time';
-      case AnalyticsFilter.today:
-        return 'Today';
-      case AnalyticsFilter.thisWeek:
-        return 'This Week';
-      case AnalyticsFilter.thisMonth:
-        return 'This Month';
-    }
-  }
-
-  Widget _filterChip(AnalyticsFilter filter) {
-    final isSelected = selectedFilter == filter;
-
+  Widget _filterChip(AnalyticsFilter filter, AppLocalizations l10n) {
+    final isSelected = _selectedFilter == filter;
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedFilter = filter;
-        });
-      },
+      onTap: () => _applyFilter(filter),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.deepAccent : AppColors.field,
-          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: isSelected ? AppColors.deepAccent : AppColors.border,
             width: 0.5,
           ),
         ),
         child: Text(
-          _filterLabel(filter),
+          _filterLabel(filter, l10n),
           style: AppTextStyles.labelLarge.copyWith(
             color: isSelected ? Colors.white : AppColors.secondaryText,
           ),
@@ -162,48 +148,194 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
     );
   }
 
-  Widget _filterBar() {
+  Widget _filterBar(AppLocalizations l10n) {
     return SizedBox(
       height: 44,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          _filterChip(AnalyticsFilter.allTime),
+          _filterChip(AnalyticsFilter.allTime, l10n),
           const SizedBox(width: 8),
-          _filterChip(AnalyticsFilter.today),
+          _filterChip(AnalyticsFilter.today, l10n),
           const SizedBox(width: 8),
-          _filterChip(AnalyticsFilter.thisWeek),
+          _filterChip(AnalyticsFilter.thisWeek, l10n),
           const SizedBox(width: 8),
-          _filterChip(AnalyticsFilter.thisMonth),
+          _filterChip(AnalyticsFilter.thisMonth, l10n),
         ],
       ),
     );
   }
 
-  Widget _analyticsCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    String? subtitle,
-  }) {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const AppHeader(showBackButton: true),
+            Expanded(
+              child: FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                future: _analyticsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.deepAccent,
+                      ),
+                    );
+                  }
+
+                  if (snapshot.hasError || !snapshot.hasData) {
+                    return Center(
+                      child: Text(
+                        l10n.failedToLoadAnalytics,
+                        style: AppTextStyles.bodyMedium,
+                      ),
+                    );
+                  }
+
+                  final docs = snapshot.data!.docs
+                      .cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
+
+                  double totalRevenue = 0;
+                  for (final doc in docs) {
+                    totalRevenue += _parseTotal(doc.data()['total']);
+                  }
+
+                  final totalOrders = docs.length;
+                  final averageOrderValue =
+                      totalOrders == 0 ? 0.0 : totalRevenue / totalOrders;
+                  final placedOrders = _countStatus(docs, 'Placed');
+                  final processingOrders = _countStatus(docs, 'Processing');
+                  final shippedOrders = _countStatus(docs, 'Shipped');
+                  final deliveredOrders = _countStatus(docs, 'Delivered');
+                  final topBoutique =
+                      _topBoutiqueName(docs) ?? l10n.noSalesYet;
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.analytics,
+                          style: AppTextStyles.displayMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          l10n.marketplacePerformanceOverview,
+                          style: AppTextStyles.bodyMedium,
+                        ),
+                        const SizedBox(height: 18),
+                        _filterBar(l10n),
+                        const SizedBox(height: 22),
+
+                        _AnalyticsCard(
+                          title: l10n.totalRevenue,
+                          value: l10n.amountKwd(
+                            totalRevenue.toStringAsFixed(0),
+                          ),
+                          icon: Icons.trending_up_rounded,
+                          subtitle: _filterLabel(_selectedFilter, l10n),
+                        ),
+                        const SizedBox(height: 12),
+                        _AnalyticsCard(
+                          title: l10n.totalOrders,
+                          value: totalOrders.toString(),
+                          icon: Icons.receipt_long_outlined,
+                          subtitle: l10n.ordersInSelectedPeriod,
+                        ),
+                        const SizedBox(height: 12),
+                        _AnalyticsCard(
+                          title: l10n.averageOrderValue,
+                          value: l10n.amountKwd(
+                            averageOrderValue.toStringAsFixed(1),
+                          ),
+                          icon: Icons.analytics_outlined,
+                          subtitle: l10n.revenueDividedByOrderCount,
+                        ),
+                        const SizedBox(height: 12),
+                        _AnalyticsCard(
+                          title: l10n.topBoutique,
+                          value: topBoutique,
+                          icon: Icons.storefront_outlined,
+                          subtitle: l10n.basedOnTotalSales,
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          l10n.orderStatus,
+                          style: AppTextStyles.headingSmall,
+                        ),
+                        const SizedBox(height: 12),
+                        _AnalyticsCard(
+                          title: l10n.placedOrders,
+                          value: placedOrders.toString(),
+                          icon: Icons.shopping_bag_outlined,
+                        ),
+                        const SizedBox(height: 12),
+                        _AnalyticsCard(
+                          title: l10n.processingOrders,
+                          value: processingOrders.toString(),
+                          icon: Icons.sync_outlined,
+                        ),
+                        const SizedBox(height: 12),
+                        _AnalyticsCard(
+                          title: l10n.shippedOrders,
+                          value: shippedOrders.toString(),
+                          icon: Icons.local_shipping_outlined,
+                        ),
+                        const SizedBox(height: 12),
+                        _AnalyticsCard(
+                          title: l10n.deliveredOrders,
+                          value: deliveredOrders.toString(),
+                          icon: Icons.check_circle_outline,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Analytics card widget ─────────────────────────────────────────────────────
+
+class _AnalyticsCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final String? subtitle;
+
+  const _AnalyticsCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: 22,
-            backgroundColor: AppColors.softAccent.withValues(alpha:0.22),
-            child: Icon(
-              icon,
-              color: AppColors.deepAccent,
-              size: 22,
-            ),
+            backgroundColor: AppColors.softAccent.withValues(alpha: 0.22),
+            child: Icon(icon, color: AppColors.deepAccent, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -225,156 +357,12 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
                 ),
                 if (subtitle != null) ...[
                   const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: AppTextStyles.bodySmall,
-                  ),
+                  Text(subtitle!, style: AppTextStyles.bodySmall),
                 ],
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            const AppHeader(showBackButton: true),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: _ordersStream,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.deepAccent,
-                      ),
-                    );
-                  }
-
-                  if (snapshot.hasError) {
-                    return const Center(
-                      child: Text(
-                        'Failed to load analytics',
-                        style: AppTextStyles.bodyMedium,
-                      ),
-                    );
-                  }
-
-                  final allDocs = snapshot.data?.docs ?? [];
-
-                  final orderDocs = allDocs.where((doc) {
-                    final data = doc.data();
-                    return data['sourceUserOrderId'] != null &&
-                        _isInsideSelectedFilter(data);
-                  }).toList();
-
-                  double totalRevenue = 0;
-
-                  for (final doc in orderDocs) {
-                    totalRevenue += _parseTotal(doc.data()['total']);
-                  }
-
-                  final totalOrders = orderDocs.length;
-                  final averageOrderValue =
-                  totalOrders == 0 ? 0 : totalRevenue / totalOrders;
-
-                  final placedOrders = _countStatus(orderDocs, 'Placed');
-                  final processingOrders =
-                  _countStatus(orderDocs, 'Processing');
-                  final shippedOrders = _countStatus(orderDocs, 'Shipped');
-                  final deliveredOrders = _countStatus(orderDocs, 'Delivered');
-
-                  final topBoutique = _topBoutiqueName(orderDocs);
-
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'ANALYTICS',
-                          style: AppTextStyles.displayMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Marketplace performance overview.',
-                          style: AppTextStyles.bodyMedium,
-                        ),
-                        const SizedBox(height: 18),
-                        _filterBar(),
-                        const SizedBox(height: 22),
-                        _analyticsCard(
-                          title: 'Total Revenue',
-                          value: '${totalRevenue.toStringAsFixed(0)} KWD',
-                          icon: Icons.trending_up_rounded,
-                          subtitle: _filterLabel(selectedFilter),
-                        ),
-                        const SizedBox(height: 12),
-                        _analyticsCard(
-                          title: 'Total Orders',
-                          value: totalOrders.toString(),
-                          icon: Icons.receipt_long_outlined,
-                          subtitle: 'Orders in selected period',
-                        ),
-                        const SizedBox(height: 12),
-                        _analyticsCard(
-                          title: 'Average Order Value',
-                          value:
-                          '${averageOrderValue.toStringAsFixed(1)} KWD',
-                          icon: Icons.analytics_outlined,
-                          subtitle: 'Revenue divided by order count',
-                        ),
-                        const SizedBox(height: 12),
-                        _analyticsCard(
-                          title: 'Top Boutique',
-                          value: topBoutique,
-                          icon: Icons.storefront_outlined,
-                          subtitle: 'Based on total sales',
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'Order Status',
-                          style: AppTextStyles.headingSmall,
-                        ),
-                        const SizedBox(height: 12),
-                        _analyticsCard(
-                          title: 'Placed Orders',
-                          value: placedOrders.toString(),
-                          icon: Icons.shopping_bag_outlined,
-                        ),
-                        const SizedBox(height: 12),
-                        _analyticsCard(
-                          title: 'Processing Orders',
-                          value: processingOrders.toString(),
-                          icon: Icons.sync_outlined,
-                        ),
-                        const SizedBox(height: 12),
-                        _analyticsCard(
-                          title: 'Shipped Orders',
-                          value: shippedOrders.toString(),
-                          icon: Icons.local_shipping_outlined,
-                        ),
-                        const SizedBox(height: 12),
-                        _analyticsCard(
-                          title: 'Delivered Orders',
-                          value: deliveredOrders.toString(),
-                          icon: Icons.check_circle_outline,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

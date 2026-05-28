@@ -1,7 +1,75 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
+
+// ── Period enum & helpers ─────────────────────────────────────────────────────
+
+enum _RevenuePeriod { today, thisWeek, thisMonth, thisYear, allTime }
+
+// Returns null for allTime — caller skips the Firestore filter
+DateTime? _periodStartDate(_RevenuePeriod period) {
+  final now = DateTime.now();
+  switch (period) {
+    case _RevenuePeriod.today:
+      return DateTime(now.year, now.month, now.day);
+    case _RevenuePeriod.thisWeek:
+      final start = now.subtract(Duration(days: now.weekday - 1));
+      return DateTime(start.year, start.month, start.day);
+    case _RevenuePeriod.thisMonth:
+      return DateTime(now.year, now.month, 1);
+    case _RevenuePeriod.thisYear:
+      return DateTime(now.year, 1, 1);
+    case _RevenuePeriod.allTime:
+      return null;
+  }
+}
+
+String _periodLabel(_RevenuePeriod period, AppLocalizations l10n) {
+  switch (period) {
+    case _RevenuePeriod.today:
+      return l10n.today;
+    case _RevenuePeriod.thisWeek:
+      return l10n.thisWeek;
+    case _RevenuePeriod.thisMonth:
+      return l10n.thisMonth;
+    case _RevenuePeriod.thisYear:
+      return l10n.thisYear;
+    case _RevenuePeriod.allTime:
+      return l10n.allTime;
+  }
+}
+
+double _sumField(
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  String field,
+) {
+  return docs.fold(0.0, (total, doc) {
+    final v = doc.data()[field] ?? 0;
+    return total + (v is num ? v.toDouble() : 0);
+  });
+}
+
+// Builds a date-filtered query for a flat collection
+Query<Map<String, dynamic>> _revenueQuery(
+  String collection,
+  _RevenuePeriod period,
+) {
+  Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
+    collection,
+  );
+  final startDate = _periodStartDate(period);
+  if (startDate != null) {
+    q = q.where(
+      'createdAt',
+      isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+    );
+  }
+  return q;
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class AdminRevenuePage extends StatefulWidget {
   const AdminRevenuePage({super.key});
@@ -11,14 +79,16 @@ class AdminRevenuePage extends StatefulWidget {
 }
 
 class _AdminRevenuePageState extends State<AdminRevenuePage> {
-  String _period = 'This Month';
-  final periods = ['Today', 'This Week', 'This Month', 'This Year', 'All Time'];
+  _RevenuePeriod _selectedPeriod = _RevenuePeriod.thisMonth;
 
-  // Firestore-driven totals
-  double commissionsTotal = 0;
-  double subscriptionsTotal = 0;
-  double promoSlotsTotal = 0;
-  bool isLoading = true;
+  double _commissionsTotal = 0;
+  double _subscriptionsTotal = 0;
+  double _promoSlotsTotal = 0;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  double get _grandTotal =>
+      _commissionsTotal + _subscriptionsTotal + _promoSlotsTotal;
 
   @override
   void initState() {
@@ -26,62 +96,59 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
     _fetchRevenue();
   }
 
+  // Three reads fire in parallel via Future.wait, each filtered server-side
+  // by the selected period — no more full-collection reads on every chip tap
   Future<void> _fetchRevenue() async {
-    setState(() => isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+
     try {
-      // Commissions from global_orders
-      final ordersSnap = await FirebaseFirestore.instance
-          .collection('global_orders')
-          .get();
+      final results = await Future.wait([
+        _revenueQuery('global_orders', _selectedPeriod).get(),
+        _revenueQuery('subscription_payments', _selectedPeriod).get(),
+        _revenueQuery('promo_slot_payments', _selectedPeriod).get(),
+      ]);
 
-      double commissions = 0;
-      for (final doc in ordersSnap.docs) {
-        final data = doc.data();
-        final commission = data['commissionAmount'] ?? 0;
-        commissions += commission is num ? commission.toDouble() : 0;
-      }
-
-      // Subscriptions from subscription_payments
-      final subsSnap = await FirebaseFirestore.instance
-          .collection('subscription_payments')
-          .get();
-
-      double subscriptions = 0;
-      for (final doc in subsSnap.docs) {
-        final data = doc.data();
-        final amount = data['amount'] ?? 0;
-        subscriptions += amount is num ? amount.toDouble() : 0;
-      }
-
-      // Promo slots from promo_slot_payments
-      final promoSnap = await FirebaseFirestore.instance
-          .collection('promo_slot_payments')
-          .get();
-
-      double promoSlots = 0;
-      for (final doc in promoSnap.docs) {
-        final data = doc.data();
-        final amount = data['amount'] ?? 0;
-        promoSlots += amount is num ? amount.toDouble() : 0;
-      }
+      final commissions = _sumField(
+        results[0].docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>(),
+        'commissionAmount',
+      );
+      final subscriptions = _sumField(
+        results[1].docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>(),
+        'amount',
+      );
+      final promoSlots = _sumField(
+        results[2].docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>(),
+        'amount',
+      );
 
       if (!mounted) return;
       setState(() {
-        commissionsTotal = commissions;
-        subscriptionsTotal = subscriptions;
-        promoSlotsTotal = promoSlots;
-        isLoading = false;
+        _commissionsTotal = commissions;
+        _subscriptionsTotal = subscriptions;
+        _promoSlotsTotal = promoSlots;
+        _isLoading = false;
       });
     } catch (_) {
-      if (mounted) setState(() => isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+      });
     }
   }
 
-  double get grandTotal =>
-      commissionsTotal + subscriptionsTotal + promoSlotsTotal;
+  void _selectPeriod(_RevenuePeriod period) {
+    setState(() => _selectedPeriod = period);
+    _fetchRevenue();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -99,31 +166,28 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Revenue Breakdown',
+                        l10n.revenueBreakdown,
                         style: AppTextStyles.displayMedium,
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Platform earnings across all revenue streams.',
+                        l10n.revenueBreakdownDescription,
                         style: AppTextStyles.bodySmall,
                       ),
                       const SizedBox(height: 20),
 
-                      // ── Period selector ─────────────────────────────
+                      // ── Period selector ───────────────────────────
                       SizedBox(
                         height: 36,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
-                          itemCount: periods.length,
+                          itemCount: _RevenuePeriod.values.length,
                           separatorBuilder: (_, __) => const SizedBox(width: 8),
                           itemBuilder: (context, index) {
-                            final p = periods[index];
-                            final isSelected = _period == p;
+                            final period = _RevenuePeriod.values[index];
+                            final isSelected = _selectedPeriod == period;
                             return GestureDetector(
-                              onTap: () {
-                                setState(() => _period = p);
-                                _fetchRevenue();
-                              },
+                              onTap: () => _selectPeriod(period),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 14,
@@ -141,7 +205,7 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
                                   ),
                                 ),
                                 child: Text(
-                                  p,
+                                  _periodLabel(period, l10n),
                                   style: AppTextStyles.capsLabel.copyWith(
                                     fontSize: 10,
                                     color: isSelected
@@ -157,7 +221,7 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
 
                       const SizedBox(height: 20),
 
-                      if (isLoading)
+                      if (_isLoading)
                         const Center(
                           child: Padding(
                             padding: EdgeInsets.symmetric(vertical: 60),
@@ -167,38 +231,43 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
                             ),
                           ),
                         )
+                      else if (_hasError)
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 60),
+                            child: Text(
+                              l10n.failedToLoadAnalytics,
+                              style: AppTextStyles.bodyMedium,
+                            ),
+                          ),
+                        )
                       else ...[
                         // ── Total card ──────────────────────────────
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: AppColors.deepAccent,
-                            border: Border.all(
-                              color: AppColors.deepAccent,
-                              width: 0.5,
-                            ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'TOTAL REVENUE',
+                                l10n.totalRevenue,
                                 style: AppTextStyles.capsLabel.copyWith(
                                   color: Colors.white70,
                                 ),
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'KD ${grandTotal.toStringAsFixed(2)}',
+                                'KD ${_grandTotal.toStringAsFixed(2)}',
                                 style: AppTextStyles.displayMedium.copyWith(
                                   color: Colors.white,
-                                  fontStyle: FontStyle.normal,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                _period,
+                                _periodLabel(_selectedPeriod, l10n),
                                 style: AppTextStyles.bodySmall.copyWith(
                                   color: Colors.white60,
                                 ),
@@ -210,37 +279,40 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
                         const SizedBox(height: 14),
 
                         // ── Breakdown cards ─────────────────────────
-                        _revenueCard(
+                        _RevenueCard(
                           icon: Icons.percent_outlined,
-                          label: 'Commissions',
-                          subtitle: 'Earned from boutique sales',
-                          amount: commissionsTotal,
-                          percentage: grandTotal > 0
-                              ? (commissionsTotal / grandTotal * 100)
+                          label: l10n.commissions,
+                          subtitle: l10n.commissionsSubtitle,
+                          amount: _commissionsTotal,
+                          percentage: _grandTotal > 0
+                              ? _commissionsTotal / _grandTotal * 100
                               : 0,
+                          l10n: l10n,
                         ),
-                        _revenueCard(
+                        _RevenueCard(
                           icon: Icons.subscriptions_outlined,
-                          label: 'Subscriptions',
-                          subtitle: 'Monthly & yearly tier fees',
-                          amount: subscriptionsTotal,
-                          percentage: grandTotal > 0
-                              ? (subscriptionsTotal / grandTotal * 100)
+                          label: l10n.subscriptions,
+                          subtitle: l10n.subscriptionsSubtitle,
+                          amount: _subscriptionsTotal,
+                          percentage: _grandTotal > 0
+                              ? _subscriptionsTotal / _grandTotal * 100
                               : 0,
+                          l10n: l10n,
                         ),
-                        _revenueCard(
+                        _RevenueCard(
                           icon: Icons.campaign_outlined,
-                          label: 'Promo Slots',
-                          subtitle: 'Banners, featured listings & search',
-                          amount: promoSlotsTotal,
-                          percentage: grandTotal > 0
-                              ? (promoSlotsTotal / grandTotal * 100)
+                          label: l10n.promoSlots,
+                          subtitle: l10n.promoSlotsSubtitle,
+                          amount: _promoSlotsTotal,
+                          percentage: _grandTotal > 0
+                              ? _promoSlotsTotal / _grandTotal * 100
                               : 0,
+                          l10n: l10n,
                         ),
 
                         const SizedBox(height: 20),
 
-                        // ── Promo slot breakdown ─────────────────────
+                        // ── Promo slot breakdown ────────────────────
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
@@ -255,25 +327,25 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'PROMO SLOT TYPES',
+                                l10n.promoSlotTypes,
                                 style: AppTextStyles.capsLabel,
                               ),
                               const SizedBox(height: 14),
-                              _promoRow(
-                                'Homepage Banner',
-                                'KD 12/day · KD 65/week',
+                              _PromoRow(
+                                type: l10n.homepageBanner,
+                                pricing: l10n.promoHomepageBannerPricing,
                               ),
-                              _promoRow(
-                                'Featured Boutiques',
-                                'KD 7/day · KD 38/week',
+                              _PromoRow(
+                                type: l10n.featuredBoutiques,
+                                pricing: l10n.promoFeaturedBoutiquesPricing,
                               ),
-                              _promoRow(
-                                'Featured Products',
-                                'KD 4/day · KD 22/week',
+                              _PromoRow(
+                                type: l10n.featuredProducts,
+                                pricing: l10n.promoFeaturedProductsPricing,
                               ),
-                              _promoRow(
-                                'Search Placement',
-                                'KD 5/day · KD 28/week',
+                              _PromoRow(
+                                type: l10n.searchPlacement,
+                                pricing: l10n.promoSearchPlacementPricing,
                               ),
                             ],
                           ),
@@ -289,14 +361,29 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
       ),
     );
   }
+}
 
-  Widget _revenueCard({
-    required IconData icon,
-    required String label,
-    required String subtitle,
-    required double amount,
-    required double percentage,
-  }) {
+// ── Revenue card widget ───────────────────────────────────────────────────────
+
+class _RevenueCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final double amount;
+  final double percentage;
+  final AppLocalizations l10n;
+
+  const _RevenueCard({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.amount,
+    required this.percentage,
+    required this.l10n,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
@@ -327,43 +414,47 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
             ],
           ),
           const SizedBox(height: 12),
-          // Progress bar
-          ClipRect(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return Stack(
-                    children: [
-                      Container(
-                        width: constraints.maxWidth,
-                        height: 4,
-                        color: AppColors.field,
-                      ),
-                      Container(
-                        width:
-                            constraints.maxWidth *
-                            (percentage / 100).clamp(0.0, 1.0),
-                        height: 4,
-                        color: AppColors.deepAccent,
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return Stack(
+                children: [
+                  Container(
+                    width: constraints.maxWidth,
+                    height: 4,
+                    color: AppColors.field,
+                  ),
+                  Container(
+                    width:
+                        constraints.maxWidth *
+                        (percentage / 100).clamp(0.0, 1.0),
+                    height: 4,
+                    color: AppColors.deepAccent,
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 4),
           Text(
-            '${percentage.toStringAsFixed(1)}% of total revenue',
+            l10n.percentOfTotalRevenue(percentage.toStringAsFixed(1)),
             style: AppTextStyles.bodySmall.copyWith(fontSize: 10),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _promoRow(String type, String pricing) {
+// ── Promo row widget ──────────────────────────────────────────────────────────
+
+class _PromoRow extends StatelessWidget {
+  final String type;
+  final String pricing;
+
+  const _PromoRow({required this.type, required this.pricing});
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(

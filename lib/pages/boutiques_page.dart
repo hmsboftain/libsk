@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import 'boutique_storefront_page.dart';
@@ -45,6 +46,7 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
     required String boutiqueName,
     required bool isCurrentlyLiked,
   }) async {
+    final l10n = AppLocalizations.of(context)!;
     try {
       if (isCurrentlyLiked) {
         await FirestoreService.removeSavedBoutique(boutiqueId);
@@ -60,8 +62,8 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
         SnackBar(
           content: Text(
             isCurrentlyLiked
-                ? 'Boutique removed from saved boutiques'
-                : 'Boutique saved',
+                ? l10n.boutiqueRemovedFromSaved
+                : l10n.itemSaved,
           ),
           duration: const Duration(seconds: 1),
         ),
@@ -69,9 +71,9 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Something went wrong'),
-          duration: Duration(seconds: 1),
+        SnackBar(
+          content: Text(l10n.somethingWentWrong),
+          duration: const Duration(seconds: 1),
         ),
       );
     }
@@ -94,6 +96,7 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -103,12 +106,12 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
             const AppHeader(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-              child: Text('Boutiques', style: AppTextStyles.displayMedium),
+              child: Text(l10n.boutiques, style: AppTextStyles.displayMedium),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Text(
-                'Curated independent labels',
+                l10n.curatedIndependentLabels,
                 style: AppTextStyles.bodySmall,
               ),
             ),
@@ -134,7 +137,7 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                         controller: _searchController,
                         style: AppTextStyles.bodyMedium,
                         decoration: InputDecoration(
-                          hintText: 'Search boutiques...',
+                          hintText: l10n.searchBoutiquesHint,
                           hintStyle: AppTextStyles.bodyMedium.copyWith(
                             color: AppColors.secondaryText,
                           ),
@@ -169,8 +172,8 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                       }
                       if (snapshot.hasError) {
                         return ErrorStateWidget.inline(
-                          title: 'Something went wrong',
-                          message: 'Pull down to retry',
+                          title: l10n.somethingWentWrong,
+                          message: l10n.pullDownToRetry,
                           onRetry: () => setState(() {}),
                           type: ErrorType.network,
                         );
@@ -189,7 +192,7 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                       if (docs.isEmpty) {
                         return Center(
                           child: Text(
-                            'No boutiques found',
+                            l10n.noBoutiquesFound,
                             style: AppTextStyles.bodyMedium.copyWith(
                               color: AppColors.secondaryText,
                             ),
@@ -209,7 +212,7 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                           final boutiqueId = doc.id;
                           final logoUrl = data['logoPath']?.toString() ?? '';
                           final boutiqueName =
-                              data['name']?.toString() ?? 'Boutique';
+                              data['name']?.toString() ?? l10n.boutique;
                           final isLiked = savedBoutiqueIds.contains(boutiqueId);
 
                           return Container(

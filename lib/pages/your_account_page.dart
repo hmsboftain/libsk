@@ -5,9 +5,9 @@ import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../navigation/main_navigation_bar.dart';
 import '../services/firestore_service.dart';
+import '../widgets/theme.dart';
 import 'account_information_page.dart';
 import 'change_password_page.dart';
-import '../widgets/theme.dart';
 
 class YourAccountPage extends StatefulWidget {
   const YourAccountPage({super.key});
@@ -17,101 +17,95 @@ class YourAccountPage extends StatefulWidget {
 }
 
 class _YourAccountPageState extends State<YourAccountPage> {
-  bool isDeleting = false;
+  final _googleSignIn = GoogleSignIn();
+  bool _isDeleting = false;
 
-  Future<void> deleteAccount() async {
-    final loc = AppLocalizations.of(context)!;
+  Future<void> _deleteAccount() async {
+    final l10n = AppLocalizations.of(context)!;
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.background,
-        shape: RoundedRectangleBorder(
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.zero,
-          side: const BorderSide(color: AppColors.border, width: 0.5),
+          side: BorderSide(color: AppColors.border, width: 0.5),
         ),
-        title: const Text(
-          'Delete Account',
-          style: AppTextStyles.headingMedium,
-        ),
-        content: const Text(
-          'Are you sure you want to permanently delete your account? This action cannot be undone.',
+        title: Text(l10n.deleteAccount, style: AppTextStyles.headingMedium),
+        content: Text(
+          l10n.deleteAccountConfirmation,
           style: AppTextStyles.bodyMedium,
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(ctx, false),
             child: Text(
-              'Cancel',
+              l10n.cancel,
               style: AppTextStyles.labelLarge.copyWith(
                 color: AppColors.secondaryText,
               ),
             ),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.deepAccent,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.zero,
               ),
             ),
-            child: const Text('Delete', style: AppTextStyles.button),
+            child: Text(l10n.deleteButton, style: AppTextStyles.button),
           ),
         ],
       ),
     );
 
-    if (!mounted) return;
-    if (confirm != true) return;
+    if (!mounted || confirm != true) return;
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     final isGoogleUser = user.providerData.any(
-          (info) => info.providerId == 'google.com',
+      (info) => info.providerId == 'google.com',
     );
 
     try {
-      setState(() => isDeleting = true);
+      setState(() => _isDeleting = true);
 
       if (isGoogleUser) {
-        final googleUser = await GoogleSignIn().signIn();
-        if (!mounted) return;
-        if (googleUser == null) return;
-
+        final googleUser = await _googleSignIn.signIn();
+        if (!mounted || googleUser == null) return;
         final googleAuth = await googleUser.authentication;
-
-        final credential = GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
-          idToken: googleAuth.idToken,
+        await user.reauthenticateWithCredential(
+          GoogleAuthProvider.credential(
+            accessToken: googleAuth.accessToken,
+            idToken: googleAuth.idToken,
+          ),
         );
-
-        await user.reauthenticateWithCredential(credential);
       } else {
         final passwordController = TextEditingController();
 
         final confirmed = await showDialog<bool>(
           context: context,
-          builder: (dialogContext) => AlertDialog(
+          builder: (ctx) => AlertDialog(
             backgroundColor: AppColors.background,
-            shape: RoundedRectangleBorder(
+            shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.zero,
-              side: const BorderSide(color: AppColors.border, width: 0.5),
+              side: BorderSide(color: AppColors.border, width: 0.5),
             ),
-            title: const Text(
-              'Confirm Password',
+            title: Text(
+              l10n.confirmPasswordTitle,
               style: AppTextStyles.headingMedium,
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Please enter your password to confirm account deletion.',
+                Text(
+                  l10n.confirmPasswordDescription,
                   style: AppTextStyles.bodyMedium,
                 ),
                 const SizedBox(height: 16),
@@ -119,7 +113,7 @@ class _YourAccountPageState extends State<YourAccountPage> {
                   controller: passwordController,
                   obscureText: true,
                   decoration: InputDecoration(
-                    hintText: 'Password',
+                    hintText: l10n.password,
                     filled: true,
                     fillColor: AppColors.field,
                     border: OutlineInputBorder(
@@ -149,78 +143,66 @@ class _YourAccountPageState extends State<YourAccountPage> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
+                onPressed: () => Navigator.pop(ctx, false),
                 child: Text(
-                  'Cancel',
+                  l10n.cancel,
                   style: AppTextStyles.labelLarge.copyWith(
                     color: AppColors.secondaryText,
                   ),
                 ),
               ),
               ElevatedButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
+                onPressed: () => Navigator.pop(ctx, true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.deepAccent,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero,
                   ),
                 ),
-                child: const Text('Confirm', style: AppTextStyles.button),
+                child: Text(l10n.confirmButton, style: AppTextStyles.button),
               ),
             ],
           ),
         );
 
-        if (!mounted) return;
-        if (confirmed != true) return;
+        if (!mounted || confirmed != true) return;
 
-        final credential = EmailAuthProvider.credential(
-          email: user.email!,
-          password: passwordController.text.trim(),
+        await user.reauthenticateWithCredential(
+          EmailAuthProvider.credential(
+            email: user.email!,
+            password: passwordController.text.trim(),
+          ),
         );
-
-        await user.reauthenticateWithCredential(credential);
       }
 
       await FirestoreService.setCurrentUserOffline();
       await FirebaseAuth.instance.currentUser?.delete();
 
       if (!mounted) return;
-
       navigator.pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (context) => MainNavigationPage(
-            onLanguageChange: (_) {},
-          ),
+          builder: (_) => MainNavigationPage(onLanguageChange: (_) {}),
         ),
-            (route) => false,
+        (route) => false,
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-
       messenger.showSnackBar(
-        SnackBar(
-          content: Text(e.message ?? loc.somethingWentWrong),
-        ),
+        SnackBar(content: Text(e.message ?? l10n.somethingWentWrong)),
       );
     } catch (_) {
       if (!mounted) return;
-
-      messenger.showSnackBar(
-        SnackBar(content: Text(loc.somethingWentWrong)),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(l10n.somethingWentWrong)));
     } finally {
-      if (mounted) {
-        setState(() => isDeleting = false);
-      }
+      if (mounted) setState(() => _isDeleting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -229,10 +211,7 @@ class _YourAccountPageState extends State<YourAccountPage> {
           children: [
             const AppHeader(showBackButton: true),
             const SizedBox(height: 12),
-            Text(
-              loc.yourAccount,
-              style: AppTextStyles.headingLarge,
-            ),
+            Text(l10n.yourAccount, style: AppTextStyles.headingLarge),
             const SizedBox(height: 16),
             const Divider(height: 1, thickness: 0.5),
             Expanded(
@@ -245,7 +224,7 @@ class _YourAccountPageState extends State<YourAccountPage> {
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.badge_outlined),
                       title: Text(
-                        loc.accountInformation,
+                        l10n.accountInformation,
                         style: AppTextStyles.bodyLarge,
                       ),
                       trailing: const Icon(
@@ -253,22 +232,19 @@ class _YourAccountPageState extends State<YourAccountPage> {
                         size: 16,
                         color: AppColors.secondaryText,
                       ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                            const AccountInformationPage(),
-                          ),
-                        );
-                      },
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AccountInformationPage(),
+                        ),
+                      ),
                     ),
                     const Divider(),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.lock_outline),
                       title: Text(
-                        loc.changePassword,
+                        l10n.changePassword,
                         style: AppTextStyles.bodyLarge,
                       ),
                       trailing: const Icon(
@@ -276,45 +252,43 @@ class _YourAccountPageState extends State<YourAccountPage> {
                         size: 16,
                         color: AppColors.secondaryText,
                       ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ChangePasswordPage(),
-                          ),
-                        );
-                      },
-                    ),
-                    const Divider(),
-                    const SizedBox(height: 40),
-                    isDeleting
-                        ? const CircularProgressIndicator(
-                      color: AppColors.deepAccent,
-                      strokeWidth: 1.5,
-                    )
-                        : SizedBox(
-                      width: double.infinity,
-                      height: 54,
-                      child: OutlinedButton(
-                        onPressed: deleteAccount,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.deepAccent,
-                          side: const BorderSide(
-                            color: AppColors.deepAccent,
-                            width: 0.5,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: Text(
-                          'Delete Account',
-                          style: AppTextStyles.labelLarge.copyWith(
-                            color: AppColors.deepAccent,
-                          ),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ChangePasswordPage(),
                         ),
                       ),
                     ),
+                    const Divider(),
+                    const SizedBox(height: 40),
+                    _isDeleting
+                        ? const CircularProgressIndicator(
+                            color: AppColors.deepAccent,
+                            strokeWidth: 1.5,
+                          )
+                        : SizedBox(
+                            width: double.infinity,
+                            height: 54,
+                            child: OutlinedButton(
+                              onPressed: _deleteAccount,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.deepAccent,
+                                side: const BorderSide(
+                                  color: AppColors.deepAccent,
+                                  width: 0.5,
+                                ),
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.zero,
+                                ),
+                              ),
+                              child: Text(
+                                l10n.deleteAccount,
+                                style: AppTextStyles.labelLarge.copyWith(
+                                  color: AppColors.deepAccent,
+                                ),
+                              ),
+                            ),
+                          ),
                   ],
                 ),
               ),

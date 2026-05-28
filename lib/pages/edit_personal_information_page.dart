@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import 'change_password_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -44,6 +45,7 @@ class _EditPersonalInformationPageState
   }
 
   Future<void> saveChanges() async {
+    final l10n = AppLocalizations.of(context)!;
     if (!_formKey.currentState!.validate()) return;
 
     final user = FirebaseAuth.instance.currentUser;
@@ -65,14 +67,12 @@ class _EditPersonalInformationPageState
         'fullName': fullName,
       }, SetOptions(merge: true));
 
-      await user.reload();
-
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Personal information updated"),
-          duration: Duration(seconds: 1),
+        SnackBar(
+          content: Text(l10n.accountUpdated),
+          duration: const Duration(seconds: 1),
         ),
       );
 
@@ -82,16 +82,14 @@ class _EditPersonalInformationPageState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.message ?? "Failed to update information"),
+          content: Text(e.message ?? l10n.failedToUpdateAccount),
         ),
       );
     } catch (_) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Something went wrong"),
-        ),
+        SnackBar(content: Text(l10n.somethingWentWrong)),
       );
     } finally {
       if (mounted) {
@@ -113,6 +111,7 @@ class _EditPersonalInformationPageState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -120,8 +119,8 @@ class _EditPersonalInformationPageState
           children: [
             const AppHeader(showBackButton: true),
             const SizedBox(height: 12),
-            const Text(
-              "Edit Personal Information",
+            Text(
+              l10n.editPersonalInformation,
               style: AppTextStyles.headingLarge,
             ),
             const SizedBox(height: 16),
@@ -135,15 +134,15 @@ class _EditPersonalInformationPageState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 24),
-                      const Text(
-                        "FULL NAME",
+                      Text(
+                        l10n.fullNameLabel,
                         style: AppTextStyles.capsLabel,
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: fullNameController,
                         decoration: InputDecoration(
-                          hintText: "Enter your full name",
+                          hintText: "",
                           filled: true,
                           fillColor: AppColors.field,
                           border: OutlineInputBorder(
@@ -170,14 +169,14 @@ class _EditPersonalInformationPageState
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return "Required";
+                            return l10n.requiredField;
                           }
                           return null;
                         },
                       ),
                       const SizedBox(height: 24),
-                      const Text(
-                        "EMAIL ADDRESS",
+                      Text(
+                        l10n.emailAddressLabel,
                         style: AppTextStyles.capsLabel,
                       ),
                       const SizedBox(height: 8),
@@ -186,7 +185,7 @@ class _EditPersonalInformationPageState
                         readOnly: true,
                         enabled: false,
                         decoration: InputDecoration(
-                          hintText: "Enter your email address",
+                          hintText: "",
                           filled: true,
                           fillColor: AppColors.disabledField,
                           border: OutlineInputBorder(
@@ -199,13 +198,13 @@ class _EditPersonalInformationPageState
                         ),
                       ),
                       const SizedBox(height: 10),
-                      const Text(
-                        "Email cannot be changed here.",
+                      Text(
+                        l10n.emailNotEditable,
                         style: AppTextStyles.bodySmall,
                       ),
                       const SizedBox(height: 30),
-                      const Text(
-                        "SECURITY",
+                      Text(
+                        l10n.securitySection,
                         style: AppTextStyles.capsLabel,
                       ),
                       const SizedBox(height: 8),
@@ -215,8 +214,8 @@ class _EditPersonalInformationPageState
                           Icons.lock_outline,
                           color: AppColors.primaryText,
                         ),
-                        title: const Text(
-                          "Change Password",
+                        title: Text(
+                          l10n.changePassword,
                           style: AppTextStyles.bodyLarge,
                         ),
                         trailing: const Icon(

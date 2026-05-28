@@ -1,10 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
-import 'add_address_page.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
+import 'add_address_page.dart';
 
 class SavedAddressesPage extends StatefulWidget {
   const SavedAddressesPage({super.key});
@@ -22,8 +22,30 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
     _addressesStream = FirestoreService.getSavedAddressesStream();
   }
 
+  Future<void> _deleteAddress(String docId) async {
+    final l10n = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await FirestoreService.deleteAddress(docId);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l10n.addressRemoved),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.failedToRemoveAddress)),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -31,10 +53,7 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
           children: [
             const AppHeader(showBackButton: true),
             const SizedBox(height: 12),
-            Text(
-              AppLocalizations.of(context)!.savedAddresses,
-              style: AppTextStyles.displayMedium,
-            ),
+            Text(l10n.savedAddresses, style: AppTextStyles.displayMedium),
             const SizedBox(height: 16),
             const Divider(height: 1, thickness: 0.5),
             Expanded(
@@ -53,8 +72,7 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                   if (snapshot.hasError) {
                     return Center(
                       child: Text(
-                        AppLocalizations.of(context)!
-                            .somethingWentWrongWhileLoadingAddresses,
+                        l10n.failedToLoadAddresses,
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.secondaryText,
                         ),
@@ -66,20 +84,18 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
 
                   if (docs.isEmpty) {
                     return RefreshIndicator(
-                      onRefresh: () async {
-                        setState(() {});
-                      },
+                      onRefresh: () async => setState(() {}),
                       child: SingleChildScrollView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         child: SizedBox(
                           height: 400,
                           child: Center(
                             child: Padding(
-                              padding:
-                              const EdgeInsets.symmetric(horizontal: 30),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 30,
+                              ),
                               child: Text(
-                                AppLocalizations.of(context)!
-                                    .noSavedAddressesYet,
+                                l10n.noSavedAddressesYet,
                                 textAlign: TextAlign.center,
                                 style: AppTextStyles.bodyMedium.copyWith(
                                   color: AppColors.secondaryText,
@@ -93,96 +109,16 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                   }
 
                   return RefreshIndicator(
-                    onRefresh: () async {
-                      setState(() {});
-                    },
+                    onRefresh: () async => setState(() {}),
                     child: ListView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(16),
                       itemCount: docs.length,
-                      itemBuilder: (context, index) {
-                        final doc = docs[index];
-                        final address = doc.data();
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 14),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.card,
-                            border: Border.all(
-                              color: AppColors.border,
-                              width: 0.5,
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      "${address["firstName"]} ${address["lastName"]}",
-                                      style: AppTextStyles.bodyLarge.copyWith(
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    onPressed: () async {
-                                      final loc = AppLocalizations.of(context)!;
-                                      final messenger = ScaffoldMessenger.of(context);
-
-                                      await FirestoreService.deleteAddress(doc.id);
-
-                                      if (!mounted) return;
-
-                                      messenger.showSnackBar(
-                                        SnackBar(
-                                          content: Text(loc.addressRemoved),
-                                          duration: const Duration(seconds: 1),
-                                        ),
-                                      );
-                                    },
-                                    icon: const Icon(Icons.delete_outline),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                "${address["governorate"]}, ${address["area"]}",
-                                style: AppTextStyles.bodyMedium,
-                              ),
-                              Text(
-                                "${AppLocalizations.of(context)!.block} ${address["block"]}, ${AppLocalizations.of(context)!.street} ${address["street"]}",
-                                style: AppTextStyles.bodyMedium,
-                              ),
-                              Text(
-                                "${AppLocalizations.of(context)!.houseBuilding}: ${address["house"]}",
-                                style: AppTextStyles.bodyMedium,
-                              ),
-                              if ((address["floor"] ?? "")
-                                  .toString()
-                                  .isNotEmpty)
-                                Text(
-                                  "${AppLocalizations.of(context)!.floor}: ${address["floor"]}",
-                                  style: AppTextStyles.bodyMedium,
-                                ),
-                              if ((address["apartment"] ?? "")
-                                  .toString()
-                                  .isNotEmpty)
-                                Text(
-                                  "${AppLocalizations.of(context)!.apartment}: ${address["apartment"]}",
-                                  style: AppTextStyles.bodyMedium,
-                                ),
-                              const SizedBox(height: 8),
-                              Text(
-                                "${AppLocalizations.of(context)!.phone}: ${address["phone"]}",
-                                style: AppTextStyles.bodySmall,
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                      itemBuilder: (context, index) => _AddressCard(
+                        doc: docs[index],
+                        l10n: l10n,
+                        onDelete: _deleteAddress,
+                      ),
                     ),
                   );
                 },
@@ -192,14 +128,10 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
               width: double.infinity,
               height: 70,
               child: ElevatedButton(
-                onPressed: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AddAddressPage(),
-                    ),
-                  );
-                },
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AddAddressPage()),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.deepAccent,
                   foregroundColor: Colors.white,
@@ -208,13 +140,92 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                   ),
                 ),
                 child: Text(
-                  AppLocalizations.of(context)!.addNewAddress,
+                  l10n.addNewAddress,
                   style: AppTextStyles.button.copyWith(fontSize: 16),
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Address card widget ───────────────────────────────────────────────────────
+
+class _AddressCard extends StatelessWidget {
+  final QueryDocumentSnapshot<Map<String, dynamic>> doc;
+  final AppLocalizations l10n;
+  final Future<void> Function(String docId) onDelete;
+
+  const _AddressCard({
+    required this.doc,
+    required this.l10n,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final address = doc.data();
+    final floor = address['floor']?.toString() ?? '';
+    final apartment = address['apartment']?.toString() ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        border: Border.all(color: AppColors.border, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${address['firstName']} ${address['lastName']}',
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => onDelete(doc.id),
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${address['governorate']}, ${address['area']}',
+            style: AppTextStyles.bodyMedium,
+          ),
+          Text(
+            l10n.blockStreetLine(
+              address['block']?.toString() ?? '',
+              address['street']?.toString() ?? '',
+            ),
+            style: AppTextStyles.bodyMedium,
+          ),
+          Text(
+            l10n.houseBuildingValue(address['house']?.toString() ?? ''),
+            style: AppTextStyles.bodyMedium,
+          ),
+          if (floor.isNotEmpty)
+            Text(l10n.floorValue(floor), style: AppTextStyles.bodyMedium),
+          if (apartment.isNotEmpty)
+            Text(
+              l10n.apartmentValue(apartment),
+              style: AppTextStyles.bodyMedium,
+            ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.phoneValue(address['phone']?.toString() ?? ''),
+            style: AppTextStyles.bodySmall,
+          ),
+        ],
       ),
     );
   }

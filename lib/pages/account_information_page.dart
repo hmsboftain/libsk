@@ -5,20 +5,50 @@ import 'package:flutter/material.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
 
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+Widget _buildLabel(String text) {
+  return Text(text, style: AppTextStyles.capsLabel);
+}
+
+InputDecoration _buildInputDecoration({
+  required String hintText,
+  bool isDisabled = false,
+}) {
+  return InputDecoration(
+    hintText: hintText,
+    filled: true,
+    fillColor: isDisabled ? AppColors.disabledField : AppColors.field,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(4),
+      borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(4),
+      borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(4),
+      borderSide: const BorderSide(color: AppColors.deepAccent, width: 1),
+    ),
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 class AccountInformationPage extends StatefulWidget {
   const AccountInformationPage({super.key});
 
   @override
-  State<AccountInformationPage> createState() =>
-      _AccountInformationPageState();
+  State<AccountInformationPage> createState() => _AccountInformationPageState();
 }
 
 class _AccountInformationPageState extends State<AccountInformationPage> {
   final _formKey = GlobalKey<FormState>();
 
-  late TextEditingController fullNameController;
-  late TextEditingController emailController;
-  late TextEditingController phoneController;
+  final fullNameController = TextEditingController();
+  final emailController = TextEditingController();
+  final phoneController = TextEditingController();
 
   bool isLoading = true;
   bool isSaving = false;
@@ -29,18 +59,21 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
     loadUserData();
   }
 
-  // pull user data from both Auth and Firestore
+  @override
+  void dispose() {
+    fullNameController.dispose();
+    emailController.dispose();
+    phoneController.dispose();
+    super.dispose();
+  }
+
+  // Pull user data from both Auth and Firestore
   Future<void> loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
 
-    fullNameController = TextEditingController(
-      text: user?.displayName ?? '',
-    );
-
-    emailController = TextEditingController(
-      text: user?.email ?? '',
-    );
-    phoneController = TextEditingController();
+    fullNameController.text = user?.displayName ?? '';
+    emailController.text = user?.email ?? '';
+    phoneController.text = '';
 
     if (user != null) {
       final doc = await FirebaseFirestore.instance
@@ -57,25 +90,10 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
     }
 
     if (!mounted) return;
-    setState(() {
-      isLoading = false;
-    });
+    setState(() => isLoading = false);
   }
 
-  Future<void> _onRefresh() async {
-    setState(() {
-      isLoading = true;
-    });
-    await loadUserData();
-  }
-
-  @override
-  void dispose() {
-    fullNameController.dispose();
-    emailController.dispose();
-    phoneController.dispose();
-    super.dispose();
-  }
+  Future<void> _onRefresh() => loadUserData();
 
   Future<void> saveChanges() async {
     if (!_formKey.currentState!.validate()) return;
@@ -83,9 +101,7 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    setState(() {
-      isSaving = true;
-    });
+    setState(() => isSaving = true);
 
     try {
       final fullName = fullNameController.text.trim();
@@ -94,16 +110,11 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
       await user.updateDisplayName(fullName);
 
       // merge so we don't overwrite other fields like role or createdAt
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set({
+      // email is intentionally excluded — it's read-only and never changes here
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'fullName': fullName,
-        'email': user.email ?? '',
         'phone': phone,
       }, SetOptions(merge: true));
-
-      await user.reload();
 
       if (!mounted) return;
 
@@ -117,7 +128,6 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -127,55 +137,20 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
       );
     } catch (_) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            AppLocalizations.of(context)!.somethingWentWrong,
-          ),
+          content: Text(AppLocalizations.of(context)!.somethingWentWrong),
         ),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          isSaving = false;
-        });
-      }
+      if (mounted) setState(() => isSaving = false);
     }
-  }
-
-  Widget buildLabel(String text) {
-    return Text(
-      text,
-      style: AppTextStyles.capsLabel,
-    );
-  }
-
-  InputDecoration buildInputDecoration({
-    required String hintText,
-    bool isDisabled = false,
-  }) {
-    return InputDecoration(
-      hintText: hintText,
-      filled: true,
-      fillColor: isDisabled ? AppColors.disabledField : AppColors.field,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: AppColors.deepAccent, width: 1),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -183,89 +158,80 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
           children: [
             const AppHeader(showBackButton: true),
             const SizedBox(height: 12),
-            Text(
-              AppLocalizations.of(context)!.accountInformation,
-              style: AppTextStyles.headingLarge,
-            ),
+            Text(l10n.accountInformation, style: AppTextStyles.headingLarge),
             const SizedBox(height: 16),
             const Divider(height: 1, thickness: 0.5),
             Expanded(
               child: isLoading
                   ? const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.deepAccent,
-                  strokeWidth: 1.5,
-                ),
-              )
+                      child: CircularProgressIndicator(
+                        color: AppColors.deepAccent,
+                        strokeWidth: 1.5,
+                      ),
+                    )
                   : RefreshIndicator(
-                onRefresh: _onRefresh,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 22),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 24),
-                        buildLabel(AppLocalizations.of(context)!.username),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: fullNameController,
-                          decoration: buildInputDecoration(
-                            hintText:
-                            AppLocalizations.of(context)!.enterUsername,
+                      onRefresh: _onRefresh,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 24),
+                              _buildLabel(l10n.username),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                controller: fullNameController,
+                                decoration: _buildInputDecoration(
+                                  hintText: l10n.enterUsername,
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return l10n.requiredField;
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 24),
+                              _buildLabel(l10n.email),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                controller: emailController,
+                                enabled: false,
+                                decoration: _buildInputDecoration(
+                                  hintText: l10n.enterEmail,
+                                  isDisabled: true,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                l10n.emailNotEditable,
+                                style: AppTextStyles.bodySmall,
+                              ),
+                              const SizedBox(height: 24),
+                              _buildLabel(l10n.phoneNumber),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                controller: phoneController,
+                                keyboardType: TextInputType.phone,
+                                decoration: _buildInputDecoration(
+                                  hintText: l10n.enterPhoneNumber,
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return l10n.requiredField;
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 30),
+                            ],
                           ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return AppLocalizations.of(context)!
-                                  .requiredField;
-                            }
-                            return null;
-                          },
                         ),
-                        const SizedBox(height: 24),
-                        buildLabel(AppLocalizations.of(context)!.email),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: emailController,
-                          readOnly: true,
-                          enabled: false,
-                          decoration: buildInputDecoration(
-                            hintText:
-                            AppLocalizations.of(context)!.enterEmail,
-                            isDisabled: true,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          AppLocalizations.of(context)!.emailNotEditable,
-                          style: AppTextStyles.bodySmall,
-                        ),
-                        const SizedBox(height: 24),
-                        buildLabel(AppLocalizations.of(context)!.phoneNumber),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: phoneController,
-                          keyboardType: TextInputType.phone,
-                          decoration: buildInputDecoration(
-                            hintText: AppLocalizations.of(context)!
-                                .enterPhoneNumber,
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return AppLocalizations.of(context)!
-                                  .requiredField;
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 30),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-              ),
             ),
             SizedBox(
               width: double.infinity,
@@ -281,17 +247,17 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
                 ),
                 child: isSaving
                     ? const SizedBox(
-                  height: 22,
-                  width: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: Colors.white,
-                  ),
-                )
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          color: Colors.white,
+                        ),
+                      )
                     : Text(
-                  AppLocalizations.of(context)!.saveChanges,
-                  style: AppTextStyles.button.copyWith(fontSize: 16),
-                ),
+                        l10n.saveChanges,
+                        style: AppTextStyles.button.copyWith(fontSize: 16),
+                      ),
               ),
             ),
           ],

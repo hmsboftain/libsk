@@ -6,14 +6,48 @@ import '../navigation/app_header.dart';
 import '../navigation/main_navigation_bar.dart';
 import '../services/firestore_service.dart';
 import '../main.dart';
-import 'saved_items_page.dart';
-import 'saved_boutiques_page.dart';
-import 'saved_addresses_page.dart';
-import 'your_account_page.dart';
-import 'owner_dashboard_page.dart';
-import 'super_admin_dashboard_page.dart';
-import 'help_and_support_page.dart';
 import '../widgets/theme.dart';
+import 'help_and_support_page.dart';
+import 'owner_dashboard_page.dart';
+import 'saved_addresses_page.dart';
+import 'saved_boutiques_page.dart';
+import 'saved_items_page.dart';
+import 'super_admin_dashboard_page.dart';
+import 'your_account_page.dart';
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+Widget _buildTile({
+  required IconData icon,
+  required String title,
+  required VoidCallback onTap,
+}) {
+  return Column(
+    children: [
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(icon, color: AppColors.primaryText),
+        title: Text(title, style: AppTextStyles.bodyLarge),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: AppColors.secondaryText,
+        ),
+        onTap: onTap,
+      ),
+      const Divider(),
+    ],
+  );
+}
+
+Future<void> _launchUrl(String url) async {
+  final uri = Uri.parse(url);
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -23,58 +57,72 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  bool isOwner = false;
-  bool isSuperAdmin = false;
-  bool isCheckingAccess = true;
+  bool _isOwner = false;
+  bool _isSuperAdmin = false;
+  bool _isCheckingAccess = true;
 
   @override
   void initState() {
     super.initState();
-    checkAccessStatus();
+    _checkAccessStatus();
   }
 
-  Future<void> checkAccessStatus() async {
+  Future<void> _checkAccessStatus() async {
     try {
       final results = await Future.wait([
         FirestoreService.isCurrentUserApprovedOwner(),
         FirestoreService.isCurrentUserSuperAdmin(),
       ]);
-
       if (!mounted) return;
-
       setState(() {
-        isOwner = results[0];
-        isSuperAdmin = results[1];
-        isCheckingAccess = false;
+        _isOwner = results[0];
+        _isSuperAdmin = results[1];
+        _isCheckingAccess = false;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
-
       setState(() {
-        isOwner = false;
-        isSuperAdmin = false;
-        isCheckingAccess = false;
+        _isOwner = false;
+        _isSuperAdmin = false;
+        _isCheckingAccess = false;
       });
     }
   }
 
-  Future<void> _launchUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+  void _toggleLanguage() {
+    final currentLocale = Localizations.localeOf(context).languageCode;
+    LibskApp.setLocale(
+      context,
+      currentLocale == 'ar' ? const Locale('en') : const Locale('ar'),
+    );
+  }
+
+  Future<void> _logout() async {
+    final navigator = Navigator.of(context);
+    try {
+      await FirestoreService.deleteCurrentUserFcmToken();
+    } catch (_) {}
+    await FirestoreService.setCurrentUserOffline();
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => MainNavigationPage(onLanguageChange: (_) {}),
+      ),
+      (route) => false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final user = FirebaseAuth.instance.currentUser;
-
     final displayName =
         (user?.displayName != null && user!.displayName!.trim().isNotEmpty)
         ? user.displayName!
-        : AppLocalizations.of(context)!.user;
-
-    final email = user?.email ?? AppLocalizations.of(context)!.noEmail;
+        : l10n.user;
+    final email = user?.email ?? l10n.noEmail;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -90,6 +138,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     const SizedBox(height: 10),
 
+                    // ── Avatar ────────────────────────────────────────
                     Row(
                       children: [
                         const CircleAvatar(
@@ -129,66 +178,55 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     const SizedBox(height: 30),
 
-                    Text(
-                      AppLocalizations.of(context)!.accountSection,
-                      style: AppTextStyles.capsLabel,
-                    ),
+                    // ── Account ───────────────────────────────────────
+                    Text(l10n.accountSection, style: AppTextStyles.capsLabel),
                     const SizedBox(height: 10),
-
                     _buildTile(
                       icon: Icons.person_outline,
-                      title: AppLocalizations.of(context)!.yourAccount,
+                      title: l10n.yourAccount,
                       onTap: () async {
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const YourAccountPage(),
+                            builder: (_) => const YourAccountPage(),
                           ),
                         );
                         if (mounted) setState(() {});
                       },
                     ),
-
                     _buildTile(
                       icon: Icons.favorite,
-                      title: AppLocalizations.of(context)!.savedItems,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SavedItemsPage(),
-                          ),
-                        );
-                      },
+                      title: l10n.savedItems,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SavedItemsPage(),
+                        ),
+                      ),
                     ),
-
                     _buildTile(
                       icon: Icons.store,
-                      title: AppLocalizations.of(context)!.savedBoutiques,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SavedBoutiquesPage(),
-                          ),
-                        );
-                      },
+                      title: l10n.savedBoutiques,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SavedBoutiquesPage(),
+                        ),
+                      ),
                     ),
-
                     _buildTile(
                       icon: Icons.location_on,
-                      title: AppLocalizations.of(context)!.savedAddresses,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SavedAddressesPage(),
-                          ),
-                        );
-                      },
+                      title: l10n.savedAddresses,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SavedAddressesPage(),
+                        ),
+                      ),
                     ),
 
-                    if (isCheckingAccess) ...[
+                    // ── Access check loading ──────────────────────────
+                    if (_isCheckingAccess) ...[
                       const SizedBox(height: 20),
                       const Center(
                         child: SizedBox(
@@ -202,135 +240,87 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ],
 
-                    if (!isCheckingAccess && isSuperAdmin) ...[
+                    // ── Super admin ───────────────────────────────────
+                    if (!_isCheckingAccess && _isSuperAdmin) ...[
                       const SizedBox(height: 30),
-                      Text(
-                        AppLocalizations.of(context)!.adminSection,
-                        style: AppTextStyles.capsLabel,
-                      ),
+                      Text(l10n.adminSection, style: AppTextStyles.capsLabel),
                       const SizedBox(height: 10),
                       _buildTile(
                         icon: Icons.admin_panel_settings_outlined,
-                        title: AppLocalizations.of(
+                        title: l10n.superAdminDashboard,
+                        onTap: () => Navigator.push(
                           context,
-                        )!.superAdminDashboard,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const SuperAdminDashboardPage(),
-                            ),
-                          );
-                        },
+                          MaterialPageRoute(
+                            builder: (_) => const SuperAdminDashboardPage(),
+                          ),
+                        ),
                       ),
                     ],
 
-                    if (!isCheckingAccess && isOwner) ...[
+                    // ── Boutique owner ────────────────────────────────
+                    if (!_isCheckingAccess && _isOwner) ...[
                       const SizedBox(height: 30),
                       Text(
-                        AppLocalizations.of(context)!.boutiqueSection,
+                        l10n.boutiqueSection,
                         style: AppTextStyles.capsLabel,
                       ),
                       const SizedBox(height: 10),
                       _buildTile(
                         icon: Icons.storefront_outlined,
-                        title: AppLocalizations.of(context)!.boutiqueDashboard,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const OwnerDashboardPage(),
-                            ),
-                          );
-                        },
+                        title: l10n.boutiqueDashboard,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const OwnerDashboardPage(),
+                          ),
+                        ),
                       ),
                     ],
 
                     const SizedBox(height: 30),
 
-                    Text(
-                      AppLocalizations.of(context)!.languages,
-                      style: AppTextStyles.capsLabel,
-                    ),
+                    // ── Language ──────────────────────────────────────
+                    Text(l10n.languages, style: AppTextStyles.capsLabel),
                     const SizedBox(height: 10),
-
                     _buildTile(
                       icon: Icons.language,
-                      title:
-                          Localizations.localeOf(context).languageCode == 'ar'
-                          ? '🇰🇼 العربية'
-                          : '🇬🇧 English',
-                      onTap: () {
-                        final currentLocale = Localizations.localeOf(
-                          context,
-                        ).languageCode;
-                        if (currentLocale == 'ar') {
-                          LibskApp.setLocale(context, const Locale('en'));
-                        } else {
-                          LibskApp.setLocale(context, const Locale('ar'));
-                        }
-                      },
+                      title: isArabic ? '🇰🇼 العربية' : '🇬🇧 English',
+                      onTap: _toggleLanguage,
                     ),
 
                     const SizedBox(height: 30),
 
-                    Text(
-                      AppLocalizations.of(context)!.supportSection,
-                      style: AppTextStyles.capsLabel,
-                    ),
+                    // ── Support & legal ───────────────────────────────
+                    Text(l10n.supportSection, style: AppTextStyles.capsLabel),
                     const SizedBox(height: 10),
-
                     _buildTile(
                       icon: Icons.help_outline,
-                      title: AppLocalizations.of(context)!.helpSupport,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const HelpSupportPage(),
-                          ),
-                        );
-                      },
+                      title: l10n.helpSupport,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const HelpSupportPage(),
+                        ),
+                      ),
                     ),
-
-                    // ── Legal links ──
                     _buildTile(
                       icon: Icons.privacy_tip_outlined,
-                      title: 'Privacy Policy',
+                      title: l10n.privacyPolicy,
                       onTap: () => _launchUrl('https://libsk.com/privacy.html'),
                     ),
-
                     _buildTile(
                       icon: Icons.description_outlined,
-                      title: 'Terms of Use',
+                      title: l10n.termsOfUse,
                       onTap: () => _launchUrl('https://libsk.com/terms.html'),
                     ),
 
                     const SizedBox(height: 30),
 
+                    // ── Logout ────────────────────────────────────────
                     _buildTile(
                       icon: Icons.logout,
-                      title: AppLocalizations.of(context)!.logout,
-                      onTap: () async {
-                        final navigator = Navigator.of(context);
-
-                        try {
-                          await FirestoreService.deleteCurrentUserFcmToken();
-                        } catch (_) {}
-                        await FirestoreService.setCurrentUserOffline();
-                        await FirebaseAuth.instance.signOut();
-
-                        if (!mounted) return;
-
-                        navigator.pushAndRemoveUntil(
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                MainNavigationPage(onLanguageChange: (_) {}),
-                          ),
-                          (route) => false,
-                        );
-                      },
+                      title: l10n.logout,
+                      onTap: _logout,
                     ),
                   ],
                 ),
@@ -339,29 +329,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildTile({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return Column(
-      children: [
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(icon, color: AppColors.primaryText),
-          title: Text(title, style: AppTextStyles.bodyLarge),
-          trailing: const Icon(
-            Icons.arrow_forward_ios,
-            size: 16,
-            color: AppColors.secondaryText,
-          ),
-          onTap: onTap,
-        ),
-        const Divider(),
-      ],
     );
   }
 }
