@@ -215,6 +215,47 @@ async function checkRateLimit(key, maxRequests, windowSeconds) {
 
 // ================= PAYMENTS =================
 
+const ORDER_CURRENCY = "kwd";
+
+function getDeliveryCostForMethod(deliveryMethod) {
+  if (deliveryMethod === "Regular Delivery") return 3;
+  if (deliveryMethod === "Same Day Delivery") return 5;
+
+  throw new HttpsError("invalid-argument", "Invalid delivery method.");
+}
+
+function getStripeAmount(total, currency) {
+  const multiplier = currency.toLowerCase() === "kwd" ? 1000 : 100;
+  return Math.round(total * multiplier);
+}
+
+function validatePaymentIntentForOrder(paymentIntent, options) {
+  const {uid, expectedAmount, currency} = options;
+
+  if (!paymentIntent) {
+    throw new HttpsError("failed-precondition", "Payment could not be verified.");
+  }
+
+  if (paymentIntent.status !== "succeeded") {
+    throw new HttpsError("failed-precondition", "Payment has not completed.");
+  }
+
+  if (String(paymentIntent.currency || "").toLowerCase() !== currency) {
+    throw new HttpsError("failed-precondition", "Payment currency does not match this order.");
+  }
+
+  if (
+    Number(paymentIntent.amount) !== expectedAmount ||
+    Number(paymentIntent.amount_received) !== expectedAmount
+  ) {
+    throw new HttpsError("failed-precondition", "Payment amount does not match this order.");
+  }
+
+  if ((paymentIntent.metadata || {}).uid !== uid) {
+    throw new HttpsError("permission-denied", "Payment does not belong to this user.");
+  }
+}
+
 exports.createPaymentIntent = onCall(async (request) => {
   const stripe = require("stripe")(stripeSecret.value());
   try {
@@ -286,7 +327,11 @@ exports.createPaymentIntent = onCall(async (request) => {
       subtotal += serverPrice * quantity;
     }
 
-    const delivery = Number(deliveryCost) || 0;
+    const delivery = Number(deliveryCost);
+    if (![3, 5].includes(delivery)) {
+      throw new HttpsError("invalid-argument", "Invalid delivery cost.");
+    }
+
     const total = subtotal + delivery;
     const multiplier = currency.toLowerCase() === "kwd" ? 1000 : 100;
     const amount = Math.round(total * multiplier);
@@ -306,6 +351,9 @@ exports.createPaymentIntent = onCall(async (request) => {
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency: currency.toLowerCase(),
+      metadata: {
+        uid: request.auth.uid,
+      },
     });
 
     return {
@@ -426,8 +474,54 @@ exports.createOrder = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Invalid payment method.");
   }
 
-  if (typeof paymentIntentId !== "string" || paymentIntentId.length > 200) {
+  if (!paymentIntentId || typeof paymentIntentId !== "string" || paymentIntentId.length > 200) {
     throw new HttpsError("invalid-argument", "Invalid paymentIntentId.");
+  }
+
+  const normalizedItems = items.map((item) => {
+    const boutiqueId = String(item.boutiqueId || "");
+    const productId  = String(item.productId  || "");
+    const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
+
+    if (!boutiqueId || !productId) {
+      throw new HttpsError("invalid-argument", "Invalid product information.");
+    }
+
+    if (quantity > 100) {
+      throw new HttpsError("invalid-argument", "Quantity cannot exceed 100 per item.");
+    }
+
+    return {
+      input: item,
+      boutiqueId,
+      productId,
+      quantity,
+      key: `${boutiqueId}/${productId}`,
+    };
+  });
+
+  const productAggregates = new Map();
+  for (const item of normalizedItems) {
+    const current = productAggregates.get(item.key) || {
+      boutiqueId: item.boutiqueId,
+      productId: item.productId,
+      quantity: 0,
+    };
+    current.quantity += item.quantity;
+    productAggregates.set(item.key, current);
+  }
+
+  const stripe = require("stripe")(stripeSecret.value());
+  let paymentIntent;
+  try {
+    paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+  } catch (error) {
+    logger.warn("Unable to retrieve payment intent", {
+      paymentIntentId,
+      uid,
+      error: error.message,
+    });
+    throw new HttpsError("failed-precondition", "Payment could not be verified.");
   }
 
   const counterRef = db.collection("metadata").doc("order_counter");
@@ -460,68 +554,62 @@ exports.createOrder = onCall(async (request) => {
 
   const userOrderRef   = db.collection("users").doc(uid).collection("orders").doc();
   const globalOrderRef = db.collection("global_orders").doc(userOrderRef.id);
-
-  const boutiqueMap = {};
-  for (const item of items) {
-    const bid = String(item.boutiqueId || "");
-    if (!bid) continue;
-    if (!boutiqueMap[bid]) boutiqueMap[bid] = [];
-    boutiqueMap[bid].push(item);
-  }
-
-  const verifiedItems = [];
-  let verifiedSubtotal = 0;
+  const paymentIntentRef = db.collection("payment_intents").doc(paymentIntentId);
 
   await db.runTransaction(async (tx) => {
-    for (const item of items) {
-      const boutiqueId = String(item.boutiqueId || "");
-      const productId  = String(item.productId  || "");
-      const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
+    const paymentIntentSnap = await tx.get(paymentIntentRef);
+    if (paymentIntentSnap.exists) {
+      throw new HttpsError("already-exists", "Payment has already been used for an order.");
+    }
 
-      if (!boutiqueId || !productId) {
-        throw new HttpsError("invalid-argument", "Invalid product information.");
-      }
-
-      if (quantity > 100) {
-        throw new HttpsError("invalid-argument", "Quantity cannot exceed 100 per item.");
-      }
-
-      const productRef  = db.collection("boutiques").doc(boutiqueId)
-                            .collection("products").doc(productId);
+    const productsByKey = new Map();
+    for (const [key, aggregate] of productAggregates.entries()) {
+      const productRef = db.collection("boutiques").doc(aggregate.boutiqueId)
+                           .collection("products").doc(aggregate.productId);
       const productSnap = await tx.get(productRef);
 
       if (!productSnap.exists) {
-        throw new HttpsError("not-found",
-          `${item.title || "Product"} is no longer available.`);
+        throw new HttpsError("not-found", "Product is no longer available.");
       }
 
       const productData = productSnap.data();
       const stock       = Number(productData.stock) || 0;
 
-      if (stock < quantity) {
+      if (stock < aggregate.quantity) {
         throw new HttpsError("failed-precondition",
           `${productData.title || "Product"} does not have enough stock.`);
       }
 
+      productsByKey.set(key, {ref: productRef, data: productData});
+    }
+
+    const verifiedItems = [];
+    const boutiqueIds = new Set();
+    let verifiedSubtotal = 0;
+
+    for (const item of normalizedItems) {
+      const {data: productData} = productsByKey.get(item.key);
+
       const serverPrice = Number(productData.price) || 0;
-      verifiedSubtotal += serverPrice * quantity;
+      verifiedSubtotal += serverPrice * item.quantity;
 
       const verifiedItem = {
-        productId,
-        boutiqueId,
-        title:        productData.title        || item.title       || "",
-        imageUrl:     item.imageUrl            || "",
-        description:  productData.description  || item.description || "",
-        size:         item.size                || "",
+        productId: item.productId,
+        boutiqueId: item.boutiqueId,
+        title:        productData.title        || item.input.title || "",
+        imageUrl:     item.input.imageUrl      || "",
+        description:  productData.description  || item.input.description || "",
+        size:         item.input.size          || "",
         price:        serverPrice,
-        quantity,
+        quantity:     item.quantity,
         boutiqueName: productData.boutiqueName || "",
       };
-      const color = String(item.color || "").trim();
+      const color = String(item.input.color || "").trim();
       if (color) {
         verifiedItem.color = color;
       }
       verifiedItems.push(verifiedItem);
+      boutiqueIds.add(item.boutiqueId);
     }
 
     if (verifiedSubtotal > 5000) {
@@ -531,8 +619,15 @@ exports.createOrder = onCall(async (request) => {
       );
     }
 
-    const deliveryCost = deliveryMethod === "Regular Delivery" ? 3 : 5;
+    const deliveryCost = getDeliveryCostForMethod(deliveryMethod);
     const total = verifiedSubtotal + deliveryCost;
+    const expectedAmount = getStripeAmount(total, ORDER_CURRENCY);
+
+    validatePaymentIntentForOrder(paymentIntent, {
+      uid,
+      expectedAmount,
+      currency: ORDER_CURRENCY,
+    });
 
     const orderBase = {
       orderNumber,
@@ -551,10 +646,19 @@ exports.createOrder = onCall(async (request) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
+    tx.set(paymentIntentRef, {
+      uid,
+      orderId: userOrderRef.id,
+      orderNumber,
+      amount: expectedAmount,
+      currency: ORDER_CURRENCY,
+      status: paymentIntent.status,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
     tx.set(userOrderRef, orderBase);
     tx.set(globalOrderRef, { ...orderBase, sourceUserOrderId: userOrderRef.id });
 
-    for (const [boutiqueId] of Object.entries(boutiqueMap)) {
+    for (const boutiqueId of boutiqueIds) {
       const bItems = verifiedItems.filter(i => i.boutiqueId === boutiqueId);
       const bTotal = bItems.reduce((s, i) => s + i.price * i.quantity, 0);
       const bCount = bItems.reduce((s, i) => s + i.quantity, 0);
@@ -580,11 +684,12 @@ exports.createOrder = onCall(async (request) => {
       });
     }
 
-    for (const item of verifiedItems) {
-      const productRef = db.collection("boutiques").doc(item.boutiqueId)
-                           .collection("products").doc(item.productId);
+    for (const aggregate of productAggregates.values()) {
+      const {ref: productRef} = productsByKey.get(
+        `${aggregate.boutiqueId}/${aggregate.productId}`,
+      );
       tx.update(productRef, {
-        stock: admin.firestore.FieldValue.increment(-item.quantity),
+        stock: admin.firestore.FieldValue.increment(-aggregate.quantity),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
@@ -1519,3 +1624,11 @@ exports.cleanupGuestCarts = onSchedule("every 24 hours", async () => {
     if (cartSnap.docs.length > 0) await batch.commit();
   }
 });
+
+if (process.env.NODE_ENV === "test") {
+  module.exports.__test__ = {
+    getDeliveryCostForMethod,
+    getStripeAmount,
+    validatePaymentIntentForOrder,
+  };
+}
