@@ -478,8 +478,10 @@ exports.createOrder = onCall(async (request) => {
   const globalOrderRef = db.collection("global_orders").doc(userOrderRef.id);
 
   let orderNumber = "";
+  let refundPaymentOnFailure = false;
 
-  await db.runTransaction(async (tx) => {
+  try {
+    await db.runTransaction(async (tx) => {
     const verifiedItems = [];
     const productCache = new Map();
     let verifiedSubtotal = 0;
@@ -544,15 +546,6 @@ exports.createOrder = onCall(async (request) => {
       verifiedItems.push(verifiedItem);
     }
 
-    for (const productEntry of productCache.values()) {
-      if (productEntry.stock < productEntry.requiredQuantity) {
-        throw new HttpsError(
-          "failed-precondition",
-          `${productEntry.data.title || "Product"} does not have enough stock.`,
-        );
-      }
-    }
-
     if (verifiedSubtotal > 5000) {
       throw new HttpsError(
         "invalid-argument",
@@ -577,6 +570,16 @@ exports.createOrder = onCall(async (request) => {
         "already-exists",
         "This payment has already been used for an order.",
       );
+    }
+    refundPaymentOnFailure = true;
+
+    for (const productEntry of productCache.values()) {
+      if (productEntry.stock < productEntry.requiredQuantity) {
+        throw new HttpsError(
+          "failed-precondition",
+          `${productEntry.data.title || "Product"} does not have enough stock.`,
+        );
+      }
     }
 
     const counterSnap = await tx.get(counterRef);
@@ -653,7 +656,30 @@ exports.createOrder = onCall(async (request) => {
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
-  });
+    });
+  } catch (error) {
+    if (refundPaymentOnFailure && error.code !== "already-exists") {
+      try {
+        const refund = await stripe.refunds.create({
+          payment_intent: paymentIntentId,
+        });
+        logger.info("Refunded payment after failed order creation", {
+          uid,
+          paymentIntentId,
+          refundId: refund.id,
+          status: refund.status,
+        });
+      } catch (refundError) {
+        logger.error("Failed to refund payment after order failure", {
+          uid,
+          paymentIntentId,
+          refundError,
+        });
+      }
+    }
+
+    throw error;
+  }
 
   return { orderNumber };
 });
