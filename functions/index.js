@@ -13,6 +13,19 @@ const { defineString } = require("firebase-functions/params");
 const stripeSecret = defineString("STRIPE_SECRET_KEY");
 const algoliaAppId = defineString("ALGOLIA_APP_ID");
 const algoliaAdminKey = defineString("ALGOLIA_ADMIN_KEY");
+const {
+  CheckoutValidationError,
+  PAYMENT_CURRENCY,
+  aggregateItemsByProduct,
+  assertPaymentIntentMatches,
+  assertPaymentIntentReadyForUser,
+  calculatePaymentAmount,
+  getDeliveryCostForOrder,
+  getDeliveryDetailsFromPaymentData,
+  normalizeOrderItems,
+  normalizePaymentCurrency,
+  productKey,
+} = require("./order_helpers");
 
 admin.initializeApp();
 
@@ -144,6 +157,49 @@ function convertDataToStrings(data) {
   return converted;
 }
 
+function rethrowCallableError(error, fallbackMessage) {
+  if (error instanceof HttpsError) {
+    throw error;
+  }
+
+  if (error instanceof CheckoutValidationError) {
+    throw new HttpsError(error.code, error.message);
+  }
+
+  throw new HttpsError("internal", error.message || fallbackMessage);
+}
+
+async function refundVerifiedPayment(stripe, paymentIntentId, uid, reason) {
+  try {
+    const refund = await stripe.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+        metadata: {
+          uid,
+          reason,
+        },
+      },
+      {
+        idempotencyKey: `create-order-failed-${paymentIntentId}`,
+      },
+    );
+
+    logger.info("Refunded payment after order failure", {
+      paymentIntentId,
+      refundId: refund.id,
+      status: refund.status,
+      reason,
+    });
+  } catch (refundError) {
+    logger.error("Failed to refund payment after order failure", {
+      paymentIntentId,
+      uid,
+      reason,
+      refundError,
+    });
+  }
+}
+
 async function sendNotificationToBoutiqueOwners(
   boutiqueId,
   title,
@@ -238,74 +294,47 @@ exports.createPaymentIntent = onCall(async (request) => {
 
     logger.info("Callable data received", {data});
 
-    const items = data.items;
-    const deliveryCost = data.deliveryCost;
-    const currency = data.currency;
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Items must be a non-empty array.",
-      );
-    }
-
-    if (!currency || typeof currency !== "string") {
-      throw new HttpsError("invalid-argument", "Currency is required.");
-    }
-
-    const allowedCurrencies = ["kwd", "usd", "gbp", "eur"];
-    if (!allowedCurrencies.includes(currency.toLowerCase())) {
-      throw new HttpsError("invalid-argument", "Unsupported currency.");
-    }
+    const uid = request.auth.uid;
+    const items = normalizeOrderItems(data.items);
+    const {method: deliveryMethod, cost: deliveryCost} =
+      getDeliveryDetailsFromPaymentData(data);
+    const currency = normalizePaymentCurrency(data.currency || PAYMENT_CURRENCY);
 
     let subtotal = 0;
 
     for (const item of items) {
-      const boutiqueId = String(item.boutiqueId || "");
-      const productId  = String(item.productId  || "");
-      const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
-
-      if (!boutiqueId || !productId) {
-        throw new HttpsError("invalid-argument", "Each item must have boutiqueId and productId.");
-      }
-
-      if (quantity > 100) {
-        throw new HttpsError("invalid-argument", "Quantity cannot exceed 100 per item.");
-      }
-
       const productDoc = await db
-        .collection("boutiques").doc(boutiqueId)
-        .collection("products").doc(productId)
+        .collection("boutiques").doc(item.boutiqueId)
+        .collection("products").doc(item.productId)
         .get();
 
       if (!productDoc.exists) {
-        throw new HttpsError("not-found", `Product ${productId} not found.`);
+        throw new HttpsError("not-found", `Product ${item.productId} not found.`);
       }
 
       const serverPrice = Number(productDoc.data().price) || 0;
-      subtotal += serverPrice * quantity;
+      subtotal += serverPrice * item.quantity;
     }
 
-    const delivery = Number(deliveryCost) || 0;
-    const total = subtotal + delivery;
-    const multiplier = currency.toLowerCase() === "kwd" ? 1000 : 100;
-    const amount = Math.round(total * multiplier);
-
-    if (amount <= 0) {
-      throw new HttpsError("invalid-argument", "Order total must be greater than zero.");
-    }
+    const {total, amount} = calculatePaymentAmount(subtotal, deliveryCost);
 
     logger.info("Creating payment intent", {
       subtotal,
-      delivery,
+      delivery: deliveryCost,
+      deliveryMethod,
       total,
       amount,
       currency,
+      uid,
     });
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
-      currency: currency.toLowerCase(),
+      currency,
+      metadata: {
+        uid,
+        deliveryMethod,
+      },
     });
 
     return {
@@ -315,12 +344,7 @@ exports.createPaymentIntent = onCall(async (request) => {
   } catch (error) {
     logger.error("Stripe error", error);
 
-    if (error instanceof HttpsError) throw error;
-
-    throw new HttpsError(
-      "internal",
-      error.message || "Failed to create payment intent.",
-    );
+    rethrowCallableError(error, "Failed to create payment intent.");
   }
 });
 
@@ -388,209 +412,303 @@ exports.createOrder = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
 
-  const orderRateOk = await checkRateLimit(
-    `order_${request.auth.uid}`,
-    5,
-    3600,
-  );
-  if (!orderRateOk) {
-    throw new HttpsError(
-      "resource-exhausted",
-      "Too many requests. Please try again later.",
+  const stripe = require("stripe")(stripeSecret.value());
+  let paymentIntentIdForRefund = "";
+  let paymentVerifiedForRefund = false;
+
+  try {
+    const orderRateOk = await checkRateLimit(
+      `order_${request.auth.uid}`,
+      5,
+      3600,
     );
-  }
-
-  const uid             = request.auth.uid;
-  const data            = request.data || {};
-  const items           = data.items;
-  const deliveryMethod  = data.deliveryMethod  || "";
-  const paymentMethod   = data.paymentMethod   || "";
-  const paymentIntentId = data.paymentIntentId || "";
-
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    throw new HttpsError("invalid-argument", "Items must be a non-empty array.");
-  }
-
-  if (items.length > 50) {
-    throw new HttpsError("invalid-argument", "Order cannot contain more than 50 items.");
-  }
-
-  const allowedDeliveryMethods = ["Regular Delivery", "Same Day Delivery"];
-  const allowedPaymentMethods  = ["Card"];
-
-  if (!allowedDeliveryMethods.includes(deliveryMethod)) {
-    throw new HttpsError("invalid-argument", "Invalid delivery method.");
-  }
-
-  if (!allowedPaymentMethods.includes(paymentMethod)) {
-    throw new HttpsError("invalid-argument", "Invalid payment method.");
-  }
-
-  if (typeof paymentIntentId !== "string" || paymentIntentId.length > 200) {
-    throw new HttpsError("invalid-argument", "Invalid paymentIntentId.");
-  }
-
-  const counterRef = db.collection("metadata").doc("order_counter");
-  const orderNumber = await db.runTransaction(async (tx) => {
-    const snap = await tx.get(counterRef);
-    let last = 100000;
-    if (snap.exists && typeof snap.data().lastOrderNumber === "number") {
-      last = snap.data().lastOrderNumber;
+    if (!orderRateOk) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Too many requests. Please try again later.",
+      );
     }
-    const next = last + 1;
-    tx.set(counterRef, { lastOrderNumber: next }, { merge: true });
-    return String(next);
-  });
 
-  const addressSnap = await db
-    .collection("users").doc(uid)
-    .collection("saved_addresses")
-    .orderBy("createdAt", "desc")
-    .limit(1)
-    .get();
-  const addressData = addressSnap.empty ? null : addressSnap.docs[0].data();
+    const uid = request.auth.uid;
+    const data = request.data || {};
+    const items = normalizeOrderItems(data.items);
+    const deliveryMethod = data.deliveryMethod || "";
+    const paymentMethod = data.paymentMethod || "";
+    const paymentIntentId = String(data.paymentIntentId || "").trim();
+    const deliveryCost = getDeliveryCostForOrder(deliveryMethod);
 
-  const userDoc = await db.collection("users").doc(uid).get();
-  const userData = userDoc.exists ? userDoc.data() : {};
-  const customerName  = userData.fullName  || request.auth.token.name  || "User";
-  const customerEmail = userData.email     || request.auth.token.email || "";
+    if (paymentMethod !== "Card") {
+      throw new HttpsError("invalid-argument", "Invalid payment method.");
+    }
 
-  const now        = new Date();
-  const dateString = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
+    if (!paymentIntentId || paymentIntentId.length > 200) {
+      throw new HttpsError("invalid-argument", "Invalid paymentIntentId.");
+    }
 
-  const userOrderRef   = db.collection("users").doc(uid).collection("orders").doc();
-  const globalOrderRef = db.collection("global_orders").doc(userOrderRef.id);
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    assertPaymentIntentReadyForUser(paymentIntent, {
+      uid,
+      currency: PAYMENT_CURRENCY,
+    });
+    paymentIntentIdForRefund = paymentIntentId;
+    paymentVerifiedForRefund = true;
 
-  const boutiqueMap = {};
-  for (const item of items) {
-    const bid = String(item.boutiqueId || "");
-    if (!bid) continue;
-    if (!boutiqueMap[bid]) boutiqueMap[bid] = [];
-    boutiqueMap[bid].push(item);
-  }
+    const paymentIntentRef =
+      db.collection("payment_intents").doc(paymentIntentId);
+    const existingPaymentSnap = await paymentIntentRef.get();
+    if (existingPaymentSnap.exists) {
+      const existingPayment = existingPaymentSnap.data();
+      if (existingPayment.uid === uid && existingPayment.orderNumber) {
+        return {
+          orderNumber: existingPayment.orderNumber,
+        };
+      }
 
-  const verifiedItems = [];
-  let verifiedSubtotal = 0;
+      throw new HttpsError(
+        "already-exists",
+        "Payment has already been used for another order.",
+      );
+    }
 
-  await db.runTransaction(async (tx) => {
+    const productGroups = aggregateItemsByProduct(items);
+    let quotedSubtotal = 0;
+
     for (const item of items) {
-      const boutiqueId = String(item.boutiqueId || "");
-      const productId  = String(item.productId  || "");
-      const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
+      const productDoc = await db
+        .collection("boutiques").doc(item.boutiqueId)
+        .collection("products").doc(item.productId)
+        .get();
 
-      if (!boutiqueId || !productId) {
-        throw new HttpsError("invalid-argument", "Invalid product information.");
-      }
-
-      if (quantity > 100) {
-        throw new HttpsError("invalid-argument", "Quantity cannot exceed 100 per item.");
-      }
-
-      const productRef  = db.collection("boutiques").doc(boutiqueId)
-                            .collection("products").doc(productId);
-      const productSnap = await tx.get(productRef);
-
-      if (!productSnap.exists) {
+      if (!productDoc.exists) {
         throw new HttpsError("not-found",
           `${item.title || "Product"} is no longer available.`);
       }
 
-      const productData = productSnap.data();
-      const stock       = Number(productData.stock) || 0;
-
-      if (stock < quantity) {
-        throw new HttpsError("failed-precondition",
-          `${productData.title || "Product"} does not have enough stock.`);
-      }
-
-      const serverPrice = Number(productData.price) || 0;
-      verifiedSubtotal += serverPrice * quantity;
-
-      const verifiedItem = {
-        productId,
-        boutiqueId,
-        title:        productData.title        || item.title       || "",
-        imageUrl:     item.imageUrl            || "",
-        description:  productData.description  || item.description || "",
-        size:         item.size                || "",
-        price:        serverPrice,
-        quantity,
-        boutiqueName: productData.boutiqueName || "",
-      };
-      const color = String(item.color || "").trim();
-      if (color) {
-        verifiedItem.color = color;
-      }
-      verifiedItems.push(verifiedItem);
+      quotedSubtotal += (Number(productDoc.data().price) || 0) * item.quantity;
     }
 
-    if (verifiedSubtotal > 5000) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Order total cannot exceed KD 5,000.",
+    const quotedPayment = calculatePaymentAmount(quotedSubtotal, deliveryCost);
+    assertPaymentIntentMatches(paymentIntent, {
+      uid,
+      amount: quotedPayment.amount,
+      currency: PAYMENT_CURRENCY,
+    });
+
+    const addressSnap = await db
+      .collection("users").doc(uid)
+      .collection("saved_addresses")
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+    const addressData = addressSnap.empty ? null : addressSnap.docs[0].data();
+
+    const userDoc = await db.collection("users").doc(uid).get();
+    const userData = userDoc.exists ? userDoc.data() : {};
+    const customerName = userData.fullName || request.auth.token.name || "User";
+    const customerEmail = userData.email || request.auth.token.email || "";
+
+    const now = new Date();
+    const dateString =
+      `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
+
+    const counterRef = db.collection("metadata").doc("order_counter");
+
+    const transactionResult = await db.runTransaction(async (tx) => {
+      const consumedPaymentSnap = await tx.get(paymentIntentRef);
+      if (consumedPaymentSnap.exists) {
+        const consumedPayment = consumedPaymentSnap.data();
+        if (consumedPayment.uid === uid && consumedPayment.orderNumber) {
+          return {
+            orderNumber: consumedPayment.orderNumber,
+            reusedPaymentIntent: true,
+          };
+        }
+
+        throw new HttpsError(
+          "already-exists",
+          "Payment has already been used for another order.",
+        );
+      }
+
+      const counterSnap = await tx.get(counterRef);
+      let last = 100000;
+      if (
+        counterSnap.exists &&
+        typeof counterSnap.data().lastOrderNumber === "number"
+      ) {
+        last = counterSnap.data().lastOrderNumber;
+      }
+      const orderNumber = String(last + 1);
+
+      const productDataByKey = new Map();
+      for (const group of productGroups) {
+        const productRef = db.collection("boutiques").doc(group.boutiqueId)
+          .collection("products").doc(group.productId);
+        const productSnap = await tx.get(productRef);
+
+        if (!productSnap.exists) {
+          throw new HttpsError("not-found",
+            `${group.productId} is no longer available.`);
+        }
+
+        const productData = productSnap.data();
+        const stock = Number(productData.stock) || 0;
+
+        if (stock < group.quantity) {
+          throw new HttpsError("failed-precondition",
+            `${productData.title || "Product"} does not have enough stock.`);
+        }
+
+        productDataByKey.set(productKey(group.boutiqueId, group.productId), {
+          ref: productRef,
+          data: productData,
+        });
+      }
+
+      const verifiedItems = [];
+      let verifiedSubtotal = 0;
+
+      for (const item of items) {
+        const productEntry = productDataByKey.get(
+          productKey(item.boutiqueId, item.productId),
+        );
+        const productData = productEntry.data;
+        const serverPrice = Number(productData.price) || 0;
+        verifiedSubtotal += serverPrice * item.quantity;
+
+        const verifiedItem = {
+          productId: item.productId,
+          boutiqueId: item.boutiqueId,
+          title: productData.title || item.title || "",
+          imageUrl: item.imageUrl || "",
+          description: productData.description || item.description || "",
+          size: item.size || "",
+          price: serverPrice,
+          quantity: item.quantity,
+          boutiqueName: productData.boutiqueName || "",
+        };
+        const color = String(item.color || "").trim();
+        if (color) {
+          verifiedItem.color = color;
+        }
+        verifiedItems.push(verifiedItem);
+      }
+
+      const verifiedPayment = calculatePaymentAmount(
+        verifiedSubtotal,
+        deliveryCost,
       );
-    }
+      if (verifiedPayment.amount !== paymentIntent.amount) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Payment amount does not match.",
+        );
+      }
 
-    const deliveryCost = deliveryMethod === "Regular Delivery" ? 3 : 5;
-    const total = verifiedSubtotal + deliveryCost;
-
-    const orderBase = {
-      orderNumber,
-      date: dateString,
-      itemCount: verifiedItems.reduce((s, i) => s + i.quantity, 0),
-      total,
-      status: "Placed",
-      customerUid: uid,
-      customerName,
-      customerEmail,
-      deliveryMethod,
-      paymentMethod,
-      paymentIntentId,
-      address: addressData,
-      items: verifiedItems,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-
-    tx.set(userOrderRef, orderBase);
-    tx.set(globalOrderRef, { ...orderBase, sourceUserOrderId: userOrderRef.id });
-
-    for (const [boutiqueId] of Object.entries(boutiqueMap)) {
-      const bItems = verifiedItems.filter(i => i.boutiqueId === boutiqueId);
-      const bTotal = bItems.reduce((s, i) => s + i.price * i.quantity, 0);
-      const bCount = bItems.reduce((s, i) => s + i.quantity, 0);
-
-      const boutiqueOrderRef = db.collection("boutiques").doc(boutiqueId)
-                                 .collection("orders").doc();
-
-      tx.set(boutiqueOrderRef, {
+      const userOrderRef =
+        db.collection("users").doc(uid).collection("orders").doc();
+      const globalOrderRef = db.collection("global_orders").doc(userOrderRef.id);
+      const orderBase = {
         orderNumber,
-        sourceUserOrderId: userOrderRef.id,
         date: dateString,
-        itemCount: bCount,
-        total: bTotal,
+        itemCount: verifiedItems.reduce((s, i) => s + i.quantity, 0),
+        total: verifiedPayment.total,
         status: "Placed",
         customerUid: uid,
         customerName,
         customerEmail,
         deliveryMethod,
         paymentMethod,
+        paymentIntentId,
         address: addressData,
-        items: bItems,
+        items: verifiedItems,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      tx.set(counterRef, {lastOrderNumber: Number(orderNumber)}, {merge: true});
+      tx.set(userOrderRef, orderBase);
+      tx.set(globalOrderRef, {
+        ...orderBase,
+        sourceUserOrderId: userOrderRef.id,
+      });
+
+      const boutiqueIds = Array.from(
+        new Set(verifiedItems.map((item) => item.boutiqueId)),
+      );
+      for (const boutiqueId of boutiqueIds) {
+        const bItems = verifiedItems.filter((i) => i.boutiqueId === boutiqueId);
+        const bTotal = bItems.reduce((s, i) => s + i.price * i.quantity, 0);
+        const bCount = bItems.reduce((s, i) => s + i.quantity, 0);
+        const boutiqueOrderRef = db.collection("boutiques").doc(boutiqueId)
+          .collection("orders").doc();
+
+        tx.set(boutiqueOrderRef, {
+          orderNumber,
+          sourceUserOrderId: userOrderRef.id,
+          date: dateString,
+          itemCount: bCount,
+          total: bTotal,
+          status: "Placed",
+          customerUid: uid,
+          customerName,
+          customerEmail,
+          deliveryMethod,
+          paymentMethod,
+          address: addressData,
+          items: bItems,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      for (const group of productGroups) {
+        const productEntry = productDataByKey.get(
+          productKey(group.boutiqueId, group.productId),
+        );
+        tx.update(productEntry.ref, {
+          stock: admin.firestore.FieldValue.increment(-group.quantity),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      tx.set(paymentIntentRef, {
+        uid,
+        orderId: userOrderRef.id,
+        orderNumber,
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+
+      return {
+        orderNumber,
+        reusedPaymentIntent: false,
+      };
+    });
+
+    if (!transactionResult.reusedPaymentIntent) {
+      paymentVerifiedForRefund = false;
     }
 
-    for (const item of verifiedItems) {
-      const productRef = db.collection("boutiques").doc(item.boutiqueId)
-                           .collection("products").doc(item.productId);
-      tx.update(productRef, {
-        stock: admin.firestore.FieldValue.increment(-item.quantity),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+    return {
+      orderNumber: transactionResult.orderNumber,
+    };
+  } catch (error) {
+    if (
+      paymentVerifiedForRefund &&
+      paymentIntentIdForRefund &&
+      !(error instanceof HttpsError && error.code === "already-exists")
+    ) {
+      await refundVerifiedPayment(
+        stripe,
+        paymentIntentIdForRefund,
+        request.auth.uid,
+        "order_creation_failed",
+      );
     }
-  });
 
-  return { orderNumber };
+    logger.error("Create order error", error);
+    rethrowCallableError(error, "Failed to create order.");
+  }
 });
 
 // ================= ORDER NOTIFICATIONS =================
