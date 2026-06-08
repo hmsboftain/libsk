@@ -49,6 +49,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Future<Map<String, String>> _createPaymentIntent({
     required List<CartItem> cartItems,
+    required String deliveryMethod,
     required double deliveryCost,
   }) async {
     final items = cartItems.map((item) {
@@ -66,6 +67,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     final result = await callable.call({
       'items': items,
+      'deliveryMethod': deliveryMethod,
       'deliveryCost': deliveryCost,
       'currency': 'kwd',
     });
@@ -86,10 +88,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Future<String> _startStripeCheckout({
     required List<CartItem> cartItems,
+    required String deliveryMethod,
     required double deliveryCost,
   }) async {
     final result = await _createPaymentIntent(
       cartItems: cartItems,
+      deliveryMethod: deliveryMethod,
       deliveryCost: deliveryCost,
     );
 
@@ -166,6 +170,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       final paymentIntentId = await _startStripeCheckout(
         cartItems: cartItems,
+        deliveryMethod: deliveryMethod,
         deliveryCost: deliveryCost,
       );
 
