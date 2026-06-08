@@ -357,9 +357,12 @@ exports.processRefund = onCall(async (request) => {
 
     logger.info("Processing refund for", {paymentIntentId});
 
-    const refund = await stripe.refunds.create({
-      payment_intent: paymentIntentId,
-    });
+    const refund = await stripe.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+      },
+      {idempotencyKey: `admin-refund-${paymentIntentId}`},
+    );
 
     logger.info("Refund created", {
       refundId: refund.id,

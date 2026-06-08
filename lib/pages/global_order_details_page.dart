@@ -39,29 +39,14 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
     setState(() => _isUpdating = true);
 
     try {
-      // Update in global_orders
-      await FirebaseFirestore.instance
-          .collection('global_orders')
-          .doc(widget.orderId)
-          .update({'status': newStatus});
-
-      // Update in user's orders collection
+      final firestore = FirebaseFirestore.instance;
       final customerUid = widget.orderData['customerUid']?.toString() ?? '';
       final sourceUserOrderId =
           widget.orderData['sourceUserOrderId']?.toString() ?? '';
+      final boutiqueOrderRefs = <DocumentReference<Map<String, dynamic>>>[];
 
-      if (customerUid.isNotEmpty && sourceUserOrderId.isNotEmpty) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(customerUid)
-            .collection('orders')
-            .doc(sourceUserOrderId)
-            .update({'status': newStatus});
-      }
-
-      // Update in boutique orders
       final items = widget.orderData['items'];
-      if (items is List) {
+      if (sourceUserOrderId.isNotEmpty && items is List) {
         final boutiqueIds = <String>{};
         for (final item in items) {
           final boutiqueId = item['boutiqueId']?.toString() ?? '';
@@ -69,7 +54,7 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
         }
 
         for (final boutiqueId in boutiqueIds) {
-          final boutiqueOrders = await FirebaseFirestore.instance
+          final boutiqueOrders = await firestore
               .collection('boutiques')
               .doc(boutiqueId)
               .collection('orders')
@@ -77,10 +62,35 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
               .get();
 
           for (final doc in boutiqueOrders.docs) {
-            await doc.reference.update({'status': newStatus});
+            boutiqueOrderRefs.add(doc.reference);
           }
         }
       }
+
+      // Commit every mirrored status update atomically. If any write is denied
+      // or fails, Firestore rejects the batch without partially syncing copies.
+      final batch = firestore.batch();
+      batch.update(
+        firestore.collection('global_orders').doc(widget.orderId),
+        {'status': newStatus},
+      );
+
+      if (customerUid.isNotEmpty && sourceUserOrderId.isNotEmpty) {
+        batch.update(
+          firestore
+              .collection('users')
+              .doc(customerUid)
+              .collection('orders')
+              .doc(sourceUserOrderId),
+          {'status': newStatus},
+        );
+      }
+
+      for (final ref in boutiqueOrderRefs) {
+        batch.update(ref, {'status': newStatus});
+      }
+
+      await batch.commit();
 
       if (!mounted) return;
       setState(() => _currentStatus = newStatus);
