@@ -12,6 +12,28 @@ function getDeliveryCost(deliveryMethod) {
   return DELIVERY_COSTS[deliveryMethod];
 }
 
+function resolveDeliverySelection(data) {
+  const deliveryMethod = String(data.deliveryMethod || "");
+  const deliveryCost = getDeliveryCost(deliveryMethod);
+
+  if (deliveryCost !== null) {
+    return {deliveryMethod, deliveryCost};
+  }
+
+  const legacyDeliveryCost = Number(data.deliveryCost);
+  const legacyEntry = Object.entries(DELIVERY_COSTS)
+    .find(([, cost]) => cost === legacyDeliveryCost);
+
+  if (legacyEntry) {
+    return {
+      deliveryMethod: legacyEntry[0],
+      deliveryCost: legacyEntry[1],
+    };
+  }
+
+  return null;
+}
+
 function normalizeOrderItems(items) {
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error("Items must be a non-empty array.");
@@ -105,4 +127,5 @@ module.exports = {
   getPaymentIntentMismatchReason,
   groupOrderItemsByProduct,
   normalizeOrderItems,
+  resolveDeliverySelection,
 };

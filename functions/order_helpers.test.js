@@ -9,6 +9,7 @@ const {
   getPaymentIntentMismatchReason,
   groupOrderItemsByProduct,
   normalizeOrderItems,
+  resolveDeliverySelection,
 } = require("./order_helpers");
 
 test("groups duplicate product lines before stock checks", () => {
@@ -31,6 +32,18 @@ test("validates delivery methods with server-owned prices", () => {
   assert.equal(getDeliveryCost("Regular Delivery"), 3);
   assert.equal(getDeliveryCost("Same Day Delivery"), 5);
   assert.equal(getDeliveryCost("Free Delivery"), null);
+});
+
+test("maps only known legacy delivery costs to server delivery methods", () => {
+  assert.deepEqual(
+    resolveDeliverySelection({deliveryCost: 3}),
+    {deliveryMethod: "Regular Delivery", deliveryCost: 3},
+  );
+  assert.deepEqual(
+    resolveDeliverySelection({deliveryCost: 5}),
+    {deliveryMethod: "Same Day Delivery", deliveryCost: 5},
+  );
+  assert.equal(resolveDeliverySelection({deliveryCost: 0}), null);
 });
 
 test("rejects payment intents that do not belong to the caller", () => {

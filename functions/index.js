@@ -19,6 +19,7 @@ const {
   getPaymentIntentMismatchReason,
   groupOrderItemsByProduct,
   normalizeOrderItems,
+  resolveDeliverySelection,
 } = require("./order_helpers");
 
 admin.initializeApp();
@@ -280,13 +281,14 @@ exports.createPaymentIntent = onCall(async (request) => {
     logger.info("Callable data received", {data});
 
     const items = normalizeItemsOrThrow(data.items);
-    const deliveryMethod = String(data.deliveryMethod || "");
-    const deliveryCost = getDeliveryCost(deliveryMethod);
+    const deliverySelection = resolveDeliverySelection(data);
     const currency = String(data.currency || "kwd").toLowerCase();
 
-    if (deliveryCost === null) {
+    if (deliverySelection === null) {
       throw new HttpsError("invalid-argument", "Invalid delivery method.");
     }
+
+    const {deliveryMethod, deliveryCost} = deliverySelection;
 
     if (currency !== "kwd") {
       throw new HttpsError("invalid-argument", "Unsupported currency.");
