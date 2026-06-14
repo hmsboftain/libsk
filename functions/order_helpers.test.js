@@ -88,4 +88,14 @@ test("validatePaymentIntent requires succeeded same-user exact KWD payment", () 
     ).ok,
     false,
   );
+  assert.equal(
+    validatePaymentIntent(
+      {
+        ...paymentIntent,
+        latest_charge: {refunded: true, amount_refunded: amount},
+      },
+      {uid: "user-1", amount, currency: ORDER_CURRENCY},
+    ).ok,
+    false,
+  );
 });
