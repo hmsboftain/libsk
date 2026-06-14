@@ -26,6 +26,7 @@ const {
   ORDER_CURRENCY,
   deliveryCostFor,
   normalizeOrderItems,
+  paymentIntentHasRefund,
   stripeMinorUnits,
   validatePaymentIntent,
 } = require("./order_helpers");
@@ -169,9 +170,10 @@ function deliveryMethodFromPaymentRequest(data) {
 
 async function refundPaymentIntent(stripe, paymentIntentId, context) {
   try {
-    const refund = await stripe.refunds.create({
-      payment_intent: paymentIntentId,
-    });
+    const refund = await stripe.refunds.create(
+      {payment_intent: paymentIntentId},
+      {idempotencyKey: `order-failure-${paymentIntentId}`},
+    );
     logger.info("Refunded payment after order failure", {
       paymentIntentId,
       refundId: refund.id,
@@ -496,7 +498,9 @@ exports.createOrder = onCall(async (request) => {
 
   let paymentIntent;
   try {
-    paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+      expand: ["latest_charge"],
+    });
   } catch (error) {
     logger.error("Failed to retrieve payment intent", {paymentIntentId, error});
     throw new HttpsError("failed-precondition", "Payment could not be verified.");
@@ -506,7 +510,8 @@ exports.createOrder = onCall(async (request) => {
     paymentIntent &&
     paymentIntent.status === "succeeded" &&
     paymentIntent.metadata &&
-    paymentIntent.metadata.uid === uid;
+    paymentIntent.metadata.uid === uid &&
+    !paymentIntentHasRefund(paymentIntent);
 
   let consumedPayment = false;
   try {
