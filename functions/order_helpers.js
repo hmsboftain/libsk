@@ -81,6 +81,28 @@ function stripeMinorUnits(total, currency = ORDER_CURRENCY) {
   return Math.round(total * (currency.toLowerCase() === "kwd" ? 1000 : 100));
 }
 
+function paymentIntentHasRefund(paymentIntent) {
+  const charges = [];
+  const latestCharge = paymentIntent && paymentIntent.latest_charge;
+
+  if (latestCharge && typeof latestCharge === "object") {
+    charges.push(latestCharge);
+  }
+
+  if (
+    paymentIntent &&
+    paymentIntent.charges &&
+    Array.isArray(paymentIntent.charges.data)
+  ) {
+    charges.push(...paymentIntent.charges.data);
+  }
+
+  return charges.some((charge) =>
+    charge &&
+    (charge.refunded === true || Number(charge.amount_refunded || 0) > 0),
+  );
+}
+
 function validatePaymentIntent(paymentIntent, {uid, amount, currency}) {
   if (!paymentIntent || typeof paymentIntent !== "object") {
     return {ok: false, reason: "Payment could not be verified."};
@@ -99,6 +121,10 @@ function validatePaymentIntent(paymentIntent, {uid, amount, currency}) {
     return {ok: false, reason: "Payment does not belong to this user."};
   }
 
+  if (paymentIntentHasRefund(paymentIntent)) {
+    return {ok: false, reason: "Payment has already been refunded."};
+  }
+
   const receivedAmount = Number(
     paymentIntent.amount_received || paymentIntent.amount || 0,
   );
@@ -115,6 +141,7 @@ module.exports = {
   ORDER_CURRENCY,
   deliveryCostFor,
   normalizeOrderItems,
+  paymentIntentHasRefund,
   stripeMinorUnits,
   validatePaymentIntent,
 };
