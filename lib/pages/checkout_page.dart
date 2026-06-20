@@ -189,7 +189,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Future<Map<String, String>> _createPaymentIntent({
     required List<CartItem> cartItems,
-    required double deliveryCost,
+    required String deliveryMethod,
+    String? discountCodeId,
   }) async {
     final l10n = AppLocalizations.of(context)!;
 
@@ -210,8 +211,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     final result = await callable.call({
       'items': items,
-      'deliveryCost': deliveryCost,
-      'currency': 'usd',
+      'deliveryMethod': deliveryMethod,
+      if (discountCodeId != null && discountCodeId.isNotEmpty)
+        'discountCodeId': discountCodeId,
+      'currency': 'kwd',
     });
 
     final data = Map<String, dynamic>.from(result.data as Map);
@@ -230,11 +233,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Future<String> _startStripeCheckout({
     required List<CartItem> cartItems,
-    required double deliveryCost,
+    required String deliveryMethod,
+    String? discountCodeId,
   }) async {
     final result = await _createPaymentIntent(
       cartItems: cartItems,
-      deliveryCost: deliveryCost,
+      deliveryMethod: deliveryMethod,
+      discountCodeId: discountCodeId,
     );
 
     final clientSecret = result['clientSecret']!;
@@ -279,9 +284,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
       int totalItems = 0;
       double checkedSubtotal = 0;
 
+      final aggregateQuantities = <String, int>{};
       for (final item in cartItems) {
         totalItems += item.quantity;
         checkedSubtotal += item.price * item.quantity;
+        final aggregateKey = '${item.boutiqueId}__${item.productId}';
+        aggregateQuantities[aggregateKey] =
+            (aggregateQuantities[aggregateKey] ?? 0) + item.quantity;
 
         final productDoc = await FirebaseFirestore.instance
             .collection('boutiques')
@@ -299,7 +308,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             ? stockValue
             : int.tryParse(stockValue.toString()) ?? 0;
 
-        if (currentStock < item.quantity) {
+        if (currentStock < (aggregateQuantities[aggregateKey] ?? item.quantity)) {
           throw Exception(loc.productNotEnoughStock(item.title));
         }
       }
@@ -311,7 +320,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       final paymentIntentId = await _startStripeCheckout(
         cartItems: cartItems,
-        deliveryCost: deliveryCost,
+        deliveryMethod: deliveryMethod,
+        discountCodeId: finalDiscount > 0 ? _discountCodeId : null,
       );
 
       final List<Map<String, dynamic>> orderItems = cartItems.map((item) {
