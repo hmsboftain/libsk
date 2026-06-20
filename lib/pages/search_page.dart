@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:libsk/l10n/app_localizations.dart';
@@ -366,10 +367,10 @@ class _SearchProductCard extends StatelessWidget {
                 border: Border.all(color: AppColors.border, width: 0.5),
               ),
               child: displayImageUrl.isNotEmpty
-                  ? Image.network(
-                      displayImageUrl,
+                  ? CachedNetworkImage(
+                      imageUrl: displayImageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Center(
+                      errorWidget: (_, __, ___) => const Center(
                         child: Icon(
                           Icons.image_not_supported_outlined,
                           size: 24,
@@ -401,10 +402,7 @@ class _SearchProductCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 5),
-          Text(
-            _fmt(price),
-            style: AppTextStyles.labelLarge,
-          ),
+          Text(_fmt(price), style: AppTextStyles.labelLarge),
           const SizedBox(height: 8),
         ],
       ),
@@ -449,10 +447,10 @@ class _SearchBoutiqueCard extends StatelessWidget {
               height: 52,
               color: AppColors.imagePlaceholder,
               child: logoPath.isNotEmpty
-                  ? Image.network(
-                      logoPath,
+                  ? CachedNetworkImage(
+                      imageUrl: logoPath,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Center(
+                      errorWidget: (_, __, ___) => Center(
                         child: Text(
                           initial,
                           style: AppTextStyles.headingMedium,

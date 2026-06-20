@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
@@ -314,12 +315,12 @@ class _SavedProductCard extends StatelessWidget {
                     border: Border.all(color: AppColors.border, width: 0.5),
                   ),
                   child: displayImageUrl.isNotEmpty
-                      ? Image.network(
-                          displayImageUrl,
+                      ? CachedNetworkImage(
+                          imageUrl: displayImageUrl,
                           fit: BoxFit.cover,
                           width: double.infinity,
                           height: double.infinity,
-                          errorBuilder: (_, __, ___) => const Center(
+                          errorWidget: (_, __, ___) => const Center(
                             child: Icon(
                               Icons.image_not_supported_outlined,
                               size: 24,
@@ -390,10 +391,7 @@ class _SavedProductCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 5),
-          Text(
-            _fmt(itemPrice),
-            style: AppTextStyles.labelLarge,
-          ),
+          Text(_fmt(itemPrice), style: AppTextStyles.labelLarge),
           const SizedBox(height: 8),
         ],
       ),

@@ -64,8 +64,21 @@ Future<Map<String, String>> _loadBoutiqueNames(
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-class BoutiqueSalesPage extends StatelessWidget {
+class BoutiqueSalesPage extends StatefulWidget {
   const BoutiqueSalesPage({super.key});
+
+  @override
+  State<BoutiqueSalesPage> createState() => _BoutiqueSalesPageState();
+}
+
+class _BoutiqueSalesPageState extends State<BoutiqueSalesPage> {
+  late final Future<QuerySnapshot<Map<String, dynamic>>> _ordersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _ordersFuture = FirestoreService.getAllBoutiqueOrdersOnce();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,8 +91,8 @@ class BoutiqueSalesPage extends StatelessWidget {
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirestoreService.getAllBoutiqueOrdersStream(),
+              child: FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                future: _ordersFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(

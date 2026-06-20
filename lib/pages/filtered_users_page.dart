@@ -4,7 +4,7 @@ import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
 
-class FilteredUsersPage extends StatelessWidget {
+class FilteredUsersPage extends StatefulWidget {
   final String title;
   final List<String> roles;
 
@@ -13,6 +13,19 @@ class FilteredUsersPage extends StatelessWidget {
     required this.title,
     required this.roles,
   });
+
+  @override
+  State<FilteredUsersPage> createState() => _FilteredUsersPageState();
+}
+
+class _FilteredUsersPageState extends State<FilteredUsersPage> {
+  late final Future<QuerySnapshot<Map<String, dynamic>>> _usersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _usersFuture = FirestoreService.getAllUsersOnce();
+  }
 
   String _buildUserName(Map<String, dynamic> data) {
     final fullName = data['fullName']?.toString().trim() ?? '';
@@ -119,7 +132,7 @@ class FilteredUsersPage extends StatelessWidget {
   }
 
   bool _matchesRole(String role) {
-    return roles.contains(role);
+    return widget.roles.contains(role);
   }
 
   @override
@@ -131,8 +144,8 @@ class FilteredUsersPage extends StatelessWidget {
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirestoreService.getAllUsersStream(),
+              child: FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                future: _usersFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
@@ -163,7 +176,7 @@ class FilteredUsersPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          title.toUpperCase(),
+                          widget.title.toUpperCase(),
                           style: AppTextStyles.displayMedium,
                         ),
                         const SizedBox(height: 8),

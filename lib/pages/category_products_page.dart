@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
@@ -16,13 +17,6 @@ String _fmt(double kwd) {
 
 enum CategorySort { newest, priceLow, priceHigh }
 
-// ── Pure helpers ──────────────────────────────────────────────────────────────
-
-double _price(Map<String, dynamic> data) {
-  final v = data['price'] ?? 0;
-  return v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0;
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 class CategoryProductsPage extends StatefulWidget {
@@ -40,61 +34,111 @@ class CategoryProductsPage extends StatefulWidget {
 }
 
 class _CategoryProductsPageState extends State<CategoryProductsPage> {
-  CategorySort _sort = CategorySort.newest;
+  static const int _pageSize = 20;
 
-  // Full collection stream — category filter is client-side because some
-  // products store category as a String and others as a List.
-  // TODO: migrate all products to List format, then switch to:
-  // .where('category', arrayContains: widget.category)
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _stream;
+  CategorySort _sort = CategorySort.newest;
+  final ScrollController _scrollController = ScrollController();
+
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> _docs = [];
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  DocumentSnapshot<Map<String, dynamic>>? _cursor;
 
   @override
   void initState() {
     super.initState();
-    _stream = FirebaseFirestore.instance
-        .collectionGroup('products')
-        .snapshots();
+    _scrollController.addListener(_onScroll);
+    _loadInitial();
   }
 
-  bool _matchesCategory(Map<String, dynamic> data) {
-    if (widget.category == null) return true;
-    final cat = data['category'];
-    if (cat is List) return cat.contains(widget.category);
-    if (cat is String) return cat == widget.category;
-    return false;
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
   }
 
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _filterAndSort(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
-  ) {
-    final filtered = widget.category == null
-        ? docs
-        : docs.where((doc) => _matchesCategory(doc.data())).toList();
-
-    final sorted = List.of(filtered);
+  // Server-side: category filtered by arrayContains, sorted, page-limited.
+  Query<Map<String, dynamic>> _baseQuery() {
+    Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collectionGroup(
+      'products',
+    );
+    if (widget.category != null) {
+      q = q.where('category', arrayContains: widget.category);
+    }
     switch (_sort) {
       case CategorySort.newest:
-        sorted.sort((a, b) {
-          final aT = a.data()['createdAt'];
-          final bT = b.data()['createdAt'];
-          if (aT is Timestamp && bT is Timestamp) return bT.compareTo(aT);
-          return 0;
-        });
+        q = q.orderBy('createdAt', descending: true);
         break;
       case CategorySort.priceLow:
-        sorted.sort((a, b) => _price(a.data()).compareTo(_price(b.data())));
+        q = q.orderBy('price');
         break;
       case CategorySort.priceHigh:
-        sorted.sort((a, b) => _price(b.data()).compareTo(_price(a.data())));
+        q = q.orderBy('price', descending: true);
         break;
     }
-    return sorted;
+    return q.limit(_pageSize);
+  }
+
+  void _onScroll() {
+    if (_loadingMore || !_hasMore) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 400) _loadMore();
+  }
+
+  Future<void> _loadInitial() async {
+    setState(() {
+      _loading = true;
+      _docs.clear();
+      _cursor = null;
+      _hasMore = true;
+    });
+    try {
+      final snap = await _baseQuery().get();
+      if (!mounted) return;
+      setState(() {
+        _docs.addAll(snap.docs);
+        _cursor = snap.docs.isNotEmpty ? snap.docs.last : null;
+        _hasMore = snap.docs.length == _pageSize;
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint('CATEGORY LOAD ERROR: $e');
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _cursor == null) return;
+    setState(() => _loadingMore = true);
+    try {
+      final snap = await _baseQuery().startAfterDocument(_cursor!).get();
+      if (!mounted) return;
+      setState(() {
+        _docs.addAll(snap.docs);
+        _cursor = snap.docs.isNotEmpty ? snap.docs.last : _cursor;
+        _hasMore = snap.docs.length == _pageSize;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      debugPrint('CATEGORY LOAD MORE ERROR: $e');
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+    }
+  }
+
+  void _changeSort(CategorySort option) {
+    if (_sort == option) return;
+    setState(() => _sort = option);
+    _loadInitial();
   }
 
   Widget _sortChip(String label, CategorySort option) {
     final isSelected = _sort == option;
     return GestureDetector(
-      onTap: () => setState(() => _sort = option),
+      onTap: () => _changeSort(option),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
@@ -127,10 +171,9 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: _stream,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+              child: Builder(
+                builder: (context) {
+                  if (_loading) {
                     return const Center(
                       child: CircularProgressIndicator(
                         color: AppColors.deepAccent,
@@ -139,10 +182,10 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                     );
                   }
 
-                  final rawDocs = snapshot.data?.docs ?? [];
-                  final docs = _filterAndSort(rawDocs);
+                  final docs = _docs;
 
                   return CustomScrollView(
+                    controller: _scrollController,
                     slivers: [
                       SliverToBoxAdapter(
                         child: Column(
@@ -236,6 +279,18 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                                 ),
                           ),
                         ),
+                      if (_loadingMore)
+                        const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: AppColors.deepAccent,
+                                strokeWidth: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   );
                 },
@@ -289,11 +344,11 @@ class _CategoryProductCard extends StatelessWidget {
                 border: Border.all(color: AppColors.border, width: 0.5),
               ),
               child: displayImageUrl.isNotEmpty
-                  ? Image.network(
-                      displayImageUrl,
+                  ? CachedNetworkImage(
+                      imageUrl: displayImageUrl,
                       fit: BoxFit.cover,
                       width: double.infinity,
-                      errorBuilder: (_, __, ___) => const Center(
+                      errorWidget: (_, __, ___) => const Center(
                         child: Icon(
                           Icons.image_not_supported_outlined,
                           size: 24,
@@ -325,10 +380,7 @@ class _CategoryProductCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 5),
-          Text(
-            _fmt(product.price),
-            style: AppTextStyles.labelLarge,
-          ),
+          Text(_fmt(product.price), style: AppTextStyles.labelLarge),
           const SizedBox(height: 8),
         ],
       ),

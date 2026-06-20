@@ -90,12 +90,17 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
         'body': body,
         'targetType': _targetType,
       });
-      final sentCount = result.data['sentCount'] ?? 0;
+      final broadcast = result.data['broadcast'] == true;
+      final sentCount = result.data['sentCount'];
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(l10n.notificationSentToUsers(sentCount.toString())),
+          content: Text(
+            broadcast
+                ? l10n.notificationSentToAllUsers
+                : l10n.notificationSentToUsers((sentCount ?? 0).toString()),
+          ),
         ),
       );
       _titleController.clear();

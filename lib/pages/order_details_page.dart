@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
@@ -314,10 +315,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                       children: [
                         Text(l10n.subtotal, style: AppTextStyles.bodyMedium),
                         const Spacer(),
-                        Text(
-                          _fmt(subtotal),
-                          style: AppTextStyles.bodyMedium,
-                        ),
+                        Text(_fmt(subtotal), style: AppTextStyles.bodyMedium),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -460,10 +458,10 @@ class _OrderItemRow extends StatelessWidget {
             child: AspectRatio(
               aspectRatio: 4 / 5,
               child: item.imageUrl.isNotEmpty
-                  ? Image.network(
-                      item.imageUrl,
+                  ? CachedNetworkImage(
+                      imageUrl: item.imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      errorWidget: (_, __, ___) => Container(
                         color: AppColors.imagePlaceholder,
                         alignment: Alignment.center,
                         child: const Icon(
@@ -511,10 +509,7 @@ class _OrderItemRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Text(
-            _fmt(item.price),
-            style: AppTextStyles.labelLarge,
-          ),
+          Text(_fmt(item.price), style: AppTextStyles.labelLarge),
         ],
       ),
     );

@@ -136,9 +136,9 @@ async function sendNotificationToBoutiqueOwners(boutiqueId, title, body, type, e
     .where("isApproved", "==", true)
     .get();
 
-  for (const ownerDoc of ownersSnapshot.docs) {
-    await sendNotificationToUser(ownerDoc.id, title, body, type, extraData);
-  }
+  await Promise.all(ownersSnapshot.docs.map((ownerDoc) =>
+    sendNotificationToUser(ownerDoc.id, title, body, type, extraData),
+  ));
 }
 
 function getBoutiqueIdsFromItems(items) {
@@ -336,15 +336,15 @@ exports.createOrder = onCall(async (request) => {
     return String(next);
   });
 
-  const addressSnap = await db
-    .collection("users").doc(uid)
-    .collection("saved_addresses")
-    .orderBy("createdAt", "desc")
-    .limit(1)
-    .get();
+  const [addressSnap, userDoc] = await Promise.all([
+    db.collection("users").doc(uid)
+      .collection("saved_addresses")
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get(),
+    db.collection("users").doc(uid).get(),
+  ]);
   const addressData = addressSnap.empty ? null : addressSnap.docs[0].data();
-
-  const userDoc = await db.collection("users").doc(uid).get();
   const userData = userDoc.exists ? userDoc.data() : {};
   const customerName  = userData.fullName  || request.auth.token.name  || "User";
   const customerEmail = userData.email     || request.auth.token.email || "";
@@ -661,15 +661,15 @@ exports.notifyOrderPlaced = onDocumentCreated(
       );
     }
 
-    for (const boutiqueId of getBoutiqueIdsFromItems(items)) {
-      await sendNotificationToBoutiqueOwners(
+    await Promise.all(getBoutiqueIdsFromItems(items).map((boutiqueId) =>
+      sendNotificationToBoutiqueOwners(
         boutiqueId,
         "New order received",
         `A new order #${orderNumber} has been placed for your boutique.`,
         "new_boutique_order",
         { type: "order_status", orderId, orderNumber, boutiqueId, status: "Placed" },
-      );
-    }
+      ),
+    ));
   },
 );
 
@@ -700,15 +700,15 @@ exports.notifyOrderStatusChanged = onDocumentUpdated(
       );
     }
 
-    for (const boutiqueId of getBoutiqueIdsFromItems(items)) {
-      await sendNotificationToBoutiqueOwners(
+    await Promise.all(getBoutiqueIdsFromItems(items).map((boutiqueId) =>
+      sendNotificationToBoutiqueOwners(
         boutiqueId,
         "Order status updated",
         `Order #${orderNumber} is now ${newStatus}.`,
         "boutique_order_status_updated",
         { type: "order_status", orderId, orderNumber, boutiqueId, oldStatus, newStatus },
-      );
-    }
+      ),
+    ));
   },
 );
 
@@ -902,15 +902,15 @@ exports.notifyDisputeCreated = onDocumentCreated(
       .where("isApproved", "==", true)
       .get();
 
-    for (const adminDoc of adminsSnapshot.docs) {
-      await sendNotificationToUser(
+    await Promise.all(adminsSnapshot.docs.map((adminDoc) =>
+      sendNotificationToUser(
         adminDoc.id,
         "New dispute received",
         `A new dispute was submitted for order #${orderNumber}.`,
         "admin_new_dispute",
         { type: "dispute_status", disputeId, orderNumber, category },
-      );
-    }
+      ),
+    ));
   },
 );
 
@@ -1127,33 +1127,46 @@ exports.sendManualNotification = onCall(async (request) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    let targetUids = [];
+    const extraData = {
+      type: "manual",
+      manualNotificationId: manualNotificationRef.id,
+      targetType,
+    };
+
+    let sentCount = null;
+    let broadcast = false;
 
     if (targetType === "all_users") {
-      targetUids = (await db.collection("users").get()).docs.map(d => d.id);
-    } else if (targetType === "boutique_owners") {
-      targetUids = (await db.collection("boutique_owners").where("isApproved", "==", true).get()).docs.map(d => d.id);
-    } else if (targetType === "admins") {
-      targetUids = (await db.collection("admin_users").where("isApproved", "==", true).get()).docs.map(d => d.id);
-    }
-
-    let sentCount = 0;
-    for (const targetUid of targetUids) {
-      await sendNotificationToUser(targetUid, title, body, "manual_notification", {
-        type: "manual",
-        manualNotificationId: manualNotificationRef.id,
-        targetType,
+      // Broadcast to every device through the "all_users" FCM topic — a single
+      // send() instead of reading every user doc and messaging them one by one.
+      // Devices subscribe to this topic on startup (NotificationService.initialize).
+      await admin.messaging().send({
+        topic: "all_users",
+        notification: { title, body },
+        data: convertDataToStrings(extraData),
       });
-      sentCount++;
+      broadcast = true;
+    } else {
+      // Targeted groups are small, bounded sets — fan out in parallel.
+      const collectionName = targetType === "boutique_owners"
+        ? "boutique_owners"
+        : "admin_users";
+      const targetUids = (await db.collection(collectionName)
+        .where("isApproved", "==", true).get()).docs.map((d) => d.id);
+
+      await Promise.all(targetUids.map((uid) =>
+        sendNotificationToUser(uid, title, body, "manual_notification", extraData),
+      ));
+      sentCount = targetUids.length;
     }
 
     await manualNotificationRef.update({
       status: "sent",
-      sentCount,
+      ...(broadcast ? { broadcast: true } : { sentCount }),
       sentAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    return { success: true, sentCount };
+    return { success: true, sentCount, broadcast };
   } catch (error) {
     logger.error("Manual notification error", error);
     if (error instanceof HttpsError) throw error;

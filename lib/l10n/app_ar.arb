@@ -540,6 +540,8 @@
   "enterTitleAndMessage": "يرجى إدخال عنوان ورسالة",
   "notificationSentToUsers": "تم إرسال الإشعار لـ {count} مستخدم",
   "@notificationSentToUsers": { "placeholders": { "count": { "type": "String" } } },
+  "notificationSentToAllUsers": "تم إرسال الإشعار إلى جميع المستخدمين",
+  "@notificationSentToAllUsers": {},
   "failedToSendNotification": "فشل إرسال الإشعار: {error}",
   "@failedToSendNotification": { "placeholders": { "error": { "type": "String" } } },
   "libskTagline": "تسوّق محلياً. ارتدِ عالمياً.",

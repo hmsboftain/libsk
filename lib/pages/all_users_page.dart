@@ -4,8 +4,84 @@ import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
 
-class AllUsersPage extends StatelessWidget {
+class AllUsersPage extends StatefulWidget {
   const AllUsersPage({super.key});
+
+  @override
+  State<AllUsersPage> createState() => _AllUsersPageState();
+}
+
+class _AllUsersPageState extends State<AllUsersPage> {
+  final ScrollController _scrollController = ScrollController();
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> _docs = [];
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  bool _error = false;
+  int? _totalCount;
+  DocumentSnapshot<Map<String, dynamic>>? _cursor;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+    _loadInitial();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_loadingMore || !_hasMore) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 400) _loadMore();
+  }
+
+  Future<void> _loadInitial() async {
+    try {
+      final countFuture = FirestoreService.getUsersCount();
+      final snap = await FirestoreService.fetchUsersPage();
+      final count = await countFuture;
+      if (!mounted) return;
+      setState(() {
+        _docs.addAll(snap.docs);
+        _cursor = snap.docs.isNotEmpty ? snap.docs.last : null;
+        _hasMore = snap.docs.length == FirestoreService.adminPageSize;
+        _totalCount = count;
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint('USERS LOAD ERROR: $e');
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = true;
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _cursor == null) return;
+    setState(() => _loadingMore = true);
+    try {
+      final snap = await FirestoreService.fetchUsersPage(startAfter: _cursor);
+      if (!mounted) return;
+      setState(() {
+        _docs.addAll(snap.docs);
+        _cursor = snap.docs.isNotEmpty ? snap.docs.last : _cursor;
+        _hasMore = snap.docs.length == FirestoreService.adminPageSize;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      debugPrint('USERS LOAD MORE ERROR: $e');
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+    }
+  }
 
   String _buildUserName(Map<String, dynamic> data) {
     final fullName = data['fullName']?.toString().trim() ?? '';
@@ -87,6 +163,26 @@ class AllUsersPage extends StatelessWidget {
     );
   }
 
+  Widget _buildHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ALL USERS',
+          style: AppTextStyles.displayMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '${_totalCount ?? _docs.length} registered users',
+          style: AppTextStyles.bodyMedium.copyWith(
+            color: AppColors.secondaryText,
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -95,86 +191,76 @@ class AllUsersPage extends StatelessWidget {
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirestoreService.getAllUsersStream(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.deepAccent,
-                      ),
-                    );
-                  }
+            Expanded(child: _buildBody()),
+          ],
+        ),
+      ),
+    );
+  }
 
-                  if (snapshot.hasError) {
-                    return const Center(
-                      child: Text(
-                        'Failed to load users',
-                        style: AppTextStyles.bodyMedium,
-                      ),
-                    );
-                  }
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.deepAccent),
+      );
+    }
 
-                  final userDocs = snapshot.data?.docs ?? [];
+    if (_error) {
+      return const Center(
+        child: Text('Failed to load users', style: AppTextStyles.bodyMedium),
+      );
+    }
 
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'ALL USERS',
-                          style: AppTextStyles.displayMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${userDocs.length} registered users',
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            color: AppColors.secondaryText,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        if (userDocs.isEmpty)
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: AppColors.card,
-                              borderRadius: BorderRadius.zero,
-                              border: Border.all(
-                                color: AppColors.border,
-                                width: 0.5,
-                              ),
-                            ),
-                            child: const Text(
-                              'No users found.',
-                              style: AppTextStyles.bodyMedium,
-                            ),
-                          )
-                        else
-                          ...userDocs.map((doc) {
-                            final data = doc.data();
-
-                            final name = _buildUserName(data);
-                            final email = _buildUserEmail(data);
-                            final phone = _buildUserPhone(data);
-
-                            return buildUserCard(
-                              name: name,
-                              email: email,
-                              phone: phone,
-                            );
-                          }),
-                      ],
-                    ),
-                  );
-                },
+    if (_docs.isEmpty) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: AppColors.card,
+                borderRadius: BorderRadius.zero,
+                border: Border.all(color: AppColors.border, width: 0.5),
+              ),
+              child: const Text(
+                'No users found.',
+                style: AppTextStyles.bodyMedium,
               ),
             ),
           ],
         ),
-      ),
+      );
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+      itemCount: _docs.length + 2, // header + footer loader
+      itemBuilder: (context, index) {
+        if (index == 0) return _buildHeader();
+        if (index == _docs.length + 1) {
+          if (!_loadingMore) return const SizedBox.shrink();
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: CircularProgressIndicator(
+                color: AppColors.deepAccent,
+                strokeWidth: 1.5,
+              ),
+            ),
+          );
+        }
+        final data = _docs[index - 1].data();
+        return buildUserCard(
+          name: _buildUserName(data),
+          email: _buildUserEmail(data),
+          phone: _buildUserPhone(data),
+        );
+      },
     );
   }
 }

@@ -1606,6 +1606,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get notificationSentToAllUsers => 'Notification sent to all users';
+
+  @override
   String failedToSendNotification(String error) {
     return 'Failed to send notification: $error';
   }

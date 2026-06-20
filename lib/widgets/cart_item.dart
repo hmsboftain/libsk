@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../widgets/theme.dart';
 import '../core/constants/countries.dart';
@@ -93,20 +94,18 @@ class CartItemWidget extends StatelessWidget {
         border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: imageUrl.isNotEmpty
-          ? Image.network(
-              imageUrl,
+          ? CachedNetworkImage(
+              imageUrl: imageUrl,
               width: _imageWidth,
               height: _imageHeight,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return const Center(
-                  child: Icon(
-                    Icons.image_not_supported_outlined,
-                    color: AppColors.softAccent,
-                    size: 24,
-                  ),
-                );
-              },
+              errorWidget: (_, __, ___) => const Center(
+                child: Icon(
+                  Icons.image_not_supported_outlined,
+                  color: AppColors.softAccent,
+                  size: 24,
+                ),
+              ),
             )
           : const Center(
               child: Icon(
@@ -204,10 +203,7 @@ class CartItemWidget extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 18),
-                  Text(
-                    _fmt(price),
-                    style: AppTextStyles.headingSmall,
-                  ),
+                  Text(_fmt(price), style: AppTextStyles.headingSmall),
                 ],
               ),
             ),

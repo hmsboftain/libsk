@@ -493,11 +493,11 @@ class FirestoreService {
         .snapshots();
   }
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>> getGlobalOrdersStream() {
+  static Future<QuerySnapshot<Map<String, dynamic>>> getGlobalOrdersOnce() {
     return _firestore
         .collection('global_orders')
         .orderBy('createdAt', descending: true)
-        .snapshots();
+        .get();
   }
 
   // ── Discount codes (feature #8) ────────────────────────────────────────────
@@ -902,28 +902,46 @@ class FirestoreService {
     return permissions.canViewAnalytics;
   }
 
-  // ── Admin dashboard streams ────────────────────────────────────────────────
+  // ── Admin dashboard reads ──────────────────────────────────────────────────
+  // One-shot .get() instead of full-collection .snapshots() listeners: these
+  // collections grow unbounded, and a live listener re-reads the whole set on
+  // every write. Browse lists paginate; aggregation pages read once per open.
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>> getAllUsersStream() {
-    return _firestore.collection('users').snapshots();
+  static const int adminPageSize = 50;
+
+  /// One page of users, ordered by document id for stable cursoring.
+  static Future<QuerySnapshot<Map<String, dynamic>>> fetchUsersPage({
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+    int limit = adminPageSize,
+  }) {
+    Query<Map<String, dynamic>> q = _firestore
+        .collection('users')
+        .orderBy(FieldPath.documentId)
+        .limit(limit);
+    if (startAfter != null) q = q.startAfterDocument(startAfter);
+    return q.get();
+  }
+
+  /// Total user count via an aggregate query (one cheap read, not a full scan).
+  static Future<int> getUsersCount() async {
+    final snap = await _firestore.collection('users').count().get();
+    return snap.count ?? 0;
+  }
+
+  /// Full one-shot read of all users — for dashboards / filtered views that
+  /// aggregate totals and role breakdowns across the whole collection.
+  static Future<QuerySnapshot<Map<String, dynamic>>> getAllUsersOnce() {
+    return _firestore.collection('users').get();
   }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> getAllBoutiquesStream() {
     return _firestore.collection('boutiques').snapshots();
   }
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>>
-  getAllBoutiqueOwnersStream() {
-    return _firestore.collection('boutique_owners').snapshots();
-  }
-
-  static Stream<QuerySnapshot<Map<String, dynamic>>> getAllAdminsStream() {
-    return _firestore.collection('admin_users').snapshots();
-  }
-
-  static Stream<QuerySnapshot<Map<String, dynamic>>>
-  getAllBoutiqueOrdersStream() {
-    return _firestore.collectionGroup('orders').snapshots();
+  /// Full one-shot read of every boutique order — for platform sales totals.
+  static Future<QuerySnapshot<Map<String, dynamic>>>
+  getAllBoutiqueOrdersOnce() {
+    return _firestore.collectionGroup('orders').get();
   }
 
   // ── Notifications ──────────────────────────────────────────────────────────

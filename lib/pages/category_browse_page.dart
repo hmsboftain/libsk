@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
@@ -45,7 +46,10 @@ class CategoryBrowsePage extends StatelessWidget {
                     // ── Title ──────────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-                      child: Text(l10n.browse, style: AppTextStyles.displayMedium),
+                      child: Text(
+                        l10n.browse,
+                        style: AppTextStyles.displayMedium,
+                      ),
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -99,7 +103,7 @@ class CategoryBrowsePage extends StatelessWidget {
   }
 }
 
-class _CategoryTile extends StatelessWidget {
+class _CategoryTile extends StatefulWidget {
   final String label;
   final String? categoryKey;
   final String allProductsLabel;
@@ -111,9 +115,58 @@ class _CategoryTile extends StatelessWidget {
   });
 
   @override
+  State<_CategoryTile> createState() => _CategoryTileState();
+}
+
+class _CategoryTileState extends State<_CategoryTile> {
+  // categoryKey -> thumbnail URL ('' = no thumbnail). Static so it survives
+  // page re-opens and is shared across tiles: one .get() per category per app
+  // session, replacing a per-tile real-time listener.
+  static final Map<String, String> _thumbCache = {};
+
+  String _bgImageUrl = '';
+
+  @override
+  void initState() {
+    super.initState();
+    final key = widget.categoryKey;
+    if (key != null) _loadThumb(key);
+  }
+
+  Future<void> _loadThumb(String key) async {
+    final cached = _thumbCache[key];
+    if (cached != null) {
+      _bgImageUrl = cached;
+      return; // already resolved this session — no read, no setState needed
+    }
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collectionGroup('products')
+          .where('category', arrayContains: key)
+          .limit(1)
+          .get();
+      var url = '';
+      if (snap.docs.isNotEmpty) {
+        final data = snap.docs.first.data();
+        final imageUrlsData = data['imageUrls'];
+        if (imageUrlsData is List && imageUrlsData.isNotEmpty) {
+          url = imageUrlsData.first.toString();
+        } else {
+          url = data['imageUrl']?.toString() ?? '';
+        }
+      }
+      _thumbCache[key] = url;
+      if (!mounted) return;
+      setState(() => _bgImageUrl = url);
+    } catch (_) {
+      // Leave the placeholder background on error.
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     // "All" tile — no Firestore query needed
-    if (categoryKey == null) {
+    if (widget.categoryKey == null) {
       return GestureDetector(
         onTap: () {
           Navigator.push(
@@ -121,7 +174,7 @@ class _CategoryTile extends StatelessWidget {
             MaterialPageRoute(
               builder: (_) => CategoryProductsPage(
                 category: null,
-                displayLabel: allProductsLabel,
+                displayLabel: widget.allProductsLabel,
               ),
             ),
           );
@@ -167,77 +220,56 @@ class _CategoryTile extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (_) => CategoryProductsPage(
-              category: categoryKey,
-              displayLabel: label,
+              category: widget.categoryKey,
+              displayLabel: widget.label,
             ),
           ),
         );
       },
-      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collectionGroup('products')
-            .where('category', arrayContains: categoryKey)
-            .limit(1)
-            .snapshots(),
-        builder: (context, snapshot) {
-          String? bgImageUrl;
-          final docs = snapshot.data?.docs ?? [];
-          if (docs.isNotEmpty) {
-            final data = docs.first.data();
-            final imageUrlsData = data['imageUrls'];
-            if (imageUrlsData is List && imageUrlsData.isNotEmpty) {
-              bgImageUrl = imageUrlsData.first.toString();
-            } else {
-              bgImageUrl = data['imageUrl']?.toString();
-            }
-          }
-
-          return Container(
-            decoration: BoxDecoration(
-              color: AppColors.imagePlaceholder,
-              border: Border.all(color: AppColors.border, width: 0.5),
-            ),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (bgImageUrl != null && bgImageUrl.isNotEmpty)
-                  Image.network(
-                    bgImageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox(),
-                  ),
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Colors.black45],
-                    ),
-                  ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.imagePlaceholder,
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (_bgImageUrl.isNotEmpty)
+              CachedNetworkImage(
+                imageUrl: _bgImageUrl,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => const SizedBox(),
+              ),
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black45],
                 ),
-                Positioned(
-                  bottom: 12,
-                  left: 12,
-                  right: 12,
-                  child: Text(
-                    label,
-                    style: AppTextStyles.headingSmall.copyWith(
-                      color: Colors.white,
-                      fontStyle: FontStyle.italic,
-                      shadows: [
-                        const Shadow(
-                          color: Colors.black26,
-                          blurRadius: 4,
-                          offset: Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          );
-        },
+            Positioned(
+              bottom: 12,
+              left: 12,
+              right: 12,
+              child: Text(
+                widget.label,
+                style: AppTextStyles.headingSmall.copyWith(
+                  color: Colors.white,
+                  fontStyle: FontStyle.italic,
+                  shadows: [
+                    const Shadow(
+                      color: Colors.black26,
+                      blurRadius: 4,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

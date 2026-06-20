@@ -83,7 +83,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         .collectionGroup('orders')
         .where('sourceUserOrderId', isNotEqualTo: null);
     final results = await Future.wait([
-      FirestoreService.getAllUsersStream().first,
+      FirestoreService.getAllUsersOnce(),
       FirestoreService.getAllBoutiquesStream().first,
       filteredOrdersQuery.get(),
     ]);

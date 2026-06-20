@@ -157,183 +157,204 @@ class _HomePageState extends State<HomePage> {
         child: RefreshIndicator(
           color: AppColors.deepAccent,
           onRefresh: _onRefresh,
-          child: SingleChildScrollView(
+          child: CustomScrollView(
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const AppHeader(),
-                const RotatingHeroBanner(),
-                const SizedBox(height: 32),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const AppHeader(),
+                    const RotatingHeroBanner(),
+                    const SizedBox(height: 32),
 
-                // ── Featured Pieces ──────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    l10n.featuredPieces,
-                    style: AppTextStyles.headingLarge,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _featuredProductsStream,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 40),
-                        child: FeaturedProductsGridSkeleton(),
-                      );
-                    }
-                    if (snapshot.hasError) {
-                      return ErrorStateWidget.inline(
-                        title: l10n.somethingWentWrong,
-                        message: l10n.pullDownToRetry,
-                        onRetry: () => setState(() {}),
-                        type: ErrorType.network,
-                      );
-                    }
-                    final docs = snapshot.data?.docs ?? [];
-                    if (docs.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          l10n.noFeaturedProductsAvailable,
-                          style: AppTextStyles.bodySmall,
-                        ),
-                      );
-                    }
-                    return Padding(
+                    // ── Featured Pieces ──────────────────────────────────────
+                    Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: docs.length,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: 0.62,
-                            ),
-                        itemBuilder: (context, index) =>
-                            _FeaturedProductCard(doc: docs[index], l10n: l10n),
+                      child: Text(
+                        l10n.featuredPieces,
+                        style: AppTextStyles.headingLarge,
                       ),
-                    );
-                  },
-                ),
+                    ),
+                    const SizedBox(height: 16),
+                    StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: _featuredProductsStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 40),
+                            child: FeaturedProductsGridSkeleton(),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return ErrorStateWidget.inline(
+                            title: l10n.somethingWentWrong,
+                            message: l10n.pullDownToRetry,
+                            onRetry: () => setState(() {}),
+                            type: ErrorType.network,
+                          );
+                        }
+                        final docs = snapshot.data?.docs ?? [];
+                        if (docs.isEmpty) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              l10n.noFeaturedProductsAvailable,
+                              style: AppTextStyles.bodySmall,
+                            ),
+                          );
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: docs.length,
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  childAspectRatio: 0.62,
+                                ),
+                            itemBuilder: (context, index) =>
+                                _FeaturedProductCard(
+                                  doc: docs[index],
+                                  l10n: l10n,
+                                ),
+                          ),
+                        );
+                      },
+                    ),
 
-                const SizedBox(height: 36),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Divider(color: AppColors.border, thickness: 0.5),
-                ),
-                const SizedBox(height: 28),
+                    const SizedBox(height: 36),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Divider(color: AppColors.border, thickness: 0.5),
+                    ),
+                    const SizedBox(height: 28),
 
-                // ── Top Boutiques ────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    l10n.topBoutiques,
-                    style: AppTextStyles.headingLarge,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _boutiquesStream,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 30),
-                        child: BoutiquesListSkeleton(),
-                      );
-                    }
-                    if (snapshot.hasError) {
-                      return ErrorStateWidget.inline(
-                        title: l10n.somethingWentWrong,
-                        message: l10n.pullDownToRetry,
-                        onRetry: () => setState(() {}),
-                        type: ErrorType.network,
-                      );
-                    }
-                    final docs = snapshot.data?.docs ?? [];
-                    if (docs.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          l10n.noBoutiquesAvailable,
-                          style: AppTextStyles.bodySmall,
-                        ),
-                      );
-                    }
-                    return Column(
-                      children: docs
-                          .map((doc) => _HomeBoutiqueCard(doc: doc, l10n: l10n))
-                          .toList(),
-                    );
-                  },
-                ),
+                    // ── Top Boutiques ────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        l10n.topBoutiques,
+                        style: AppTextStyles.headingLarge,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: _boutiquesStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 30),
+                            child: BoutiquesListSkeleton(),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return ErrorStateWidget.inline(
+                            title: l10n.somethingWentWrong,
+                            message: l10n.pullDownToRetry,
+                            onRetry: () => setState(() {}),
+                            type: ErrorType.network,
+                          );
+                        }
+                        final docs = snapshot.data?.docs ?? [];
+                        if (docs.isEmpty) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              l10n.noBoutiquesAvailable,
+                              style: AppTextStyles.bodySmall,
+                            ),
+                          );
+                        }
+                        return Column(
+                          children: docs
+                              .map(
+                                (doc) =>
+                                    _HomeBoutiqueCard(doc: doc, l10n: l10n),
+                              )
+                              .toList(),
+                        );
+                      },
+                    ),
 
-                const SizedBox(height: 36),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Divider(color: AppColors.border, thickness: 0.5),
-                ),
-                const SizedBox(height: 28),
+                    const SizedBox(height: 36),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Divider(color: AppColors.border, thickness: 0.5),
+                    ),
+                    const SizedBox(height: 28),
 
-                // ── For You feed ─────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text('For You', style: AppTextStyles.headingLarge),
+                    // ── For You feed ─────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('For You', style: AppTextStyles.headingLarge),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                _buildFeedSection(),
-
-                const SizedBox(height: 40),
-              ],
-            ),
+              ),
+              _buildFeedSliver(),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildFeedSection() {
-    if (_feedLoading) return const FeedSkeleton();
+  Widget _buildFeedSliver() {
+    if (_feedLoading) {
+      return const SliverToBoxAdapter(child: FeedSkeleton());
+    }
 
     if (_feed.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Text(
-          'Follow boutiques to see their latest pieces here.',
-          style: AppTextStyles.bodySmall,
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+          child: Text(
+            'Follow boutiques to see their latest pieces here.',
+            style: AppTextStyles.bodySmall,
+          ),
         ),
       );
     }
 
-    return Column(
-      children: [
-        ..._feed.map(
-          (entry) => Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: FeedCard(
-              product: entry.product,
-              badge: entry.badge,
-              boutiqueLogoUrl: entry.boutiqueLogoUrl,
-            ),
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        // Trailing slot: load-more spinner (if any) + bottom spacing.
+        if (index == _feed.length) {
+          return Column(
+            children: [
+              if (_feedLoadingMore)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.deepAccent,
+                      strokeWidth: 1.5,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 40),
+            ],
+          );
+        }
+        final entry = _feed[index];
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: FeedCard(
+            product: entry.product,
+            badge: entry.badge,
+            boutiqueLogoUrl: entry.boutiqueLogoUrl,
           ),
-        ),
-        if (_feedLoadingMore)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(
-              child: CircularProgressIndicator(
-                color: AppColors.deepAccent,
-                strokeWidth: 1.5,
-              ),
-            ),
-          ),
-      ],
+        );
+      }, childCount: _feed.length + 1),
     );
   }
 }

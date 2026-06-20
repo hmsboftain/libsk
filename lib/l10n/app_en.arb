@@ -542,6 +542,8 @@
   "enterTitleAndMessage": "Please enter a title and message",
   "notificationSentToUsers": "Notification sent to {count} users",
   "@notificationSentToUsers": { "placeholders": { "count": { "type": "String" } } },
+  "notificationSentToAllUsers": "Notification sent to all users",
+  "@notificationSentToAllUsers": {},
   "failedToSendNotification": "Failed to send notification: {error}",
   "@failedToSendNotification": { "placeholders": { "error": { "type": "String" } } },
   "libskTagline": "Shop Local. Dress Global.",

@@ -106,15 +106,15 @@ class DisputesPage extends StatefulWidget {
 class _DisputesPageState extends State<DisputesPage> {
   _DisputeFilter _selectedFilter = _DisputeFilter.all;
 
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _disputesStream;
+  late final Future<QuerySnapshot<Map<String, dynamic>>> _disputesFuture;
 
   @override
   void initState() {
     super.initState();
-    _disputesStream = FirebaseFirestore.instance
+    _disputesFuture = FirebaseFirestore.instance
         .collection('disputes')
         .orderBy('createdAt', descending: true)
-        .snapshots();
+        .get();
   }
 
   Future<void> _updateDisputeStatus({
@@ -315,8 +315,8 @@ class _DisputesPageState extends State<DisputesPage> {
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: _disputesStream,
+              child: FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                future: _disputesFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(

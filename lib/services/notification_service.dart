@@ -52,6 +52,10 @@ class NotificationService {
         debugPrint('FCM Token: $token');
 
         await FirestoreService.saveCurrentUserFcmToken();
+
+        // Subscribe every device to the broadcast topic so admin "all users"
+        // notifications reach it with a single server-side send().
+        await _messaging.subscribeToTopic('all_users');
       } catch (e) {
         debugPrint('FCM token error: $e');
       }

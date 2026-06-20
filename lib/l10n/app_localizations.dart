@@ -3173,6 +3173,12 @@ abstract class AppLocalizations {
   /// **'Notification sent to {count} users'**
   String notificationSentToUsers(String count);
 
+  /// No description provided for @notificationSentToAllUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification sent to all users'**
+  String get notificationSentToAllUsers;
+
   /// No description provided for @failedToSendNotification.
   ///
   /// In en, this message translates to:
