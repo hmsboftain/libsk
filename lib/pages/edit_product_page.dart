@@ -111,14 +111,23 @@ class _EditProductPageState extends State<EditProductPage> {
 
   bool _isLoading = false;
   bool _madeToOrder = false;
+  bool _postToFeed = false;
 
   List<String> currentImageUrls = [];
   List<File> selectedNewImages = [];
-  List<String> _imagesToDelete = [];
+  final List<String> _imagesToDelete = [];
 
   List<String> selectedCategories = [];
   List<Map<String, dynamic>> sizeEntries = [];
   List<String> colorTags = [];
+
+  // ── Size guide ─────────────────────────────────────────────────────────────
+  // Existing URL loaded from Firestore (null = none set)
+  String? _existingSizeGuideUrl;
+  // New file picked by owner to replace the existing one
+  File? _newSizeGuideFile;
+  // Whether the owner explicitly removed the existing guide without replacing it
+  bool _sizeGuideRemoved = false;
 
   @override
   void initState() {
@@ -150,6 +159,11 @@ class _EditProductPageState extends State<EditProductPage> {
     _madeToOrder = widget.productData['madeToOrder'] == true;
     deliveryTimeframeController.text =
         widget.productData['deliveryTimeframe']?.toString() ?? '';
+    _postToFeed = widget.productData['postedToFeed'] == true;
+
+    // Load existing size guide URL
+    final guideUrl = widget.productData['sizeGuideUrl']?.toString() ?? '';
+    if (guideUrl.isNotEmpty) _existingSizeGuideUrl = guideUrl;
   }
 
   void _loadCategories() {
@@ -236,6 +250,27 @@ class _EditProductPageState extends State<EditProductPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(AppLocalizations.of(context)!.failedToPickImages),
+        ),
+      );
+    }
+  }
+
+  Future<void> _pickSizeGuide() async {
+    try {
+      final image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+      );
+      if (image == null || !mounted) return;
+      setState(() {
+        _newSizeGuideFile = File(image.path);
+        _sizeGuideRemoved = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.failedToPickImage),
         ),
       );
     }
@@ -379,6 +414,7 @@ class _EditProductPageState extends State<EditProductPage> {
     setState(() => _isLoading = true);
 
     List<String> uploadedNewUrls = [];
+    String? uploadedSizeGuideUrl;
 
     try {
       final boutiqueId = await FirestoreService.getCurrentOwnerBoutiqueId();
@@ -394,42 +430,78 @@ class _EditProductPageState extends State<EditProductPage> {
         (total, e) => total + ((e['stock'] as int?) ?? 0),
       );
 
-      // Upload new images — track for cleanup if Firestore write fails
       uploadedNewUrls = await StorageService.uploadImages(
         selectedNewImages,
-        'product_images',
+        'product_images/$boutiqueId',
       );
 
-      final allImageUrls = [...currentImageUrls, ...uploadedNewUrls];
+      // Handle size guide upload / removal
+      String? finalSizeGuideUrl = _existingSizeGuideUrl;
+      if (_newSizeGuideFile != null) {
+        final guideUrls = await StorageService.uploadImages([
+          _newSizeGuideFile!,
+        ], 'size_guides/$boutiqueId');
+        if (guideUrls.isNotEmpty) {
+          uploadedSizeGuideUrl = guideUrls.first;
+          finalSizeGuideUrl = uploadedSizeGuideUrl;
+        }
+      } else if (_sizeGuideRemoved) {
+        finalSizeGuideUrl = null;
+      }
 
-      // Single Firestore write — imageUrls[0] is the primary, no separate imageUrl field
+      final allImageUrls = [...currentImageUrls, ...uploadedNewUrls];
+      final wasPosted = widget.productData['postedToFeed'] == true;
+
+      final updateData = <String, dynamic>{
+        'boutiqueId': boutiqueId,
+        'title': title,
+        'description': description,
+        'price': price,
+        'imageUrls': allImageUrls,
+        'stock': totalStock,
+        'sizes': sizes,
+        'sizeEntries': sizeEntries,
+        'category': selectedCategories,
+        'colors': colorTags,
+        'madeToOrder': _madeToOrder,
+        'deliveryTimeframe': _madeToOrder
+            ? deliveryTimeframeController.text.trim()
+            : null,
+        'postedToFeed': _postToFeed,
+        'updatedAt': FieldValue.serverTimestamp(),
+        // Null removes the field; a URL sets/updates it
+        'sizeGuideUrl': finalSizeGuideUrl,
+      };
+
+      if (_postToFeed && !wasPosted) {
+        updateData['feedPostedAt'] = FieldValue.serverTimestamp();
+      }
+
       await FirebaseFirestore.instance
           .collection('boutiques')
           .doc(boutiqueId)
           .collection('products')
           .doc(widget.productId)
-          .update({
-            'title': title,
-            'description': description,
-            'price': price,
-            'imageUrls': allImageUrls,
-            'stock': totalStock,
-            'sizes': sizes,
-            'sizeEntries': sizeEntries,
-            'category': selectedCategories,
-            'colors': colorTags,
-            'madeToOrder': _madeToOrder,
-            'deliveryTimeframe': _madeToOrder
-                ? deliveryTimeframeController.text.trim()
-                : null,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+          .update(updateData);
 
-      // Firestore write confirmed — safe to delete removed images
+      // Firestore confirmed — safe to delete removed product images
       for (final url in _imagesToDelete) {
         await StorageService.deleteImageByUrl(
           url,
         ).catchError((e) => debugPrint('Image delete error: $e'));
+      }
+
+      // If owner replaced the size guide, delete the old one from Storage
+      if (_newSizeGuideFile != null && _existingSizeGuideUrl != null) {
+        await StorageService.deleteImageByUrl(
+          _existingSizeGuideUrl!,
+        ).catchError((e) => debugPrint('Size guide delete error: $e'));
+      }
+      // If owner removed without replacing, delete old one
+      if (_sizeGuideRemoved && _existingSizeGuideUrl != null) {
+        await StorageService.deleteImageByUrl(
+          _existingSizeGuideUrl!,
+        ).catchError((e) => debugPrint('Size guide delete error: $e'));
       }
 
       if (!mounted) return;
@@ -440,10 +512,14 @@ class _EditProductPageState extends State<EditProductPage> {
     } catch (e) {
       debugPrint('UPDATE PRODUCT ERROR: $e');
 
-      // Firestore write failed — clean up newly uploaded images
       for (final url in uploadedNewUrls) {
         await StorageService.deleteImageByUrl(
           url,
+        ).catchError((err) => debugPrint('Cleanup error: $err'));
+      }
+      if (uploadedSizeGuideUrl != null) {
+        await StorageService.deleteImageByUrl(
+          uploadedSizeGuideUrl,
         ).catchError((err) => debugPrint('Cleanup error: $err'));
       }
 
@@ -559,6 +635,122 @@ class _EditProductPageState extends State<EditProductPage> {
                   );
                 }),
               ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── Size guide section ────────────────────────────────────────────────────
+
+  Widget _buildSizeGuideSection(AppLocalizations l10n) {
+    // Determine what to show:
+    // 1. New file picked → show local preview
+    // 2. Existing URL (not removed) → show network image
+    // 3. Nothing → show upload prompt
+    final hasNewFile = _newSizeGuideFile != null;
+    final hasExisting = _existingSizeGuideUrl != null && !_sizeGuideRemoved;
+    final hasAnything = hasNewFile || hasExisting;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.sizeGuide, style: AppTextStyles.labelLarge),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.sizeGuideSubtitle,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (hasAnything) ...[
+          Stack(
+            children: [
+              ClipRect(
+                child: hasNewFile
+                    ? Image.file(
+                        _newSizeGuideFile!,
+                        width: double.infinity,
+                        height: 180,
+                        fit: BoxFit.cover,
+                      )
+                    : Image.network(
+                        _existingSizeGuideUrl!,
+                        width: double.infinity,
+                        height: 180,
+                        fit: BoxFit.cover,
+                      ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: () => setState(() {
+                    _newSizeGuideFile = null;
+                    _sizeGuideRemoved = true;
+                  }),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    color: AppColors.deepAccent,
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: _pickSizeGuide,
+            child: Text(
+              l10n.changeImage,
+              style: AppTextStyles.labelLarge.copyWith(
+                color: AppColors.deepAccent,
+              ),
+            ),
+          ),
+        ] else
+          GestureDetector(
+            onTap: _pickSizeGuide,
+            child: Container(
+              width: double.infinity,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.field,
+                border: Border.all(color: AppColors.border, width: 0.5),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.straighten_outlined,
+                    size: 22,
+                    color: AppColors.deepAccent,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    l10n.uploadSizeGuide,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
       ],
@@ -834,6 +1026,32 @@ class _EditProductPageState extends State<EditProductPage> {
     );
   }
 
+  Widget _buildPostToFeedSection(AppLocalizations l10n) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Show in feed', style: AppTextStyles.labelLarge),
+              const SizedBox(height: 4),
+              Text(
+                'Followers see this product in their home feed when you post it.',
+                style: AppTextStyles.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: _postToFeed,
+          onChanged: (value) => setState(() => _postToFeed = value),
+          activeThumbColor: AppColors.deepAccent,
+          activeTrackColor: AppColors.softAccent,
+        ),
+      ],
+    );
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -869,6 +1087,7 @@ class _EditProductPageState extends State<EditProductPage> {
                         ),
                       ),
                       const SizedBox(height: 20),
+
                       _buildSectionCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -930,10 +1149,17 @@ class _EditProductPageState extends State<EditProductPage> {
                       _buildSectionCard(child: _buildCategorySection(l10n)),
                       const SizedBox(height: 16),
                       _buildSectionCard(child: _buildSizesSection(l10n)),
+
+                      // ── Size guide — right below sizes ────────────
+                      const SizedBox(height: 16),
+                      _buildSectionCard(child: _buildSizeGuideSection(l10n)),
+
                       const SizedBox(height: 16),
                       _buildSectionCard(child: _buildColorsSection(l10n)),
                       const SizedBox(height: 16),
                       _buildSectionCard(child: _buildMadeToOrderSection(l10n)),
+                      const SizedBox(height: 16),
+                      _buildSectionCard(child: _buildPostToFeedSection(l10n)),
                       const SizedBox(height: 22),
                       SizedBox(
                         width: double.infinity,

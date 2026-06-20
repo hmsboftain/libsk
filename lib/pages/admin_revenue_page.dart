@@ -1,8 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
+import '../services/currency_service.dart';
 import '../widgets/theme.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 // ── Period enum & helpers ─────────────────────────────────────────────────────
 
@@ -82,13 +90,11 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
   _RevenuePeriod _selectedPeriod = _RevenuePeriod.thisMonth;
 
   double _commissionsTotal = 0;
-  double _subscriptionsTotal = 0;
   double _promoSlotsTotal = 0;
   bool _isLoading = true;
   bool _hasError = false;
 
-  double get _grandTotal =>
-      _commissionsTotal + _subscriptionsTotal + _promoSlotsTotal;
+  double get _grandTotal => _commissionsTotal + _promoSlotsTotal;
 
   @override
   void initState() {
@@ -96,7 +102,7 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
     _fetchRevenue();
   }
 
-  // Three reads fire in parallel via Future.wait, each filtered server-side
+  // Two reads fire in parallel via Future.wait, each filtered server-side
   // by the selected period — no more full-collection reads on every chip tap
   Future<void> _fetchRevenue() async {
     setState(() {
@@ -107,7 +113,6 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
     try {
       final results = await Future.wait([
         _revenueQuery('global_orders', _selectedPeriod).get(),
-        _revenueQuery('subscription_payments', _selectedPeriod).get(),
         _revenueQuery('promo_slot_payments', _selectedPeriod).get(),
       ]);
 
@@ -115,19 +120,14 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
         results[0].docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>(),
         'commissionAmount',
       );
-      final subscriptions = _sumField(
-        results[1].docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>(),
-        'amount',
-      );
       final promoSlots = _sumField(
-        results[2].docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>(),
+        results[1].docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>(),
         'amount',
       );
 
       if (!mounted) return;
       setState(() {
         _commissionsTotal = commissions;
-        _subscriptionsTotal = subscriptions;
         _promoSlotsTotal = promoSlots;
         _isLoading = false;
       });
@@ -260,7 +260,7 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'KD ${_grandTotal.toStringAsFixed(2)}',
+                                _fmt(_grandTotal),
                                 style: AppTextStyles.displayMedium.copyWith(
                                   color: Colors.white,
                                 ),
@@ -286,16 +286,6 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
                           amount: _commissionsTotal,
                           percentage: _grandTotal > 0
                               ? _commissionsTotal / _grandTotal * 100
-                              : 0,
-                          l10n: l10n,
-                        ),
-                        _RevenueCard(
-                          icon: Icons.subscriptions_outlined,
-                          label: l10n.subscriptions,
-                          subtitle: l10n.subscriptionsSubtitle,
-                          amount: _subscriptionsTotal,
-                          percentage: _grandTotal > 0
-                              ? _subscriptionsTotal / _grandTotal * 100
                               : 0,
                           l10n: l10n,
                         ),
@@ -408,7 +398,7 @@ class _RevenueCard extends StatelessWidget {
                 ),
               ),
               Text(
-                'KD ${amount.toStringAsFixed(2)}',
+                _fmt(amount),
                 style: AppTextStyles.headingSmall,
               ),
             ],

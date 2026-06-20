@@ -6,10 +6,18 @@ import 'package:http/http.dart' as http;
 import 'package:libsk/l10n/app_localizations.dart';
 
 import '../config/algolia_config.dart';
+import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
+import '../services/currency_service.dart';
 import '../widgets/theme.dart';
 import 'boutique_storefront_page.dart';
 import 'product_page.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -394,7 +402,7 @@ class _SearchProductCard extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            'KWD ${price.toStringAsFixed(0)}',
+            _fmt(price),
             style: AppTextStyles.labelLarge,
           ),
           const SizedBox(height: 8),

@@ -2,8 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
 import '../navigation/main_navigation_bar.dart';
+import '../services/currency_service.dart';
 import '../services/firestore_service.dart';
 import '../main.dart';
 import '../widgets/theme.dart';
@@ -21,6 +23,7 @@ Widget _buildTile({
   required IconData icon,
   required String title,
   required VoidCallback onTap,
+  String? trailing,
 }) {
   return Column(
     children: [
@@ -28,11 +31,29 @@ Widget _buildTile({
         contentPadding: EdgeInsets.zero,
         leading: Icon(icon, color: AppColors.primaryText),
         title: Text(title, style: AppTextStyles.bodyLarge),
-        trailing: const Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-          color: AppColors.secondaryText,
-        ),
+        trailing: trailing != null
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    trailing,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: AppColors.secondaryText,
+                  ),
+                ],
+              )
+            : const Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: AppColors.secondaryText,
+              ),
         onTap: onTap,
       ),
       const Divider(),
@@ -45,6 +66,13 @@ Future<void> _launchUrl(String url) async {
   if (await canLaunchUrl(uri)) {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
+}
+
+// ── Country flag helper ──────────────────────────────────────────────────────
+
+String _countryFlag(String countryCode) {
+  final cc = countryCode.toUpperCase();
+  return String.fromCharCodes(cc.codeUnits.map((c) => 0x1F1E6 - 0x41 + c));
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -65,6 +93,17 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _checkAccessStatus();
+    CurrencyService.instance.addListener(_onCurrencyChanged);
+  }
+
+  @override
+  void dispose() {
+    CurrencyService.instance.removeListener(_onCurrencyChanged);
+    super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _checkAccessStatus() async {
@@ -97,6 +136,109 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _showCountryPicker() {
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    final currentCode = CurrencyService.instance.selectedCountryCode;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.55,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 20, 8, 0),
+                  child: Row(
+                    children: [
+                      Text(
+                        AppLocalizations.of(context)!.selectCountry,
+                        style: AppTextStyles.headingSmall,
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 22),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(color: AppColors.border, thickness: 0.5),
+                Expanded(
+                  child: ListView(
+                    children: kSupportedCountries.map((country) {
+                      final isSelected = country.code == currentCode;
+                      return InkWell(
+                        onTap: () {
+                          CurrencyService.instance.setCountry(country.code);
+                          Navigator.pop(ctx);
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 22,
+                            vertical: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.field
+                                : Colors.transparent,
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                _countryFlag(country.code),
+                                style: const TextStyle(fontSize: 22),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      isArabic
+                                          ? country.nameAr
+                                          : country.nameEn,
+                                      style: AppTextStyles.bodyLarge.copyWith(
+                                        fontWeight: isSelected
+                                            ? FontWeight.w600
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                    Text(
+                                      country.currency,
+                                      style: AppTextStyles.bodySmall.copyWith(
+                                        color: AppColors.secondaryText,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isSelected)
+                                Icon(
+                                  Icons.check,
+                                  size: 20,
+                                  color: AppColors.deepAccent,
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _logout() async {
     final navigator = Navigator.of(context);
     try {
@@ -123,6 +265,13 @@ class _ProfilePageState extends State<ProfilePage> {
         : l10n.user;
     final email = user?.email ?? l10n.noEmail;
     final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+
+    final currentCountry = countryByCode(
+      CurrencyService.instance.selectedCountryCode,
+    );
+    final countryLabel = isArabic
+        ? currentCountry.nameAr
+        : currentCountry.nameEn;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -279,13 +428,21 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     const SizedBox(height: 30),
 
-                    // ── Language ──────────────────────────────────────
+                    // ── Language & region ─────────────────────────────
                     Text(l10n.languages, style: AppTextStyles.capsLabel),
                     const SizedBox(height: 10),
                     _buildTile(
                       icon: Icons.language,
-                      title: isArabic ? '🇰🇼 العربية' : '🇬🇧 English',
+                      title: isArabic ? 'العربية' : 'English',
+                      trailing: isArabic ? '🇰🇼' : '🇬🇧',
                       onTap: _toggleLanguage,
+                    ),
+                    _buildTile(
+                      icon: Icons.public,
+                      title: l10n.countryRegion,
+                      trailing:
+                          '${_countryFlag(currentCountry.code)} $countryLabel',
+                      onTap: _showCountryPicker,
                     ),
 
                     const SizedBox(height: 30),

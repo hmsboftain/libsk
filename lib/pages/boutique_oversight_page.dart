@@ -4,6 +4,14 @@ import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import 'boutique_storefront_page.dart';
 import '../widgets/theme.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -226,7 +234,7 @@ class _BoutiqueOversightPageState extends State<BoutiqueOversightPage> {
                         const SizedBox(height: 14),
                         _OversightStatCard(
                           title: l10n.sales,
-                          value: '${totalSales.toStringAsFixed(0)} KWD',
+                          value: _fmt(totalSales),
                           subtitle: l10n.totalBoutiqueSales,
                           icon: Icons.trending_up_rounded,
                         ),

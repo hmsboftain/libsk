@@ -286,10 +286,13 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
       String? logoUrl = _currentLogoUrl;
       String? bannerUrl = _currentBannerUrl;
 
+      final boutiqueId = await FirestoreService.getCurrentOwnerBoutiqueId();
+      if (boutiqueId == null) throw Exception('No boutique found');
+
       if (_selectedLogoImage != null) {
         newLogoUrl = await StorageService.uploadImage(
           _selectedLogoImage!,
-          'boutique_logos',
+          'boutique_logos/$boutiqueId',
         );
         logoUrl = newLogoUrl;
       }
@@ -297,7 +300,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
       if (_selectedBannerImage != null) {
         newBannerUrl = await StorageService.uploadImage(
           _selectedBannerImage!,
-          'boutique_banners',
+          'boutique_banners/$boutiqueId',
         );
         bannerUrl = newBannerUrl;
       }

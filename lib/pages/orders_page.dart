@@ -10,6 +10,14 @@ import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 import 'login_page.dart';
 import 'order_details_page.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -267,7 +275,7 @@ class _OrderCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'KWD ${order.total.toStringAsFixed(0)}',
+                    _fmt(order.total),
                     style: AppTextStyles.labelLarge,
                   ),
                 ],

@@ -7,7 +7,6 @@ class Boutique {
   final String description;
   final String logoPath;
   final String bannerPath;
-  final String tier;
   final bool isApproved;
   final bool isVisibleOnHome;
   final int homeOrder;
@@ -19,7 +18,6 @@ class Boutique {
     required this.description,
     required this.logoPath,
     required this.bannerPath,
-    required this.tier,
     required this.isApproved,
     required this.isVisibleOnHome,
     required this.homeOrder,
@@ -37,7 +35,6 @@ class Boutique {
       description: (data['description'] ?? '').toString(),
       logoPath: (data['logoPath'] ?? '').toString(),
       bannerPath: (data['bannerPath'] ?? '').toString(),
-      tier: (data['tier'] ?? '').toString(),
       isApproved: data['isApproved'] == true,
       isVisibleOnHome: data['isVisibleOnHome'] == true,
       homeOrder: _parseInt(data['homeOrder']),

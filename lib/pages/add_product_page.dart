@@ -80,11 +80,15 @@ class _AddProductPageState extends State<AddProductPage> {
 
   bool _isLoading = false;
   bool _madeToOrder = false;
+  bool _postToFeed = true;
 
   List<File> selectedImages = [];
   List<String> selectedCategories = [];
   List<Map<String, dynamic>> sizeEntries = [];
   List<String> colorTags = [];
+
+  // ── Size guide ─────────────────────────────────────────────────────────────
+  File? _sizeGuideFile;
 
   @override
   void dispose() {
@@ -109,6 +113,24 @@ class _AddProductPageState extends State<AddProductPage> {
       });
     } catch (e) {
       debugPrint('ADD PRODUCT IMAGE ERROR: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.failedToPickImage),
+        ),
+      );
+    }
+  }
+
+  Future<void> _pickSizeGuide() async {
+    try {
+      final image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+      );
+      if (image == null || !mounted) return;
+      setState(() => _sizeGuideFile = File(image.path));
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -219,7 +241,6 @@ class _AddProductPageState extends State<AddProductPage> {
     final description = descriptionController.text.trim();
     final priceText = priceController.text.trim();
 
-    // Defence-in-depth: maxLength checks not covered by the form validators
     final preflight =
         Validators.maxLength(title, 100, 'Title') ??
         Validators.maxLength(description, 2000, 'Description') ??
@@ -259,6 +280,7 @@ class _AddProductPageState extends State<AddProductPage> {
     setState(() => _isLoading = true);
 
     List<String> imageUrls = [];
+    String? sizeGuideUrl;
 
     try {
       final price = double.parse(priceText);
@@ -273,12 +295,24 @@ class _AddProductPageState extends State<AddProductPage> {
         (total, e) => total + ((e['stock'] as int?) ?? 0),
       );
 
+      final boutiqueId = await FirestoreService.getCurrentOwnerBoutiqueId();
+      if (boutiqueId == null) {
+        throw Exception('No boutique found for current owner');
+      }
+
       imageUrls = await StorageService.uploadImages(
         selectedImages,
-        'product_images',
+        'product_images/$boutiqueId',
       );
 
-      // Single Firestore write — imageUrls[0] is the primary image
+      // Upload size guide if one was selected
+      if (_sizeGuideFile != null) {
+        final guideUrls = await StorageService.uploadImages([
+          _sizeGuideFile!,
+        ], 'size_guides/$boutiqueId');
+        if (guideUrls.isNotEmpty) sizeGuideUrl = guideUrls.first;
+      }
+
       await FirestoreService.addProductForCurrentOwner(
         title: title,
         description: description,
@@ -294,6 +328,8 @@ class _AddProductPageState extends State<AddProductPage> {
         deliveryTimeframe: _madeToOrder
             ? deliveryTimeframeController.text.trim()
             : null,
+        sizeGuideUrl: sizeGuideUrl,
+        postToFeed: _postToFeed,
       );
 
       if (!mounted) return;
@@ -304,11 +340,12 @@ class _AddProductPageState extends State<AddProductPage> {
     } catch (e) {
       debugPrint('SAVE PRODUCT ERROR: $e');
 
-      // Clean up orphaned Storage files if the Firestore write failed
-      if (imageUrls.isNotEmpty) {
-        for (final url in imageUrls) {
-          await StorageService.deleteImageByUrl(url);
-        }
+      // Clean up orphaned Storage files if Firestore write failed
+      for (final url in imageUrls) {
+        await StorageService.deleteImageByUrl(url);
+      }
+      if (sizeGuideUrl != null) {
+        await StorageService.deleteImageByUrl(sizeGuideUrl);
       }
 
       if (!mounted) return;
@@ -493,6 +530,104 @@ class _AddProductPageState extends State<AddProductPage> {
     );
   }
 
+  // ── Size guide section ────────────────────────────────────────────────────
+
+  Widget _buildSizeGuideSection(AppLocalizations l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.sizeGuide, style: AppTextStyles.labelLarge),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.sizeGuideSubtitle,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_sizeGuideFile != null) ...[
+          Stack(
+            children: [
+              ClipRect(
+                child: Image.file(
+                  _sizeGuideFile!,
+                  width: double.infinity,
+                  height: 180,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: () => setState(() => _sizeGuideFile = null),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    color: AppColors.deepAccent,
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: _pickSizeGuide,
+            child: Text(
+              l10n.changeImage,
+              style: AppTextStyles.labelLarge.copyWith(
+                color: AppColors.deepAccent,
+              ),
+            ),
+          ),
+        ] else
+          GestureDetector(
+            onTap: _pickSizeGuide,
+            child: Container(
+              width: double.infinity,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.field,
+                border: Border.all(color: AppColors.border, width: 0.5),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.straighten_outlined,
+                    size: 22,
+                    color: AppColors.deepAccent,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    l10n.uploadSizeGuide,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildColorsSection(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -593,6 +728,32 @@ class _AddProductPageState extends State<AddProductPage> {
     );
   }
 
+  Widget _buildPostToFeedSection(AppLocalizations l10n) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Show in feed', style: AppTextStyles.labelLarge),
+              const SizedBox(height: 4),
+              Text(
+                'Followers see this product in their home feed when you post it.',
+                style: AppTextStyles.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: _postToFeed,
+          onChanged: (value) => setState(() => _postToFeed = value),
+          activeThumbColor: AppColors.deepAccent,
+          activeTrackColor: AppColors.softAccent,
+        ),
+      ],
+    );
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -624,7 +785,7 @@ class _AddProductPageState extends State<AddProductPage> {
                       ),
                       const SizedBox(height: 20),
 
-                      // ── Core details ────────────────────────────────
+                      // ── Core details ──────────────────────────────
                       _buildSectionCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -730,11 +891,18 @@ class _AddProductPageState extends State<AddProductPage> {
                       const SizedBox(height: 16),
                       _buildSectionCard(child: _buildSizesSection(l10n)),
 
+                      // ── Size guide — lives right below the sizes card ──
+                      const SizedBox(height: 16),
+                      _buildSectionCard(child: _buildSizeGuideSection(l10n)),
+
                       const SizedBox(height: 16),
                       _buildSectionCard(child: _buildColorsSection(l10n)),
 
                       const SizedBox(height: 16),
                       _buildSectionCard(child: _buildMadeToOrderSection(l10n)),
+
+                      const SizedBox(height: 16),
+                      _buildSectionCard(child: _buildPostToFeedSection(l10n)),
 
                       const SizedBox(height: 22),
                       SizedBox(

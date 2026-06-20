@@ -1,5 +1,13 @@
 import 'package:flutter/material.dart';
 import '../widgets/theme.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 class CartItem {
   final String id;
@@ -12,6 +20,7 @@ class CartItem {
   final String color;
   final double price;
   final int quantity;
+  final bool madeToOrder;
 
   CartItem({
     required this.id,
@@ -24,6 +33,7 @@ class CartItem {
     this.color = '',
     required this.price,
     required this.quantity,
+    this.madeToOrder = false,
   });
 
   factory CartItem.fromFirestore(String id, Map<String, dynamic> data) {
@@ -38,6 +48,7 @@ class CartItem {
       color: data['color']?.toString() ?? '',
       price: (data['price'] ?? 0).toDouble(),
       quantity: data['quantity'] ?? 1,
+      madeToOrder: data['madeToOrder'] == true,
     );
   }
 }
@@ -53,6 +64,7 @@ class CartItemWidget extends StatelessWidget {
   final String color;
   final double price;
   final int quantity;
+  final bool madeToOrder;
   final VoidCallback onIncrease;
   final VoidCallback onDecrease;
   final VoidCallback onDelete;
@@ -66,6 +78,7 @@ class CartItemWidget extends StatelessWidget {
     this.color = '',
     required this.price,
     required this.quantity,
+    this.madeToOrder = false,
     required this.onIncrease,
     required this.onDecrease,
     required this.onDelete,
@@ -125,6 +138,28 @@ class CartItemWidget extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text('Colour: $color', style: AppTextStyles.bodyMedium),
                 ],
+                if (madeToOrder) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: AppColors.deepAccent,
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Text(
+                      'Made to Order',
+                      style: AppTextStyles.labelSmall.copyWith(
+                        color: AppColors.deepAccent,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
             const SizedBox(width: 22),
@@ -170,7 +205,7 @@ class CartItemWidget extends StatelessWidget {
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    '${price.toStringAsFixed(0)} KWD',
+                    _fmt(price),
                     style: AppTextStyles.headingSmall,
                   ),
                 ],

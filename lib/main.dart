@@ -7,15 +7,13 @@ import 'package:libsk/l10n/app_localizations.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_jailbreak_detection/flutter_jailbreak_detection.dart';
-import 'core/constants/app_config.dart';
 import 'services/firestore_service.dart';
+import 'services/currency_service.dart';
 import 'pages/splash_page.dart';
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
 import 'widgets/theme.dart';
 
-// Global navigator key used by NotificationService to push pages without a
-// BuildContext when the user taps a notification.
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
@@ -23,10 +21,6 @@ Future<void> main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Offline persistence: lets every Firestore read return cached data when
-  // the device is offline and avoids round-trips when fresh data hasn't
-  // changed. Unlimited cache because we want browsing to keep working in the
-  // background even on flaky connections.
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
@@ -34,12 +28,13 @@ Future<void> main() async {
 
   await FirestoreService.prepareGuestCartId();
 
+  // Initialise currency service — loads saved country and fetches live rates
+  await CurrencyService.instance.init();
+
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  // The Stripe key must be supplied at build/run time via
-  //   --dart-define=STRIPE_PUBLISHABLE_KEY=pk_...
-  // so the secret never lives in source control. See lib/core/constants/app_config.dart.
-  Stripe.publishableKey = 'pk_test_51TOOjvCTdAUQnhiZ4ArRKUYtg2TIuKEc3j0LeMDk036JhqGoPlsVV6ZdO4resgC8XJg5C8fZBhkhMROon5Go9Flf00SX2GiCmu';
+  Stripe.publishableKey =
+      'pk_test_51TOOjvCTdAUQnhiZ4ArRKUYtg2TIuKEc3j0LeMDk036JhqGoPlsVV6ZdO4resgC8XJg5C8fZBhkhMROon5Go9Flf00SX2GiCmu';
   await Stripe.instance.applySettings();
 
   runApp(const LibskApp());
@@ -73,17 +68,24 @@ class _LibskAppState extends State<LibskApp> {
   void initState() {
     super.initState();
     _checkDeviceSecurity();
+    // Rebuild UI if currency/country changes while app is running
+    CurrencyService.instance.addListener(_onCurrencyChanged);
+  }
+
+  @override
+  void dispose() {
+    CurrencyService.instance.removeListener(_onCurrencyChanged);
+    super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) setState(() {});
   }
 
   void changeLanguage(Locale locale) {
-    setState(() {
-      _locale = locale;
-    });
+    setState(() => _locale = locale);
   }
 
-  // Runs once at startup; if the device looks jailbroken/rooted we flip a
-  // flag that displays a soft warning page. The user can choose to continue
-  // browsing — payments still fail server-side, but at least they're aware.
   Future<void> _checkDeviceSecurity() async {
     try {
       final jailbroken = await FlutterJailbreakDetection.jailbroken;
@@ -110,8 +112,7 @@ class _LibskAppState extends State<LibskApp> {
       title: 'LIBSK',
       home: _isDeviceCompromised
           ? _SecurityWarningPage(
-              onContinue: () =>
-                  setState(() => _isDeviceCompromised = false),
+              onContinue: () => setState(() => _isDeviceCompromised = false),
             )
           : StreamBuilder<User?>(
               stream: FirebaseAuth.instance.authStateChanges(),
@@ -156,8 +157,9 @@ class _SecurityWarningPage extends StatelessWidget {
               Text(
                 'This device appears to be modified. For your security, '
                 'payments and sensitive features are unavailable.',
-                style: AppTextStyles.bodyMedium
-                    .copyWith(color: AppColors.secondaryText),
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.secondaryText,
+                ),
                 textAlign: TextAlign.center,
               ),
               const Spacer(),
@@ -185,4 +187,3 @@ class _SecurityWarningPage extends StatelessWidget {
     );
   }
 }
-

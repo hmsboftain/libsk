@@ -7,6 +7,14 @@ import '../services/firestore_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/theme.dart';
 import 'edit_product_page.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -370,7 +378,7 @@ class _OwnerProductCard extends StatelessWidget {
                   style: AppTextStyles.bodySmall.copyWith(height: 1.4),
                 ),
                 const SizedBox(height: 10),
-                Text('${price ?? 0} KWD', style: AppTextStyles.labelLarge),
+                Text(_fmt((price is num) ? price.toDouble() : double.tryParse('${price ?? 0}') ?? 0), style: AppTextStyles.labelLarge),
                 const SizedBox(height: 6),
                 Text(
                   l10n.stockLabel(stock?.toString() ?? '0'),

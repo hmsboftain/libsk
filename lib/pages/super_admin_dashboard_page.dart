@@ -11,11 +11,20 @@ import 'admin_revenue_page.dart';
 import 'all_users_page.dart';
 import 'boutique_onboarding_page.dart';
 import 'boutique_sales_page.dart';
+import 'discount_codes_page.dart';
 import 'disputes_page.dart';
 import 'filtered_users_page.dart';
 import 'global_orders_page.dart';
 import 'hero_banner_management_page.dart';
 import 'send_notification_page.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 class _DashboardData {
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> users;
@@ -54,6 +63,7 @@ int _countRole(
 
 class SuperAdminDashboardPage extends StatefulWidget {
   const SuperAdminDashboardPage({super.key});
+
   @override
   State<SuperAdminDashboardPage> createState() =>
       _SuperAdminDashboardPageState();
@@ -90,6 +100,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -115,6 +126,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                       ),
                     );
                   }
+
                   final data = snapshot.data!;
                   final totalUsers = data.users.length;
                   final recentlyActive = _countRecentlyActiveUsers(data.users);
@@ -145,6 +157,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                         ),
                         const SizedBox(height: 24),
 
+                        // ── Overview ─────────────────────────────
                         Text(l10n.overview, style: AppTextStyles.headingSmall),
                         const SizedBox(height: 10),
                         Row(
@@ -211,7 +224,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                         const SizedBox(height: 14),
                         _StatCard(
                           title: l10n.totalSales,
-                          value: '${totalSales.toStringAsFixed(0)} KWD',
+                          value: _fmt(totalSales),
                           subtitle: l10n.tapToViewBoutiqueSales,
                           icon: Icons.trending_up_rounded,
                           onTap: () => Navigator.push(
@@ -222,6 +235,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                           ),
                         ),
 
+                        // ── User management ───────────────────────
                         const SizedBox(height: 24),
                         Text(
                           l10n.userManagement,
@@ -308,6 +322,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                           ],
                         ),
 
+                        // ── Marketplace control ───────────────────
                         const SizedBox(height: 24),
                         Text(
                           l10n.marketplaceControl,
@@ -410,7 +425,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                               child: _StatCard(
                                 title: l10n.revenue,
                                 value: l10n.breakdown,
-                                subtitle: l10n.commissionsAndSubscriptions,
+                                subtitle: l10n.commissionsAndPromoSlots,
                                 icon: Icons.account_balance_outlined,
                                 compactValue: true,
                                 onTap: () => Navigator.push(
@@ -424,6 +439,26 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                           ],
                         ),
 
+                        // ── Promotions ────────────────────────────
+                        const SizedBox(height: 24),
+                        Text('Promotions', style: AppTextStyles.headingSmall),
+                        const SizedBox(height: 10),
+                        _StatCard(
+                          title: 'Discount Codes',
+                          value: 'Manage',
+                          subtitle:
+                              'Create and toggle discount codes for buyers.',
+                          icon: Icons.local_offer_outlined,
+                          compactValue: true,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const DiscountCodesPage(),
+                            ),
+                          ),
+                        ),
+
+                        // ── Boutique management ───────────────────
                         const SizedBox(height: 24),
                         Text(
                           l10n.boutiqueManagement,
@@ -455,6 +490,8 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
     );
   }
 }
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
 
 class _StatCard extends StatelessWidget {
   final String title;
@@ -518,6 +555,7 @@ class _StatCard extends StatelessWidget {
         ],
       ),
     );
+
     if (onTap == null) return card;
     return InkWell(borderRadius: BorderRadius.zero, onTap: onTap, child: card);
   }

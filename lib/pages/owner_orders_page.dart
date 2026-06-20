@@ -4,6 +4,14 @@ import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -66,6 +74,17 @@ Widget _orderStatusBadge(String status, AppLocalizations l10n) {
   );
 }
 
+// ── Filter options ────────────────────────────────────────────────────────────
+
+const _statusFilters = [
+  'All',
+  'Placed',
+  'Confirmed',
+  'On the Way',
+  'Delivered',
+  'Cancelled',
+];
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 class OwnerOrdersPage extends StatefulWidget {
@@ -79,6 +98,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
   String? _boutiqueId;
   bool _isLoading = true;
   String? _errorMessage;
+  String _selectedFilter = 'All';
 
   @override
   void initState() {
@@ -110,8 +130,9 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage =
-            AppLocalizations.of(context)!.failedToLoadBoutiqueOrders;
+        _errorMessage = AppLocalizations.of(
+          context,
+        )!.failedToLoadBoutiqueOrders;
         _isLoading = false;
       });
     }
@@ -119,8 +140,6 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
 
   Future<void> _onRefresh() => _loadBoutiqueId();
 
-  // All three status updates are committed atomically via WriteBatch.
-  // If any write fails the others are rolled back automatically.
   Future<void> _updateOrderStatus({
     required String boutiqueOrderId,
     required String sourceUserOrderId,
@@ -129,12 +148,11 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
   }) async {
     final l10n = AppLocalizations.of(context)!;
     try {
-      // Read global_orders refs before opening the batch
       final globalQuery = sourceUserOrderId.isNotEmpty
           ? await FirebaseFirestore.instance
-              .collection('global_orders')
-              .where('sourceUserOrderId', isEqualTo: sourceUserOrderId)
-              .get()
+                .collection('global_orders')
+                .where('sourceUserOrderId', isEqualTo: sourceUserOrderId)
+                .get()
           : null;
 
       final batch = FirebaseFirestore.instance.batch();
@@ -176,10 +194,58 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.failedToUpdateOrderStatus)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.failedToUpdateOrderStatus)));
     }
+  }
+
+  Widget _buildFilterChips() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: _statusFilters.map((filter) {
+          final isSelected = _selectedFilter == filter;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedFilter = filter),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.deepAccent : Colors.transparent,
+                  border: Border.all(
+                    color: isSelected ? AppColors.deepAccent : AppColors.border,
+                    width: 0.5,
+                  ),
+                ),
+                child: Text(
+                  filter,
+                  style: AppTextStyles.labelLarge.copyWith(
+                    fontSize: 12,
+                    color: isSelected ? Colors.white : AppColors.secondaryText,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _applyFilter(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    if (_selectedFilter == 'All') return docs;
+    return docs.where((doc) {
+      final status = doc.data()['status']?.toString() ?? '';
+      return status.toLowerCase() == _selectedFilter.toLowerCase();
+    }).toList();
   }
 
   Widget _buildOrdersList() {
@@ -189,40 +255,47 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
         final l10n = AppLocalizations.of(context)!;
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: AppColors.deepAccent,
-              strokeWidth: 1.5,
-            ),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              l10n.failedToLoadOrders,
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.secondaryText,
+          return const Expanded(
+            child: Center(
+              child: CircularProgressIndicator(
+                color: AppColors.deepAccent,
+                strokeWidth: 1.5,
               ),
             ),
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        if (snapshot.hasError) {
+          return Expanded(
+            child: Center(
+              child: Text(
+                l10n.failedToLoadOrders,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.secondaryText,
+                ),
+              ),
+            ),
+          );
+        }
 
-        if (docs.isEmpty) {
-          return RefreshIndicator(
-            color: AppColors.deepAccent,
-            onRefresh: _onRefresh,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: SizedBox(
-                height: 400,
-                child: Center(
-                  child: Text(
-                    l10n.noOrdersYet,
-                    style: AppTextStyles.bodyLarge.copyWith(
-                      color: AppColors.secondaryText,
+        final allDocs = snapshot.data?.docs ?? [];
+        final docs = _applyFilter(allDocs);
+
+        if (allDocs.isEmpty) {
+          return Expanded(
+            child: RefreshIndicator(
+              color: AppColors.deepAccent,
+              onRefresh: _onRefresh,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: 400,
+                  child: Center(
+                    child: Text(
+                      l10n.noOrdersYet,
+                      style: AppTextStyles.bodyLarge.copyWith(
+                        color: AppColors.secondaryText,
+                      ),
                     ),
                   ),
                 ),
@@ -231,16 +304,34 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
           );
         }
 
-        return RefreshIndicator(
-          color: AppColors.deepAccent,
-          onRefresh: _onRefresh,
-          child: ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            itemCount: docs.length,
-            itemBuilder: (context, index) => _OrderCard(
-              doc: docs[index],
-              onStatusUpdate: _updateOrderStatus,
+        if (docs.isEmpty) {
+          return Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'No $_selectedFilter orders',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Expanded(
+          child: RefreshIndicator(
+            color: AppColors.deepAccent,
+            onRefresh: _onRefresh,
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              itemCount: docs.length,
+              itemBuilder: (context, index) => _OrderCard(
+                doc: docs[index],
+                onStatusUpdate: _updateOrderStatus,
+              ),
             ),
           ),
         );
@@ -258,6 +349,25 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
+            if (!_isLoading &&
+                _errorMessage == null &&
+                _boutiqueId != null) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    l10n.myOrders,
+                    style: AppTextStyles.headingMedium.copyWith(
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              _buildFilterChips(),
+              const SizedBox(height: 8),
+            ],
             Expanded(
               child: _isLoading
                   ? const Center(
@@ -266,43 +376,26 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                         strokeWidth: 1.5,
                       ),
                     )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                          child: Text(
-                            l10n.myOrders,
-                            style: AppTextStyles.headingMedium.copyWith(
-                              letterSpacing: 0.2,
+                  : _errorMessage != null
+                  ? RefreshIndicator(
+                      color: AppColors.deepAccent,
+                      onRefresh: _onRefresh,
+                      child: ListView(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              _errorMessage!,
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                color: AppColors.secondaryText,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
                           ),
-                        ),
-                        Expanded(
-                          child: _errorMessage != null
-                              ? RefreshIndicator(
-                                  color: AppColors.deepAccent,
-                                  onRefresh: _onRefresh,
-                                  child: ListView(
-                                    children: [
-                                      Padding(
-                                        padding: const EdgeInsets.all(24),
-                                        child: Text(
-                                          _errorMessage!,
-                                          style: AppTextStyles.bodyMedium
-                                              .copyWith(
-                                            color: AppColors.secondaryText,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : _buildOrdersList(),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    )
+                  : Column(children: [_buildOrdersList()]),
             ),
           ],
         ),
@@ -320,7 +413,8 @@ class _OrderCard extends StatelessWidget {
     required String sourceUserOrderId,
     required String customerUid,
     required String newStatus,
-  }) onStatusUpdate;
+  })
+  onStatusUpdate;
 
   const _OrderCard({required this.doc, required this.onStatusUpdate});
 
@@ -349,8 +443,9 @@ class _OrderCard extends StatelessWidget {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               l10n.back,
-              style: AppTextStyles.labelLarge
-                  .copyWith(color: AppColors.secondaryText),
+              style: AppTextStyles.labelLarge.copyWith(
+                color: AppColors.secondaryText,
+              ),
             ),
           ),
           ElevatedButton(
@@ -410,9 +505,9 @@ class _OrderCard extends StatelessWidget {
     final addressText = address == null
         ? l10n.noAddressAvailable
         : '${address['area'] ?? ''}, ${address['governorate'] ?? ''}\n'
-            'Block ${address['block'] ?? ''} '
-            'Street ${address['street'] ?? ''} '
-            'House ${address['house'] ?? ''}';
+              'Block ${address['block'] ?? ''} '
+              'Street ${address['street'] ?? ''} '
+              'House ${address['house'] ?? ''}';
 
     final isPlaced = status.toLowerCase() == 'placed';
 
@@ -431,8 +526,9 @@ class _OrderCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   l10n.orderNumber(orderNumber),
-                  style: AppTextStyles.bodyLarge
-                      .copyWith(fontWeight: FontWeight.w500),
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
               _orderStatusBadge(status, l10n),
@@ -475,7 +571,7 @@ class _OrderCard extends StatelessWidget {
               Text(l10n.itemsCount(itemCount), style: AppTextStyles.bodySmall),
               const Spacer(),
               Text(
-                l10n.totalKwd(total.toStringAsFixed(0)),
+                _fmt(total),
                 style: AppTextStyles.labelLarge,
               ),
             ],
@@ -529,10 +625,7 @@ class _OrderCard extends StatelessWidget {
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: Text(
-                      l10n.confirmOrder,
-                      style: AppTextStyles.button,
-                    ),
+                    child: Text(l10n.confirmOrder, style: AppTextStyles.button),
                   ),
                 ),
               ],
@@ -610,8 +703,9 @@ class _OrderItemRow extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: AppTextStyles.bodyMedium
-                      .copyWith(fontWeight: FontWeight.w500),
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(l10n.sizeLabel(size), style: AppTextStyles.bodySmall),
@@ -622,7 +716,7 @@ class _OrderItemRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '${price.toStringAsFixed(0)} KWD',
+                  _fmt(price),
                   style: AppTextStyles.labelLarge,
                 ),
               ],

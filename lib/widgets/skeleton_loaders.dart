@@ -77,11 +77,7 @@ class BoutiqueRowSkeleton extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              width: 52,
-              height: 52,
-              color: AppColors.imagePlaceholder,
-            ),
+            Container(width: 52, height: 52, color: AppColors.imagePlaceholder),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -132,6 +128,96 @@ class BoutiquesListSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: List.generate(5, (_) => const BoutiqueRowSkeleton()),
+    );
+  }
+}
+
+/// Skeleton for a single feed card — mirrors the [FeedCard] layout: boutique
+/// header, 4:5 image, name/price row, and the two action buttons.
+class FeedCardSkeleton extends StatelessWidget {
+  const FeedCardSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        border: Border.all(color: AppColors.border, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+            child: Row(
+              children: [
+                const SkeletonBox(width: 30, height: 30, borderRadius: 15),
+                const SizedBox(width: 9),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    SkeletonBox(width: 100, height: 10),
+                    SizedBox(height: 5),
+                    SkeletonBox(width: 60, height: 9),
+                  ],
+                ),
+                const Spacer(),
+                const SkeletonBox(width: 64, height: 30),
+              ],
+            ),
+          ),
+          // Image
+          const AspectRatio(
+            aspectRatio: 4 / 5,
+            child: SkeletonBox(width: double.infinity, height: double.infinity),
+          ),
+          // Name + price
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 11, 12, 0),
+            child: Row(
+              children: const [
+                SkeletonBox(width: 130, height: 16),
+                Spacer(),
+                SkeletonBox(width: 60, height: 14),
+              ],
+            ),
+          ),
+          // Actions
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: Row(
+              children: const [
+                Expanded(
+                  child: SkeletonBox(width: double.infinity, height: 46),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: SkeletonBox(width: double.infinity, height: 46),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Skeleton for the home feed — 2 feed cards.
+class FeedSkeleton extends StatelessWidget {
+  const FeedSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: List.generate(
+        2,
+        (_) => const Padding(
+          padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: FeedCardSkeleton(),
+        ),
+      ),
     );
   }
 }

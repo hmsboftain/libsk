@@ -192,6 +192,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get continueWithGoogle => 'Continue with Google';
 
   @override
+  String get continueWithApple => 'Continue with Apple';
+
+  @override
   String get forgotPassword => 'Forgot Password?';
 
   @override
@@ -623,6 +626,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sameDayDelivery => 'Same Day Delivery';
 
   @override
+  String get madeToOrder => 'Made to Order';
+
+  @override
+  String get estimatedDays => 'Estimated ready in';
+
+  @override
+  String get businessDays => 'business days';
+
+  @override
   String get paymentMethod => 'PAYMENT METHOD';
 
   @override
@@ -831,6 +843,18 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get sizeGuide => 'Size Guide';
+
+  @override
+  String get sizeGuideSubtitle => 'Upload a chart buyers can reference before selecting a size.';
+
+  @override
+  String get uploadSizeGuide => 'Upload size guide image';
+
+  @override
+  String get changeImage => 'Change image';
+
+  @override
   String get productDetails => 'Product Details';
 
   @override
@@ -861,9 +885,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addAColour => 'Add a colour';
-
-  @override
-  String get madeToOrder => 'Made to order';
 
   @override
   String get madeToOrderSubtitle => 'Enable if this item is produced after purchase';
@@ -1055,6 +1076,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get phone => 'Phone';
+
+  @override
+  String get addressLine1 => 'Address Line 1';
+
+  @override
+  String get addressLine2Optional => 'Address Line 2 (optional)';
+
+  @override
+  String get city => 'City';
+
+  @override
+  String get zipCode => 'Zip / Postal Code';
+
+  @override
+  String get countryRegion => 'Country / Region';
+
+  @override
+  String get selectCountry => 'Select Country';
 
   @override
   String get somethingWentWrongWhileLoadingAddresses => 'Something went wrong while loading addresses';
@@ -1410,7 +1449,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get breakdown => 'Breakdown';
 
   @override
-  String get commissionsAndSubscriptions => 'Commissions & subscriptions';
+  String get commissionsAndPromoSlots => 'Commissions & promo slots';
 
   @override
   String get boutiqueManagement => 'Boutique Management';
@@ -1419,7 +1458,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get boutiqueOnboarding => 'Boutique Onboarding';
 
   @override
-  String get boutiqueOnboardingSubtitle => 'Register a new boutique owner with tier selection';
+  String get boutiqueOnboardingSubtitle => 'Register a new boutique owner';
 
   @override
   String get findUser => 'Find User';
@@ -1446,9 +1485,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ownerLabel => 'OWNER';
 
   @override
-  String get tierLabel => 'TIER';
-
-  @override
   String get ownerCanNowLogin => 'The owner can now log in and access their boutique dashboard.';
 
   @override
@@ -1460,18 +1496,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get descriptionOptional => 'Description (optional)';
 
   @override
-  String get selectTier => 'SELECT TIER';
-
-  @override
   String get commission => 'commission';
 
   @override
   String get createBoutique => 'Create Boutique';
-
-  @override
-  String tierSummary(String commission, String products, String images) {
-    return '$commission commission · $products · $images';
-  }
 
   @override
   String get cropBanner => 'Crop Banner';
@@ -1778,19 +1806,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get revenueBreakdown => 'Revenue Breakdown';
 
   @override
-  String get revenueBreakdownDescription => 'Commissions, subscriptions, and promotional slots.';
+  String get revenueBreakdownDescription => 'Commissions and promotional slots.';
 
   @override
   String get commissions => 'Commissions';
 
   @override
   String get commissionsSubtitle => 'From completed orders';
-
-  @override
-  String get subscriptions => 'Subscriptions';
-
-  @override
-  String get subscriptionsSubtitle => 'Boutique tier subscriptions';
 
   @override
   String get promoSlots => 'Promo Slots';
@@ -2082,5 +2104,114 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String totalKwd(String amount) {
     return 'Total: $amount KWD';
+  }
+
+  @override
+  String get noSalesData => 'No sales data';
+
+  @override
+  String get failedToLoadBoutiqueDetails => 'Failed to load boutique details';
+
+  @override
+  String get boutiqueSalesOverview => 'Boutique sales overview';
+
+  @override
+  String get totalSalesTitle => 'Total Sales';
+
+  @override
+  String get allBoutiqueSales => 'All boutique sales';
+
+  @override
+  String get totalBoutiqueOrders => 'Total boutique orders';
+
+  @override
+  String get itemsSold => 'Items Sold';
+
+  @override
+  String get totalSoldItems => 'Total sold items';
+
+  @override
+  String get bestSeller => 'Best Seller';
+
+  @override
+  String quantitySold(String count) {
+    return '$count sold';
+  }
+
+  @override
+  String get monthlySales => 'Monthly Sales';
+
+  @override
+  String get recentSales => 'Recent Sales';
+
+  @override
+  String get noSalesFound => 'No sales found.';
+
+  @override
+  String get monthJan => 'Jan';
+
+  @override
+  String get monthFeb => 'Feb';
+
+  @override
+  String get monthMar => 'Mar';
+
+  @override
+  String get monthApr => 'Apr';
+
+  @override
+  String get monthMay => 'May';
+
+  @override
+  String get monthJun => 'Jun';
+
+  @override
+  String get monthJul => 'Jul';
+
+  @override
+  String get monthAug => 'Aug';
+
+  @override
+  String get monthSep => 'Sep';
+
+  @override
+  String get monthOct => 'Oct';
+
+  @override
+  String get monthNov => 'Nov';
+
+  @override
+  String get monthDec => 'Dec';
+
+  @override
+  String get failedToLoadBoutiqueSales => 'Failed to load boutique sales';
+
+  @override
+  String get noBoutiqueSalesFound => 'No boutique sales found.';
+
+  @override
+  String get boutiqueSalesTitle => 'Boutique Sales';
+
+  @override
+  String boutiquesWithSales(String count) {
+    return '$count boutiques with sales';
+  }
+
+  @override
+  String orderCountLabel(String count) {
+    return '$count orders';
+  }
+
+  @override
+  String get paymentSetupFailed => 'Payment setup failed';
+
+  @override
+  String productNoLongerAvailable(String title) {
+    return '$title is no longer available';
+  }
+
+  @override
+  String productNotEnoughStock(String title) {
+    return '$title does not have enough stock';
   }
 }

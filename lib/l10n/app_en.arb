@@ -61,6 +61,7 @@
   "createAccount": "Create Account",
   "logout": "Log Out",
   "continueWithGoogle": "Continue with Google",
+  "continueWithApple": "Continue with Apple",
   "forgotPassword": "Forgot Password?",
   "welcomeBack": "Welcome back,",
   "dontHaveAnAccount": "Don't have an account? ",
@@ -147,32 +148,14 @@
   "dark": "Dark",
   "myOrders": "My Orders",
   "orderNumber": "Order #{n}",
-  "@orderNumber": {
-    "placeholders": {
-      "n": {
-        "type": "String"
-      }
-    }
-  },
+  "@orderNumber": { "placeholders": { "n": { "type": "String" } } },
   "orderDate": "Date: {date}",
-  "@orderDate": {
-    "placeholders": {
-      "date": {
-        "type": "String"
-      }
-    }
-  },
+  "@orderDate": { "placeholders": { "date": { "type": "String" } } },
   "orderLabel": "Order",
   "orderNumberLabel": "Order Number:",
   "dateLabel": "Date:",
   "statusLabel": "Status: {status}",
-  "@statusLabel": {
-    "placeholders": {
-      "status": {
-        "type": "String"
-      }
-    }
-  },
+  "@statusLabel": { "placeholders": { "status": { "type": "String" } } },
   "statusPlaced": "Placed",
   "statusConfirmed": "Confirmed",
   "statusOnTheWay": "On the Way",
@@ -192,29 +175,11 @@
   "shippedOrders": "Shipped Orders",
   "deliveredOrders": "Delivered Orders",
   "sizeLabel": "Size: {size}",
-  "@sizeLabel": {
-    "placeholders": {
-      "size": {
-        "type": "String"
-      }
-    }
-  },
+  "@sizeLabel": { "placeholders": { "size": { "type": "String" } } },
   "quantityLabel": "Qty: {qty}",
-  "@quantityLabel": {
-    "placeholders": {
-      "qty": {
-        "type": "String"
-      }
-    }
-  },
+  "@quantityLabel": { "placeholders": { "qty": { "type": "String" } } },
   "colourLabel": "Colour: {color}",
-  "@colourLabel": {
-    "placeholders": {
-      "color": {
-        "type": "String"
-      }
-    }
-  },
+  "@colourLabel": { "placeholders": { "color": { "type": "String" } } },
   "disputeAlreadySubmitted": "You have already submitted a dispute for this order.",
   "disputeOrder": "Dispute Order",
   "disputeWindowPassed": "The 7-day dispute window has passed.",
@@ -231,13 +196,7 @@
   "yourPaymentWasSuccessful": "Your payment was successful",
   "thankYou": "Thank you",
   "thankYouWithName": "Thank you, {name}",
-  "@thankYouWithName": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
+  "@thankYouWithName": { "placeholders": { "name": { "type": "String" } } },
   "backToHome": "Back to Home",
   "yourCartIsEmpty": "Your cart is empty",
   "itemRemovedFromCart": "Item removed from cart",
@@ -249,6 +208,9 @@
   "deliveryMethod": "DELIVERY METHOD",
   "regularDelivery": "Regular Delivery",
   "sameDayDelivery": "Same Day Delivery",
+  "madeToOrder": "Made to Order",
+  "estimatedDays": "Estimated ready in",
+  "businessDays": "business days",
   "paymentMethod": "PAYMENT METHOD",
   "card": "Card",
   "delivery": "DELIVERY",
@@ -290,37 +252,13 @@
   "stockRequired": "Stock is required",
   "enterValidStockNumber": "Enter a valid stock number",
   "stockLabel": "Stock: {value}",
-  "@stockLabel": {
-    "placeholders": {
-      "value": {
-        "type": "String"
-      }
-    }
-  },
+  "@stockLabel": { "placeholders": { "value": { "type": "String" } } },
   "stockLeft": "{count} left",
-  "@stockLeft": {
-    "placeholders": {
-      "count": {
-        "type": "String"
-      }
-    }
-  },
+  "@stockLeft": { "placeholders": { "count": { "type": "String" } } },
   "inStock": "{count} in stock",
-  "@inStock": {
-    "placeholders": {
-      "count": {
-        "type": "String"
-      }
-    }
-  },
+  "@inStock": { "placeholders": { "count": { "type": "String" } } },
   "inStockWithCount": "In Stock: {count}",
-  "@inStockWithCount": {
-    "placeholders": {
-      "count": {
-        "type": "String"
-      }
-    }
-  },
+  "@inStockWithCount": { "placeholders": { "count": { "type": "String" } } },
   "outOfStock": "Out of stock",
   "soldOut": "Sold Out",
   "noSalesYet": "No sales yet",
@@ -343,16 +281,11 @@
   "sizeHint": "Size (e.g. S, M, 38)",
   "addSize": "Add size",
   "sizeStockEntry": "{sizeName} — {stock} in stock",
-  "@sizeStockEntry": {
-    "placeholders": {
-      "sizeName": {
-        "type": "String"
-      },
-      "stock": {
-        "type": "String"
-      }
-    }
-  },
+  "@sizeStockEntry": { "placeholders": { "sizeName": { "type": "String" }, "stock": { "type": "String" } } },
+  "sizeGuide": "Size Guide",
+  "sizeGuideSubtitle": "Upload a chart buyers can reference before selecting a size.",
+  "uploadSizeGuide": "Upload size guide image",
+  "changeImage": "Change image",
   "productDetails": "Product Details",
   "materialCare": "Material & Care",
   "materialCareDetails": "Material and care details can be added later.",
@@ -360,17 +293,10 @@
   "sizeFit": "Size & Fit",
   "availableSizes": "Available sizes:",
   "availableSizesText": "Available sizes: {sizes}",
-  "@availableSizesText": {
-    "placeholders": {
-      "sizes": {
-        "type": "String"
-      }
-    }
-  },
+  "@availableSizesText": { "placeholders": { "sizes": { "type": "String" } } },
   "noSizeInformationAvailable": "No size information available.",
   "colours": "COLOURS",
   "addAColour": "Add a colour",
-  "madeToOrder": "Made to order",
   "madeToOrderSubtitle": "Enable if this item is produced after purchase",
   "deliveryTimeframe": "Delivery timeframe",
   "deliveryTimeframeHint": "e.g. 7–10 business days",
@@ -390,13 +316,7 @@
   "itemAddedToCart": "Item added to cart",
   "thisProductIsOutOfStock": "This product is out of stock",
   "byBoutique": "by {boutiqueName}",
-  "@byBoutique": {
-    "placeholders": {
-      "boutiqueName": {
-        "type": "String"
-      }
-    }
-  },
+  "@byBoutique": { "placeholders": { "boutiqueName": { "type": "String" } } },
   "boutique": "Boutique",
   "boutiques": "Boutiques",
   "myBoutique": "My Boutique",
@@ -416,13 +336,7 @@
   "exploreBoutiques": "Explore Boutiques",
   "boutiquesYouFollow": "Boutiques you follow",
   "boutiquesCount": "{count} boutiques",
-  "@boutiquesCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
+  "@boutiquesCount": { "placeholders": { "count": { "type": "int" } } },
   "noBoutiquesFound": "No boutiques found",
   "noSavedBoutiquesYet": "No saved boutiques yet",
   "failedToLoadSavedBoutiques": "Failed to load saved boutiques",
@@ -430,21 +344,9 @@
   "boutiquesAndProducts": "Boutiques & products",
   "noDescriptionAvailable": "No description available.",
   "soldCount": "{count} sold",
-  "@soldCount": {
-    "placeholders": {
-      "count": {
-        "type": "String"
-      }
-    }
-  },
+  "@soldCount": { "placeholders": { "count": { "type": "String" } } },
   "productsCount": "{count} products",
-  "@productsCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
+  "@productsCount": { "placeholders": { "count": { "type": "int" } } },
   "noSavedItemsYet": "No saved items yet",
   "failedToLoadSavedItems": "Failed to load saved items",
   "yourCuratedWishlist": "Your curated wishlist",
@@ -460,6 +362,12 @@
   "floor": "Floor",
   "apartment": "Apartment",
   "phone": "Phone",
+  "addressLine1": "Address Line 1",
+  "addressLine2Optional": "Address Line 2 (optional)",
+  "city": "City",
+  "zipCode": "Zip / Postal Code",
+  "countryRegion": "Country / Region",
+  "selectCountry": "Select Country",
   "somethingWentWrongWhileLoadingAddresses": "Something went wrong while loading addresses",
   "noSavedAddressesYet": "No saved addresses yet.",
   "addressRemoved": "Address removed",
@@ -468,48 +376,15 @@
   "addNow": "ADD NOW",
   "couldNotLoadSavedAddresses": "Could not load saved addresses",
   "blockStreetLine": "Block {block}, Street {street}",
-  "@blockStreetLine": {
-    "placeholders": {
-      "block": {
-        "type": "String"
-      },
-      "street": {
-        "type": "String"
-      }
-    }
-  },
+  "@blockStreetLine": { "placeholders": { "block": { "type": "String" }, "street": { "type": "String" } } },
   "houseBuildingValue": "House/Building: {value}",
-  "@houseBuildingValue": {
-    "placeholders": {
-      "value": {
-        "type": "String"
-      }
-    }
-  },
+  "@houseBuildingValue": { "placeholders": { "value": { "type": "String" } } },
   "floorValue": "Floor: {value}",
-  "@floorValue": {
-    "placeholders": {
-      "value": {
-        "type": "String"
-      }
-    }
-  },
+  "@floorValue": { "placeholders": { "value": { "type": "String" } } },
   "apartmentValue": "Apartment: {value}",
-  "@apartmentValue": {
-    "placeholders": {
-      "value": {
-        "type": "String"
-      }
-    }
-  },
+  "@apartmentValue": { "placeholders": { "value": { "type": "String" } } },
   "phoneValue": "Phone: {value}",
-  "@phoneValue": {
-    "placeholders": {
-      "value": {
-        "type": "String"
-      }
-    }
-  },
+  "@phoneValue": { "placeholders": { "value": { "type": "String" } } },
   "searchHint": "Search products, boutiques...",
   "searchForProductsOrBoutiques": "Search for products or boutiques",
   "searchProductsOrBoutiques": "Search products or boutiques",
@@ -518,29 +393,11 @@
   "productsTab": "PRODUCTS",
   "boutiquesTab": "BOUTIQUES",
   "productsTabWithCount": "PRODUCTS ({count})",
-  "@productsTabWithCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
+  "@productsTabWithCount": { "placeholders": { "count": { "type": "int" } } },
   "boutiquesTabWithCount": "BOUTIQUES ({count})",
-  "@boutiquesTabWithCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
+  "@boutiquesTabWithCount": { "placeholders": { "count": { "type": "int" } } },
   "itemsCount": "{count} items",
-  "@itemsCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
+  "@itemsCount": { "placeholders": { "count": { "type": "int" } } },
   "noMatchingBoutiquesFound2": "No matching boutiques found.",
   "shopByCategoryAcrossAllBoutiques": "Shop by category across all boutiques",
   "allProducts": "All Products",
@@ -562,13 +419,7 @@
   "noSalesToday": "No sales today",
   "activeListings": "Active listings",
   "ordersCountSubtitle": "{count} total orders",
-  "@ordersCountSubtitle": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
+  "@ordersCountSubtitle": { "placeholders": { "count": { "type": "int" } } },
   "needsRestock": "Needs restock",
   "needRestock": "Need restock",
   "salesOverview": "Sales Overview",
@@ -605,13 +456,7 @@
   "topBoutique": "Top Boutique",
   "basedOnTotalSales": "Based on total sales",
   "amountKwd": "{amount} KWD",
-  "@amountKwd": {
-    "placeholders": {
-      "amount": {
-        "type": "String"
-      }
-    }
-  },
+  "@amountKwd": { "placeholders": { "amount": { "type": "String" } } },
   "superAdmin": "SUPER ADMIN",
   "overview": "Overview",
   "totalUsers": "Total Users",
@@ -644,10 +489,10 @@
   "viewInsights": "View insights",
   "revenue": "Revenue",
   "breakdown": "Breakdown",
-  "commissionsAndSubscriptions": "Commissions & subscriptions",
+  "commissionsAndPromoSlots": "Commissions & promo slots",
   "boutiqueManagement": "Boutique Management",
   "boutiqueOnboarding": "Boutique Onboarding",
-  "boutiqueOnboardingSubtitle": "Register a new boutique owner with tier selection",
+  "boutiqueOnboardingSubtitle": "Register a new boutique owner",
   "findUser": "Find User",
   "boutiqueDetails": "Boutique Details",
   "upgradeUserToBoutiqueOwner": "Upgrade an existing user account to a boutique owner.",
@@ -656,34 +501,12 @@
   "userAlreadyBoutiqueOwner": "This user is already a boutique owner",
   "noAccountFoundAskSignup": "No account found with this email. Ask the owner to sign up first.",
   "ownerLabel": "OWNER",
-  "tierLabel": "TIER",
   "ownerCanNowLogin": "The owner can now log in and access their boutique dashboard.",
   "boutiqueNowLiveOnLibsk": "{boutiqueName} is now live on LIBSK.",
-  "@boutiqueNowLiveOnLibsk": {
-    "placeholders": {
-      "boutiqueName": {
-        "type": "String"
-      }
-    }
-  },
+  "@boutiqueNowLiveOnLibsk": { "placeholders": { "boutiqueName": { "type": "String" } } },
   "descriptionOptional": "Description (optional)",
-  "selectTier": "SELECT TIER",
   "commission": "commission",
   "createBoutique": "Create Boutique",
-  "tierSummary": "{commission} commission · {products} · {images}",
-  "@tierSummary": {
-    "placeholders": {
-      "commission": {
-        "type": "String"
-      },
-      "products": {
-        "type": "String"
-      },
-      "images": {
-        "type": "String"
-      }
-    }
-  },
   "cropBanner": "Crop Banner",
   "selectBannerImage": "Please select a banner image",
   "bannerUploadedSuccessfully": "Banner uploaded successfully",
@@ -718,21 +541,9 @@
   "sendNotificationButton": "Send Notification",
   "enterTitleAndMessage": "Please enter a title and message",
   "notificationSentToUsers": "Notification sent to {count} users",
-  "@notificationSentToUsers": {
-    "placeholders": {
-      "count": {
-        "type": "String"
-      }
-    }
-  },
+  "@notificationSentToUsers": { "placeholders": { "count": { "type": "String" } } },
   "failedToSendNotification": "Failed to send notification: {error}",
-  "@failedToSendNotification": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
+  "@failedToSendNotification": { "placeholders": { "error": { "type": "String" } } },
   "libskTagline": "Shop Local. Dress Global.",
   "libskDescription": "LIBSK is Kuwait's fashion marketplace connecting shoppers with the best independent local boutiques, all in one place. Browse, order, and receive from your favourite Kuwait brands with ease.",
   "howCanWeHelpYouToday": "How can we help you today?",
@@ -798,11 +609,9 @@
   "featuredProductsDescription": "Products shown in the featured section.",
   "thisYear": "This Year",
   "revenueBreakdown": "Revenue Breakdown",
-  "revenueBreakdownDescription": "Commissions, subscriptions, and promotional slots.",
+  "revenueBreakdownDescription": "Commissions and promotional slots.",
   "commissions": "Commissions",
   "commissionsSubtitle": "From completed orders",
-  "subscriptions": "Subscriptions",
-  "subscriptionsSubtitle": "Boutique tier subscriptions",
   "promoSlots": "Promo Slots",
   "promoSlotsSubtitle": "Paid placement revenue",
   "promoSlotTypes": "Promo Slot Types",
@@ -848,48 +657,15 @@
   "failedToLoadAddresses": "Failed to load addresses",
   "failedToLoadOrders": "Failed to load orders",
   "homepageOrderSubtitle": "Order: {order}",
-  "@homepageOrderSubtitle": {
-    "placeholders": {
-      "order": {
-        "type": "String"
-      }
-    }
-  },
+  "@homepageOrderSubtitle": { "placeholders": { "order": { "type": "String" } } },
   "featuredOrderSubtitle": "{boutiqueName} · Order: {order}",
-  "@featuredOrderSubtitle": {
-    "placeholders": {
-      "boutiqueName": {
-        "type": "String"
-      },
-      "order": {
-        "type": "String"
-      }
-    }
-  },
+  "@featuredOrderSubtitle": { "placeholders": { "boutiqueName": { "type": "String" }, "order": { "type": "String" } } },
   "percentOfTotalRevenue": "{percent}% of total revenue",
-  "@percentOfTotalRevenue": {
-    "placeholders": {
-      "percent": {
-        "type": "String"
-      }
-    }
-  },
+  "@percentOfTotalRevenue": { "placeholders": { "percent": { "type": "String" } } },
   "itemsAcrossAllBoutiques": "{count} items across all boutiques",
-  "@itemsAcrossAllBoutiques": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
+  "@itemsAcrossAllBoutiques": { "placeholders": { "count": { "type": "int" } } },
   "noProductsInCategory": "No products in {category}",
-  "@noProductsInCategory": {
-    "placeholders": {
-      "category": {
-        "type": "String"
-      }
-    }
-  },
+  "@noProductsInCategory": { "placeholders": { "category": { "type": "String" } } },
   "filterAll": "All",
   "disputeStatusOpen": "Open",
   "disputeStatusUnderReview": "Under Review",
@@ -926,51 +702,53 @@
   "items": "Items",
   "confirmOrder": "Confirm Order",
   "disputeMarkedAs": "Dispute marked as {status}",
-  "@disputeMarkedAs": {
-    "placeholders": {
-      "status": {
-        "type": "String"
-      }
-    }
-  },
+  "@disputeMarkedAs": { "placeholders": { "status": { "type": "String" } } },
   "disputesCount": "{count} disputes",
-  "@disputesCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
+  "@disputesCount": { "placeholders": { "count": { "type": "int" } } },
   "orderTotalKwd": "Order total: {amount} KWD",
-  "@orderTotalKwd": {
-    "placeholders": {
-      "amount": {
-        "type": "String"
-      }
-    }
-  },
+  "@orderTotalKwd": { "placeholders": { "amount": { "type": "String" } } },
   "globalOrdersCount": "{count} global orders",
-  "@globalOrdersCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
+  "@globalOrdersCount": { "placeholders": { "count": { "type": "int" } } },
   "itemsLabel": "Items: {count}",
-  "@itemsLabel": {
-    "placeholders": {
-      "count": {
-        "type": "String"
-      }
-    }
-  },
+  "@itemsLabel": { "placeholders": { "count": { "type": "String" } } },
   "totalKwd": "Total: {amount} KWD",
-  "@totalKwd": {
-    "placeholders": {
-      "amount": {
-        "type": "String"
-      }
-    }
-  }
+  "@totalKwd": { "placeholders": { "amount": { "type": "String" } } },
+  "noSalesData": "No sales data",
+  "failedToLoadBoutiqueDetails": "Failed to load boutique details",
+  "boutiqueSalesOverview": "Boutique sales overview",
+  "totalSalesTitle": "Total Sales",
+  "allBoutiqueSales": "All boutique sales",
+  "totalBoutiqueOrders": "Total boutique orders",
+  "itemsSold": "Items Sold",
+  "totalSoldItems": "Total sold items",
+  "bestSeller": "Best Seller",
+  "quantitySold": "{count} sold",
+  "@quantitySold": { "placeholders": { "count": { "type": "String" } } },
+  "monthlySales": "Monthly Sales",
+  "recentSales": "Recent Sales",
+  "noSalesFound": "No sales found.",
+  "monthJan": "Jan",
+  "monthFeb": "Feb",
+  "monthMar": "Mar",
+  "monthApr": "Apr",
+  "monthMay": "May",
+  "monthJun": "Jun",
+  "monthJul": "Jul",
+  "monthAug": "Aug",
+  "monthSep": "Sep",
+  "monthOct": "Oct",
+  "monthNov": "Nov",
+  "monthDec": "Dec",
+  "failedToLoadBoutiqueSales": "Failed to load boutique sales",
+  "noBoutiqueSalesFound": "No boutique sales found.",
+  "boutiqueSalesTitle": "Boutique Sales",
+  "boutiquesWithSales": "{count} boutiques with sales",
+  "@boutiquesWithSales": { "placeholders": { "count": { "type": "String" } } },
+  "orderCountLabel": "{count} orders",
+  "@orderCountLabel": { "placeholders": { "count": { "type": "String" } } },
+  "paymentSetupFailed": "Payment setup failed",
+  "productNoLongerAvailable": "{title} is no longer available",
+  "@productNoLongerAvailable": { "placeholders": { "title": { "type": "String" } } },
+  "productNotEnoughStock": "{title} does not have enough stock",
+  "@productNotEnoughStock": { "placeholders": { "title": { "type": "String" } } }
 }

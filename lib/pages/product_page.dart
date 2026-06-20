@@ -2,11 +2,18 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
-
+import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
+import '../services/currency_service.dart';
 import '../services/firestore_service.dart';
 import '../widgets/error_state_widget.dart';
 import '../widgets/theme.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -89,11 +96,7 @@ class _ProductPageState extends State<ProductPage> {
   int _selectedImageIndex = 0;
   String _selectedSize = '';
   String _selectedColor = '';
-
   bool _showProductDetails = false;
-  bool _showMaterialCare = false;
-  bool _showSizeFit = false;
-
   bool _liked = false;
   bool _isLoadingLike = true;
 
@@ -117,7 +120,7 @@ class _ProductPageState extends State<ProductPage> {
     super.dispose();
   }
 
-  // ── Data resolution ───────────────────────────────────────────────────────
+  // ── Data helpers ──────────────────────────────────────────────────────────
 
   Map<String, dynamic> _fallbackProductData() => {
     'title': widget.title,
@@ -145,12 +148,11 @@ class _ProductPageState extends State<ProductPage> {
 
   List<String> _parseColors(Map<String, dynamic> data) {
     final v = data['colors'];
-    if (v is List) {
+    if (v is List)
       return v
           .map((e) => e.toString().trim())
           .where((e) => e.isNotEmpty)
           .toList();
-    }
     return [];
   }
 
@@ -167,12 +169,11 @@ class _ProductPageState extends State<ProductPage> {
           .toList();
     }
     final sizes = data['sizes'];
-    if (sizes is List) {
+    if (sizes is List)
       return sizes
           .map((s) => s.toString().trim())
           .where((s) => s.isNotEmpty)
           .toList();
-    }
     return widget.sizes;
   }
 
@@ -189,21 +190,19 @@ class _ProductPageState extends State<ProductPage> {
   }
 
   List<String> _galleryImages(Map<String, dynamic> data) {
-    final imageUrlsData = data['imageUrls'];
-    if (imageUrlsData is List && imageUrlsData.isNotEmpty) {
-      return imageUrlsData
+    final d = data['imageUrls'];
+    if (d is List && d.isNotEmpty)
+      return d
           .map((e) => e.toString().trim())
           .where((e) => e.isNotEmpty)
           .toList();
-    }
-    final imageUrl = data['imageUrl']?.toString().trim() ?? '';
-    if (imageUrl.isNotEmpty) return [imageUrl];
-    if (widget.imageUrls.isNotEmpty) {
+    final u = data['imageUrl']?.toString().trim() ?? '';
+    if (u.isNotEmpty) return [u];
+    if (widget.imageUrls.isNotEmpty)
       return widget.imageUrls
           .map((e) => e.trim())
           .where((e) => e.isNotEmpty)
           .toList();
-    }
     if (widget.imageUrl.trim().isNotEmpty) return [widget.imageUrl];
     return [];
   }
@@ -260,6 +259,66 @@ class _ProductPageState extends State<ProductPage> {
       if (!mounted) return;
       _applyDefaultSelections(sizes, colors);
     });
+  }
+
+  // ── Size guide ────────────────────────────────────────────────────────────
+
+  void _openSizeGuide(String url) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      builder: (_) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.85,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 20, 8, 0),
+              child: Row(
+                children: [
+                  Text(
+                    AppLocalizations.of(context)!.sizeGuide,
+                    style: AppTextStyles.headingSmall,
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 22),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: AppColors.border, thickness: 0.5),
+            Expanded(
+              child: InteractiveViewer(
+                minScale: 0.8,
+                maxScale: 4.0,
+                child: CachedNetworkImage(
+                  imageUrl: url,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  placeholder: (_, __) => const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: AppColors.deepAccent,
+                    ),
+                  ),
+                  errorWidget: (_, __, ___) => const Center(
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      size: 48,
+                      color: AppColors.softAccent,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
   }
 
   // ── Save / cart ───────────────────────────────────────────────────────────
@@ -477,8 +536,9 @@ class _ProductPageState extends State<ProductPage> {
         const SizedBox(height: 12),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(images.length, (index) {
-            return GestureDetector(
+          children: List.generate(
+            images.length,
+            (index) => GestureDetector(
               onTap: () {
                 _pageController.animateToPage(
                   index,
@@ -498,8 +558,8 @@ class _ProductPageState extends State<ProductPage> {
                   border: Border.all(color: AppColors.border, width: 0.5),
                 ),
               ),
-            );
-          }),
+            ),
+          ),
         ),
         const SizedBox(height: 24),
       ],
@@ -569,34 +629,34 @@ class _ProductPageState extends State<ProductPage> {
     final boutiqueName = _parseBoutiqueName(data);
     final hasSizes = sizes.isNotEmpty;
 
-    _scheduleDefaultSelections(sizes, colors);
+    final isMTO = data['madeToOrder'] == true;
+    final timeframe = data['deliveryTimeframe']?.toString().trim() ?? '';
+    final guideUrl = data['sizeGuideUrl']?.toString().trim() ?? '';
 
-    if (_selectedImageIndex >= images.length && images.isNotEmpty) {
+    _scheduleDefaultSelections(sizes, colors);
+    if (_selectedImageIndex >= images.length && images.isNotEmpty)
       _selectedImageIndex = 0;
-    }
 
     return SingleChildScrollView(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const AppHeader(showBackButton: true),
+
+          // ── Gallery ──────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: _buildImageGallery(data),
           ),
           _buildImageDots(images),
+
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22),
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ── Title + boutique ─────────────────────────────────────
                 Text(title, style: AppTextStyles.headingMedium),
-                const SizedBox(height: 6),
-                Text(
-                  description,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.secondaryText,
-                  ),
-                ),
                 const SizedBox(height: 4),
                 Text(
                   l10n.byBoutique(boutiqueName),
@@ -604,84 +664,169 @@ class _ProductPageState extends State<ProductPage> {
                     color: AppColors.secondaryText,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  stock > 0
-                      ? l10n.inStockWithCount(stock.toString())
-                      : l10n.outOfStock,
-                  style: AppTextStyles.labelLarge.copyWith(
-                    color: stock > 0
-                        ? AppColors.primaryText
-                        : AppColors.deepAccent,
-                  ),
-                ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 18),
+
+                // ── Price + stock/MTO row ────────────────────────────────
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${price.toStringAsFixed(0)} KWD',
-                            style: AppTextStyles.headingSmall,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            l10n.sizeSection,
-                            style: AppTextStyles.labelLarge,
-                          ),
-                          const SizedBox(height: 8),
-                          if (hasSizes)
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: sizes
-                                  .map((s) => _buildSizeChip(s))
-                                  .toList(),
-                            )
-                          else
-                            Text(
-                              l10n.noSizesAvailable,
-                              style: AppTextStyles.bodySmall,
-                            ),
-                          if (colors.isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            Text(l10n.colours, style: AppTextStyles.labelLarge),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: colors
-                                  .map((c) => _buildColorChip(c))
-                                  .toList(),
-                            ),
-                          ],
-                        ],
-                      ),
+                    Text(
+                      _fmt(price),
+                      style: AppTextStyles.headingSmall,
                     ),
-                    const SizedBox(width: 16),
-                    SizedBox(
-                      width: 145,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: () => _addProductToCart(data),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.deepAccent,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.zero,
-                          ),
-                        ),
-                        child: Text(
-                          l10n.addToCart,
-                          style: AppTextStyles.button,
+                    const Spacer(),
+                    if (!isMTO)
+                      Text(
+                        stock > 0
+                            ? l10n.inStockWithCount(stock.toString())
+                            : l10n.outOfStock,
+                        style: AppTextStyles.labelSmall.copyWith(
+                          color: stock > 0
+                              ? AppColors.secondaryText
+                              : AppColors.deepAccent,
                         ),
                       ),
-                    ),
                   ],
                 ),
+                const SizedBox(height: 16),
+
+                // ── Made-to-order banner ─────────────────────────────────
+                if (isMTO) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.field,
+                      border: Border.all(color: AppColors.border, width: 0.5),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Icon(
+                            Icons.access_time_rounded,
+                            size: 20,
+                            color: AppColors.deepAccent,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.madeToOrder,
+                              style: AppTextStyles.labelLarge.copyWith(
+                                color: AppColors.deepAccent,
+                              ),
+                            ),
+                            if (timeframe.isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                timeframe,
+                                style: AppTextStyles.bodySmall.copyWith(
+                                  color: AppColors.secondaryText,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // ── Description ──────────────────────────────────────────
+                Text(
+                  description,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.secondaryText,
+                    height: 1.55,
+                  ),
+                ),
                 const SizedBox(height: 24),
+
+                // ── SIZE header + size guide link ────────────────────────
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(l10n.sizeSection, style: AppTextStyles.labelLarge),
+                    if (guideUrl.isNotEmpty) ...[
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () => _openSizeGuide(guideUrl),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.straighten_outlined,
+                              size: 14,
+                              color: AppColors.secondaryText,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              l10n.sizeGuide,
+                              style: AppTextStyles.bodySmall.copyWith(
+                                color: AppColors.secondaryText,
+                                decoration: TextDecoration.underline,
+                                decorationColor: AppColors.secondaryText,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                if (hasSizes)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: sizes.map(_buildSizeChip).toList(),
+                  )
+                else
+                  Text(l10n.noSizesAvailable, style: AppTextStyles.bodySmall),
+
+                // ── Colours ──────────────────────────────────────────────
+                if (colors.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(l10n.colours, style: AppTextStyles.labelLarge),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: colors.map(_buildColorChip).toList(),
+                  ),
+                ],
+
+                const SizedBox(height: 28),
+
+                // ── Add to cart ──────────────────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: () => _addProductToCart(data),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.deepAccent,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.zero,
+                      ),
+                    ),
+                    child: Text(l10n.addToCart, style: AppTextStyles.button),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // ── Product details accordion ────────────────────────────
                 _buildDropdownSection(
                   title: l10n.productDetails,
                   isOpen: _showProductDetails,
@@ -690,21 +835,7 @@ class _ProductPageState extends State<ProductPage> {
                   ),
                   content: description,
                 ),
-                _buildDropdownSection(
-                  title: l10n.materialCare,
-                  isOpen: _showMaterialCare,
-                  onTap: () =>
-                      setState(() => _showMaterialCare = !_showMaterialCare),
-                  content: l10n.materialCareDetails,
-                ),
-                _buildDropdownSection(
-                  title: l10n.sizeFit,
-                  isOpen: _showSizeFit,
-                  onTap: () => setState(() => _showSizeFit = !_showSizeFit),
-                  content: hasSizes
-                      ? l10n.availableSizesText(sizes.join(', '))
-                      : l10n.noSizeInformationAvailable,
-                ),
+
                 const SizedBox(height: 30),
               ],
             ),
@@ -717,7 +848,6 @@ class _ProductPageState extends State<ProductPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -733,7 +863,6 @@ class _ProductPageState extends State<ProductPage> {
                 ),
               );
             }
-
             if (snapshot.hasError) {
               return ErrorStateWidget.inline(
                 title: l10n.somethingWentWrong,
@@ -742,11 +871,8 @@ class _ProductPageState extends State<ProductPage> {
                 type: ErrorType.network,
               );
             }
-
-            if (snapshot.hasData && !snapshot.data!.exists) {
+            if (snapshot.hasData && !snapshot.data!.exists)
               return const NotFoundPage();
-            }
-
             return _buildProductContent(_resolveProductData(snapshot.data));
           },
         ),

@@ -14,7 +14,6 @@ class BoutiqueOnboardingPage extends StatefulWidget {
 class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
   final _formKey = GlobalKey<FormState>();
   bool isLoading = false;
-  String selectedTier = 'Basic';
 
   // Step tracking
   int _step = 1; // 1 = find user, 2 = boutique details
@@ -28,32 +27,6 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
   final boutiqueNameController = TextEditingController();
   final boutiqueDescController = TextEditingController();
 
-  final List<Map<String, String>> tiers = [
-    {
-      'name': 'Basic',
-      'price': '40 KD/mo',
-      'commission': '12%',
-      'products': '20 products',
-      'images': '3 images/product',
-      'support': 'Standard support',
-    },
-    {
-      'name': 'Pro',
-      'price': '70 KD/mo',
-      'commission': '8%',
-      'products': '100 products',
-      'images': '6 images/product',
-      'support': 'Priority support',
-    },
-    {
-      'name': 'Elite',
-      'price': '120 KD/mo',
-      'commission': '4%',
-      'products': 'Unlimited',
-      'images': '10 images/product',
-      'support': 'Dedicated support',
-    },
-  ];
 
   @override
   void dispose() {
@@ -145,7 +118,6 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
           .add({
             'name': boutiqueNameController.text.trim(),
             'description': boutiqueDescController.text.trim(),
-            'tier': selectedTier.toLowerCase(),
             'ownerUid': _foundUid,
             'isActive': true,
             'createdAt': FieldValue.serverTimestamp(),
@@ -161,7 +133,6 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
             'email': _foundEmail ?? '',
             'boutiqueId': boutiqueRef.id,
             'boutiqueName': boutiqueNameController.text.trim(),
-            'tier': selectedTier.toLowerCase(),
             'role': 'boutique_owner',
             'isApproved': true,
             'createdAt': FieldValue.serverTimestamp(),
@@ -210,10 +181,6 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                         color: AppColors.deepAccent,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(l10n.tierLabel, style: AppTextStyles.capsLabel),
-                    const SizedBox(height: 4),
-                    Text(selectedTier, style: AppTextStyles.labelLarge),
                   ],
                 ),
               ),
@@ -522,113 +489,6 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                                     maxLines: 3,
                                     decoration: _inputDec(''),
                                   ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 14),
-
-                            // Tier selection
-                            _card(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    l10n.selectTier,
-                                    style: AppTextStyles.capsLabel,
-                                  ),
-                                  const SizedBox(height: 14),
-                                  ...tiers.map((tier) {
-                                    final isSelected =
-                                        selectedTier == tier['name'];
-                                    return GestureDetector(
-                                      onTap: () => setState(
-                                        () => selectedTier = tier['name']!,
-                                      ),
-                                      child: AnimatedContainer(
-                                        duration: const Duration(
-                                          milliseconds: 150,
-                                        ),
-                                        margin: const EdgeInsets.only(
-                                          bottom: 10,
-                                        ),
-                                        padding: const EdgeInsets.all(14),
-                                        decoration: BoxDecoration(
-                                          color: isSelected
-                                              ? AppColors.selectedSoft
-                                              : AppColors.field,
-                                          border: Border.all(
-                                            color: isSelected
-                                                ? AppColors.deepAccent
-                                                : AppColors.border,
-                                            width: isSelected ? 1 : 0.5,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Row(
-                                                    children: [
-                                                      Text(
-                                                        tier['name']!,
-                                                        style: AppTextStyles
-                                                            .labelLarge
-                                                            .copyWith(
-                                                              color: isSelected
-                                                                  ? AppColors
-                                                                        .deepAccent
-                                                                  : AppColors
-                                                                        .primaryText,
-                                                            ),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      Text(
-                                                        tier['price']!,
-                                                        style: AppTextStyles
-                                                            .bodySmall
-                                                            .copyWith(
-                                                              color: AppColors
-                                                                  .deepAccent,
-                                                            ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  const SizedBox(height: 6),
-                                                  Text(
-                                                    l10n.tierSummary(
-                                                      tier['commission']!,
-                                                      tier['products']!,
-                                                      tier['images']!,
-                                                    ),
-                                                    style:
-                                                        AppTextStyles.bodySmall,
-                                                  ),
-                                                  const SizedBox(height: 2),
-                                                  Text(
-                                                    tier['support']!,
-                                                    style:
-                                                        AppTextStyles.bodySmall,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            if (isSelected)
-                                              const Icon(
-                                                Icons.check_circle_outline,
-                                                color: AppColors.deepAccent,
-                                                size: 20,
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  }),
                                 ],
                               ),
                             ),

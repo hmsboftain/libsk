@@ -5,6 +5,14 @@ import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
 import 'product_page.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 enum SavedSortOption { newest, priceLow, priceHigh }
 
@@ -295,7 +303,8 @@ class _SavedProductCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
+          AspectRatio(
+            aspectRatio: 4 / 5,
             child: Stack(
               children: [
                 Container(
@@ -309,6 +318,7 @@ class _SavedProductCard extends StatelessWidget {
                           displayImageUrl,
                           fit: BoxFit.cover,
                           width: double.infinity,
+                          height: double.infinity,
                           errorBuilder: (_, __, ___) => const Center(
                             child: Icon(
                               Icons.image_not_supported_outlined,
@@ -381,7 +391,7 @@ class _SavedProductCard extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            'KWD ${itemPrice.toStringAsFixed(0)}',
+            _fmt(itemPrice),
             style: AppTextStyles.labelLarge,
           ),
           const SizedBox(height: 8),

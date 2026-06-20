@@ -20,6 +20,8 @@ class Product {
   final List<String> colors;
   final bool madeToOrder;
   final String? deliveryTimeframe;
+  final bool postedToFeed;
+  final Timestamp? feedPostedAt;
 
   const Product({
     required this.id,
@@ -36,11 +38,11 @@ class Product {
     required this.colors,
     required this.madeToOrder,
     required this.deliveryTimeframe,
+    required this.postedToFeed,
+    required this.feedPostedAt,
   });
 
-  factory Product.fromFirestore(
-    DocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
+  factory Product.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? const <String, dynamic>{};
     // Products live under boutiques/{boutiqueId}/products/{productId}, so the
     // parent's parent gives us the owning boutique id when available.
@@ -57,10 +59,14 @@ class Product {
       imageUrl: (data['imageUrl'] ?? '').toString(),
       imageUrls: _parseStringList(data['imageUrls']),
       sizes: _parseStringList(data['sizes']),
-      categories: _parseStringList(data['categories']),
+      categories: _parseCategories(data),
       colors: _parseStringList(data['colors']),
       madeToOrder: data['madeToOrder'] == true,
       deliveryTimeframe: data['deliveryTimeframe']?.toString(),
+      postedToFeed: data['postedToFeed'] == true,
+      feedPostedAt: data['feedPostedAt'] is Timestamp
+          ? data['feedPostedAt'] as Timestamp
+          : null,
     );
   }
 
@@ -87,6 +93,21 @@ class Product {
           .where((e) => e.isNotEmpty)
           .toList();
     }
+    return const [];
+  }
+
+  /// Products are written with the `category` key (the add/edit pages save a
+  /// `List<String>`), but some early docs may use `categories`. Read `category`
+  /// first and fall back, accepting either a list or a single string.
+  static List<String> _parseCategories(Map<String, dynamic> data) {
+    final raw = data['category'] ?? data['categories'];
+    if (raw is List) {
+      return raw
+          .map((e) => e?.toString() ?? '')
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    if (raw is String && raw.isNotEmpty) return [raw];
     return const [];
   }
 }

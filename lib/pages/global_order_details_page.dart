@@ -2,6 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 class GlobalOrderDetailsPage extends StatefulWidget {
   final Map<String, dynamic> orderData;
@@ -141,9 +149,10 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
   }
 
   String _buildTotal(dynamic value) {
-    if (value is num) return '${value.toStringAsFixed(0)} KWD';
-    final parsed = double.tryParse(value.toString()) ?? 0;
-    return '${parsed.toStringAsFixed(0)} KWD';
+    final amount = value is num
+        ? value.toDouble()
+        : double.tryParse(value.toString()) ?? 0;
+    return _fmt(amount);
   }
 
   String _buildItemCount(dynamic value) {
@@ -272,7 +281,7 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Price: ${price.toStringAsFixed(0)} KWD',
+                  'Price: ${_fmt(price)}',
                   style: AppTextStyles.bodySmall,
                 ),
                 const SizedBox(height: 4),

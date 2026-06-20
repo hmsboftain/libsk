@@ -2,8 +2,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
+import '../services/currency_service.dart';
 import '../widgets/theme.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 // ── Dispute filter enum ───────────────────────────────────────────────────────
 
@@ -520,7 +528,7 @@ class _DisputeCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                l10n.orderTotalKwd(orderTotal.toStringAsFixed(0)),
+                _fmt(orderTotal),
                 style: AppTextStyles.bodySmall,
               ),
               const Spacer(),

@@ -16,15 +16,19 @@ class FirestoreService {
 
   static String get _uid {
     final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception("User not logged in");
-    }
+    if (user == null) throw Exception("User not logged in");
     return user.uid;
   }
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  static FirebaseFunctions get _functions =>
+      FirebaseFunctions.instanceFor(region: 'us-central1');
+
+  // ── Guest cart ─────────────────────────────────────────────────────────────
+
   static Future<void> prepareGuestCartId() async {
     final prefs = await SharedPreferences.getInstance();
-
     String? savedGuestId = prefs.getString('guestCartId');
 
     if (savedGuestId == null || savedGuestId.isEmpty) {
@@ -32,7 +36,6 @@ class FirestoreService {
       final bytes = List<int>.generate(16, (_) => rng.nextInt(256));
       final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
       savedGuestId = 'guest_$hex';
-
       await prefs.setString('guestCartId', savedGuestId);
     }
 
@@ -41,19 +44,14 @@ class FirestoreService {
 
   static String get _cartOwnerId {
     final user = _auth.currentUser;
-
-    if (user != null) {
-      return user.uid;
-    }
-
+    if (user != null) return user.uid;
     if (_guestCartId == null) {
       throw Exception('Guest cart ID has not been prepared');
     }
-
     return _guestCartId!;
   }
 
-  // ---------- Saved Items ----------
+  // ── Saved Items ────────────────────────────────────────────────────────────
 
   static CollectionReference<Map<String, dynamic>> get _savedItemsRef =>
       _firestore.collection('users').doc(_uid).collection('saved_items');
@@ -98,7 +96,7 @@ class FirestoreService {
     return doc.exists;
   }
 
-  // ---------- Saved Boutiques ----------
+  // ── Saved Boutiques ────────────────────────────────────────────────────────
 
   static CollectionReference<Map<String, dynamic>> get _savedBoutiquesRef =>
       _firestore.collection('users').doc(_uid).collection('saved_boutiques');
@@ -131,11 +129,12 @@ class FirestoreService {
     return doc.exists;
   }
 
-  // ---------- Saved Addresses ----------
+  // ── Saved Addresses ────────────────────────────────────────────────────────
 
   static CollectionReference<Map<String, dynamic>> get _savedAddressesRef =>
       _firestore.collection('users').doc(_uid).collection('saved_addresses');
 
+  /// Kuwait address — uses block/street/house/governorate structure.
   static Future<void> addAddress({
     required String firstName,
     required String lastName,
@@ -149,6 +148,7 @@ class FirestoreService {
     required String phone,
   }) async {
     await _savedAddressesRef.add({
+      'type': 'kuwait',
       'firstName': firstName,
       'lastName': lastName,
       'governorate': governorate,
@@ -158,6 +158,31 @@ class FirestoreService {
       'house': house,
       'floor': floor,
       'apartment': apartment,
+      'phone': phone,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// International address — uses address lines / city / zip structure.
+  static Future<void> addInternationalAddress({
+    required String firstName,
+    required String lastName,
+    required String addressLine1,
+    required String addressLine2,
+    required String city,
+    required String zipCode,
+    required String countryCode,
+    required String phone,
+  }) async {
+    await _savedAddressesRef.add({
+      'type': 'international',
+      'firstName': firstName,
+      'lastName': lastName,
+      'addressLine1': addressLine1,
+      'addressLine2': addressLine2,
+      'city': city,
+      'zipCode': zipCode,
+      'countryCode': countryCode,
       'phone': phone,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -173,7 +198,7 @@ class FirestoreService {
         .snapshots();
   }
 
-  // ---------- Cart ----------
+  // ── Cart ───────────────────────────────────────────────────────────────────
 
   static CollectionReference<Map<String, dynamic>> get _cartItemsRef {
     return _firestore
@@ -206,7 +231,6 @@ class FirestoreService {
 
     final productData = productDoc.data();
     final stockValue = productData?['stock'] ?? 0;
-
     final int currentStock = stockValue is int
         ? stockValue
         : int.tryParse(stockValue.toString()) ?? 0;
@@ -229,7 +253,6 @@ class FirestoreService {
 
     if (doc.exists) {
       final quantityValue = doc.data()?['quantity'] ?? 1;
-
       final int currentQuantity = quantityValue is int
           ? quantityValue
           : int.tryParse(quantityValue.toString()) ?? 1;
@@ -253,6 +276,8 @@ class FirestoreService {
         if (normalizedColor.isNotEmpty) 'color': normalizedColor,
         'price': price,
         'quantity': 1,
+        // Store madeToOrder flag so checkout can detect it
+        if (productData?['madeToOrder'] == true) 'madeToOrder': true,
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
@@ -272,13 +297,9 @@ class FirestoreService {
     }
 
     final cartItemDoc = await _cartItemsRef.doc(docId).get();
-
-    if (!cartItemDoc.exists) {
-      throw Exception('Cart item not found');
-    }
+    if (!cartItemDoc.exists) throw Exception('Cart item not found');
 
     final cartItemData = cartItemDoc.data();
-
     final productId = cartItemData?['productId']?.toString() ?? '';
     final boutiqueId = cartItemData?['boutiqueId']?.toString() ?? '';
     final title = cartItemData?['title']?.toString() ?? 'Product';
@@ -337,7 +358,6 @@ class FirestoreService {
 
     for (final doc in guestItems.docs) {
       final data = doc.data();
-
       final productId = data['productId']?.toString() ?? '';
       final boutiqueId = data['boutiqueId']?.toString() ?? '';
 
@@ -369,7 +389,6 @@ class FirestoreService {
       }
 
       final existingDoc = await userCartRef.doc(doc.id).get();
-
       final guestQuantityValue = data['quantity'] ?? 1;
       final int guestQuantity = guestQuantityValue is int
           ? guestQuantityValue
@@ -406,11 +425,17 @@ class FirestoreService {
     }
   }
 
-  // ---------- Orders ----------
+  // ── Orders ─────────────────────────────────────────────────────────────────
 
   static CollectionReference<Map<String, dynamic>> get _ordersRef =>
       _firestore.collection('users').doc(_uid).collection('orders');
 
+  /// Creates an order via the Cloud Function.
+  ///
+  /// [discountCodeId] and [discountAmount] are optional — only pass them when
+  /// a discount code has been validated on the checkout page.
+  ///
+  /// [estimatedDays] is only relevant when [deliveryMethod] == "Made to Order".
   static Future<String> createOrder({
     required List<Map<String, dynamic>> items,
     required int itemCount,
@@ -418,20 +443,31 @@ class FirestoreService {
     String? deliveryMethod,
     String? paymentMethod,
     String? paymentIntentId,
+    // ── Discount code (feature #8) ──────────────────────────
+    String? discountCodeId,
+    double? discountAmount,
+    // ── Made to order (feature #3) ──────────────────────────
+    int? estimatedDays,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception("User not logged in");
 
-    final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
-    final callable = functions.httpsCallable('createOrder');
+    final callable = _functions.httpsCallable('createOrder');
 
-    final result = await callable.call({
+    final payload = <String, dynamic>{
       'items': items,
       'deliveryMethod': deliveryMethod ?? '',
       'paymentMethod': paymentMethod ?? '',
       'paymentIntentId': paymentIntentId ?? '',
-    });
+      if (discountCodeId != null && discountCodeId.isNotEmpty) ...{
+        'discountCodeId': discountCodeId,
+        'discountAmount': discountAmount ?? 0,
+      },
+      if (deliveryMethod == 'Made to Order' && estimatedDays != null)
+        'estimatedDays': estimatedDays,
+    };
 
+    final result = await callable.call(payload);
     final data = Map<String, dynamic>.from(result.data as Map);
     final orderNumber = data['orderNumber']?.toString();
 
@@ -464,82 +500,192 @@ class FirestoreService {
         .snapshots();
   }
 
-  // ================= OWNER SIDE =================
+  // ── Discount codes (feature #8) ────────────────────────────────────────────
+
+  /// Calls the [validateDiscountCode] Cloud Function.
+  /// Returns a map with keys: codeId, code, type, value, discountAmount, description.
+  static Future<Map<String, dynamic>> validateDiscountCode({
+    required String code,
+    required double subtotal,
+  }) async {
+    final callable = _functions.httpsCallable('validateDiscountCode');
+    final result = await callable.call({
+      'code': code.toUpperCase().trim(),
+      'subtotal': subtotal,
+    });
+    return Map<String, dynamic>.from(result.data as Map);
+  }
+
+  // ── Promo slots (feature #5) ───────────────────────────────────────────────
+
+  /// Available slot types and their display labels.
+  static const Map<String, String> promoSlotTypes = {
+    'home_banner': 'Home Banner',
+    'featured_product': 'Featured Product',
+    'category_sponsored': 'Sponsored in Category',
+    'feed_sponsored': 'Sponsored in Feed',
+    'boutique_featured': 'Featured Boutique',
+  };
+
+  /// Fetches active promo slot listings (prices and durations) from Firestore.
+  /// The super admin manages these documents in `promo_slot_config/{slotType}`.
+  static Future<List<Map<String, dynamic>>> getPromoSlotConfig() async {
+    final snap = await _firestore.collection('promo_slot_config').get();
+    return snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+  }
+
+  /// Returns the stream of promo slot bookings for the current boutique owner.
+  static Future<Stream<QuerySnapshot<Map<String, dynamic>>>?>
+  getOwnerPromoSlotsStream() async {
+    final boutiqueId = await getCurrentOwnerBoutiqueId();
+    if (boutiqueId == null) return null;
+
+    return _firestore
+        .collection('promo_slots')
+        .where('boutiqueId', isEqualTo: boutiqueId)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  /// Books a promo slot for the current boutique owner.
+  ///
+  /// This creates a pending booking document. Payment via MyFatoorah is
+  /// initiated separately — call [initiatePromoSlotPayment] after this.
+  /// Once payment is confirmed the slot becomes active.
+  static Future<String> bookPromoSlot({
+    required String slotType,
+    required int durationDays,
+    required double priceKwd,
+  }) async {
+    final boutiqueId = await getCurrentOwnerBoutiqueId();
+    if (boutiqueId == null) throw Exception('No boutique found');
+
+    final boutiqueData = await getOwnerBoutiqueData();
+    final boutiqueName = boutiqueData?['name']?.toString() ?? '';
+
+    final docRef = await _firestore.collection('promo_slots').add({
+      'boutiqueId': boutiqueId,
+      'boutiqueName': boutiqueName,
+      'slotType': slotType,
+      'slotLabel': promoSlotTypes[slotType] ?? slotType,
+      'durationDays': durationDays,
+      'priceKwd': priceKwd,
+      'status': 'pending_payment', // → 'active' after payment confirmed
+      'paymentStatus': 'unpaid',
+      'paymentMethod': 'myfatoorah',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    return docRef.id;
+  }
+
+  /// Initiates a MyFatoorah payment for a promo slot booking.
+  ///
+  /// Calls the [initiatePromoSlotPayment] Cloud Function which creates a
+  /// MyFatoorah invoice and returns the payment URL. The owner is then
+  /// redirected to that URL to complete payment.
+  ///
+  /// NOTE: Wire this up once you have your MyFatoorah API key. The Cloud
+  /// Function stub is in index.js — search for initiatePromoSlotPayment.
+  static Future<String> initiatePromoSlotPayment({
+    required String promoSlotId,
+  }) async {
+    final callable = _functions.httpsCallable('initiatePromoSlotPayment');
+    final result = await callable.call({'promoSlotId': promoSlotId});
+    final data = Map<String, dynamic>.from(result.data as Map);
+    final paymentUrl = data['paymentUrl']?.toString();
+    if (paymentUrl == null || paymentUrl.isEmpty) {
+      throw Exception('Payment URL missing from server response');
+    }
+    return paymentUrl;
+  }
+
+  /// Called by the admin to manually activate a promo slot after payment is
+  /// confirmed (fallback before MyFatoorah webhook is wired up).
+  static Future<void> activatePromoSlot(String promoSlotId) async {
+    final now = DateTime.now();
+    final doc = await _firestore
+        .collection('promo_slots')
+        .doc(promoSlotId)
+        .get();
+    if (!doc.exists) throw Exception('Promo slot not found');
+
+    final data = doc.data()!;
+    final durationDays = (data['durationDays'] as num?)?.toInt() ?? 7;
+    final expiresAt = Timestamp.fromDate(now.add(Duration(days: durationDays)));
+
+    await _firestore.collection('promo_slots').doc(promoSlotId).update({
+      'status': 'active',
+      'paymentStatus': 'paid',
+      'activatedAt': FieldValue.serverTimestamp(),
+      'expiresAt': expiresAt,
+    });
+  }
+
+  /// Returns a stream of all promo slots for admin view.
+  static Stream<QuerySnapshot<Map<String, dynamic>>> getAllPromoSlotsStream() {
+    return _firestore
+        .collection('promo_slots')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  // ── Owner side ─────────────────────────────────────────────────────────────
 
   static Future<bool> isCurrentUserOwner() async {
     final user = _auth.currentUser;
     if (user == null) return false;
-
     final doc = await _firestore
         .collection('boutique_owners')
         .doc(user.uid)
         .get();
-
     return doc.exists;
   }
 
   static Future<bool> isCurrentUserApprovedOwner() async {
     final user = _auth.currentUser;
     if (user == null) return false;
-
     final doc = await _firestore
         .collection('boutique_owners')
         .doc(user.uid)
         .get();
-
     if (!doc.exists) return false;
-
     final data = doc.data();
     if (data == null) return false;
-
     return data['role'] == 'boutique_owner' && data['isApproved'] == true;
   }
 
   static Future<Map<String, dynamic>?> getCurrentOwnerData() async {
     final user = _auth.currentUser;
     if (user == null) return null;
-
     final doc = await _firestore
         .collection('boutique_owners')
         .doc(user.uid)
         .get();
-
     if (!doc.exists) return null;
-
     return doc.data();
   }
 
   static Future<String?> getCurrentOwnerBoutiqueId() async {
     final ownerData = await getCurrentOwnerData();
     if (ownerData == null) return null;
-
     return ownerData['boutiqueId'] as String?;
   }
 
   static Future<Map<String, dynamic>?> getOwnerBoutiqueData() async {
     final user = _auth.currentUser;
-
-    if (user == null) {
-      throw Exception("User not logged in");
-    }
+    if (user == null) throw Exception("User not logged in");
 
     final ownerDoc = await _firestore
         .collection('boutique_owners')
         .doc(user.uid)
         .get();
-
-    if (!ownerDoc.exists) {
-      throw Exception("Owner document not found");
-    }
+    if (!ownerDoc.exists) throw Exception("Owner document not found");
 
     final ownerData = ownerDoc.data();
-
-    if (ownerData == null) {
-      throw Exception("Owner data is null");
-    }
+    if (ownerData == null) throw Exception("Owner data is null");
 
     final boutiqueId = ownerData['boutiqueId'];
-
     if (boutiqueId == null || boutiqueId.toString().isEmpty) {
       throw Exception("No boutiqueId assigned to this owner");
     }
@@ -548,10 +694,7 @@ class FirestoreService {
         .collection('boutiques')
         .doc(boutiqueId)
         .get();
-
-    if (!boutiqueDoc.exists) {
-      throw Exception("Boutique document not found");
-    }
+    if (!boutiqueDoc.exists) throw Exception("Boutique document not found");
 
     return boutiqueDoc.data();
   }
@@ -571,7 +714,6 @@ class FirestoreService {
   getCurrentOwnerProductsStream() async {
     final boutiqueId = await getCurrentOwnerBoutiqueId();
     if (boutiqueId == null) return null;
-
     return getOwnerProductsStream(boutiqueId);
   }
 
@@ -588,9 +730,11 @@ class FirestoreService {
     required List<String> colors,
     required bool madeToOrder,
     String? deliveryTimeframe,
+    // ── Size guide (feature #4) ──────────────────────────────
+    String? sizeGuideUrl,
+    bool postToFeed = true,
   }) async {
     final boutiqueId = await getCurrentOwnerBoutiqueId();
-
     if (boutiqueId == null) {
       throw Exception('No boutique found for current owner');
     }
@@ -615,7 +759,12 @@ class FirestoreService {
           'colors': colors,
           'madeToOrder': madeToOrder,
           'deliveryTimeframe': madeToOrder ? deliveryTimeframe : null,
+          if (sizeGuideUrl != null && sizeGuideUrl.isNotEmpty)
+            'sizeGuideUrl': sizeGuideUrl,
           'boutiqueName': boutiqueName,
+          'boutiqueId': boutiqueId,
+          'postedToFeed': postToFeed,
+          'feedPostedAt': postToFeed ? FieldValue.serverTimestamp() : null,
           'createdAt': FieldValue.serverTimestamp(),
         });
   }
@@ -624,7 +773,6 @@ class FirestoreService {
   getCurrentOwnerBoutiqueRef() async {
     final boutiqueId = await getCurrentOwnerBoutiqueId();
     if (boutiqueId == null) return null;
-
     return _firestore.collection('boutiques').doc(boutiqueId);
   }
 
@@ -635,7 +783,6 @@ class FirestoreService {
     String? bannerPath,
   }) async {
     final boutiqueRef = await getCurrentOwnerBoutiqueRef();
-
     if (boutiqueRef == null) {
       throw Exception('No boutique found for current owner');
     }
@@ -644,19 +791,13 @@ class FirestoreService {
       'name': name,
       'description': description,
     };
-
-    if (logoPath != null) {
-      updateData['logoPath'] = logoPath;
-    }
-
-    if (bannerPath != null) {
-      updateData['bannerPath'] = bannerPath;
-    }
+    if (logoPath != null) updateData['logoPath'] = logoPath;
+    if (bannerPath != null) updateData['bannerPath'] = bannerPath;
 
     await boutiqueRef.update(updateData);
   }
 
-  // ================= USER DOCUMENTS =================
+  // ── User documents ─────────────────────────────────────────────────────────
 
   static Future<void> createUserProfile({
     required String uid,
@@ -682,7 +823,6 @@ class FirestoreService {
   static Future<void> updateCurrentUserLastLogin() async {
     final user = _auth.currentUser;
     if (user == null) return;
-
     await _firestore.collection('users').doc(user.uid).set({
       'email': user.email ?? '',
       'fullName': user.displayName ?? 'User',
@@ -694,7 +834,6 @@ class FirestoreService {
   static Future<void> setCurrentUserOnline() async {
     final user = _auth.currentUser;
     if (user == null) return;
-
     await _firestore.collection('users').doc(user.uid).set({
       'email': user.email ?? '',
       'fullName': user.displayName ?? 'User',
@@ -707,29 +846,22 @@ class FirestoreService {
   static Future<void> setCurrentUserOffline() async {
     final user = _auth.currentUser;
     if (user == null) return;
-
     await _firestore.collection('users').doc(user.uid).set({
       'isOnline': false,
       'lastSeenAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
-  // ================= ADMIN SIDE =================
+  // ── Admin side ─────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>?> getCurrentAdminData() async {
     final user = _auth.currentUser;
     if (user == null) return null;
-
     final doc = await _firestore.collection('admin_users').doc(user.uid).get();
-
     if (!doc.exists) return null;
     return doc.data();
   }
 
-  /// Fetches the current admin doc once and bundles every permission flag
-  /// into an [AdminPermissions]. Prefer this over calling the individual
-  /// `isCurrentUser*` / `canCurrentUser*` methods in sequence — each of those
-  /// issues its own Firestore read, while this method issues exactly one.
   static Future<AdminPermissions> getCurrentUserPermissions() async {
     final data = await getCurrentAdminData();
     return AdminPermissions.fromMap(data);
@@ -770,7 +902,7 @@ class FirestoreService {
     return permissions.canViewAnalytics;
   }
 
-  // ================= ADMIN DASHBOARD STREAMS =================
+  // ── Admin dashboard streams ────────────────────────────────────────────────
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> getAllUsersStream() {
     return _firestore.collection('users').snapshots();
@@ -794,16 +926,14 @@ class FirestoreService {
     return _firestore.collectionGroup('orders').snapshots();
   }
 
-  // ================= NOTIFICATIONS =================
+  // ── Notifications ──────────────────────────────────────────────────────────
 
   static Future<void> saveCurrentUserFcmToken() async {
     final user = _auth.currentUser;
-
     if (user == null) return;
 
     try {
       final token = await FirebaseMessaging.instance.getToken();
-
       if (token == null || token.isEmpty) return;
 
       await _firestore.collection('users').doc(user.uid).set({
@@ -818,7 +948,6 @@ class FirestoreService {
   static Future<void> deleteCurrentUserFcmToken() async {
     final user = _auth.currentUser;
     if (user == null) return;
-
     await _firestore.collection('users').doc(user.uid).set({
       'fcmToken': FieldValue.delete(),
       'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
@@ -853,14 +982,12 @@ class FirestoreService {
         .get();
 
     final batch = _firestore.batch();
-
     for (final doc in notifications.docs) {
       batch.update(doc.reference, {
         'isRead': true,
         'readAt': FieldValue.serverTimestamp(),
       });
     }
-
     await batch.commit();
   }
 }

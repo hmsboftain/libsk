@@ -462,14 +462,14 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     _contactTile(
                       icon: Icons.camera_alt_outlined,
                       title: 'Instagram',
-                      subtitle: '@libsk',
+                      subtitle: '@libskapp',
                       onTap: () => _launchUrl('https://instagram.com/libsk'),
                     ),
                     const SizedBox(height: 10),
                     _contactTile(
                       icon: Icons.play_circle_outline,
                       title: 'TikTok',
-                      subtitle: '@libsk',
+                      subtitle: '@libskapp',
                       onTap: () => _launchUrl('https://tiktok.com/@libsk'),
                     ),
 

@@ -1,10 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../core/constants/countries.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
+import '../services/currency_service.dart';
 import '../widgets/theme.dart';
 import 'product_page.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 enum CategorySort { newest, priceLow, priceHigh }
 
@@ -318,7 +326,7 @@ class _CategoryProductCard extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            'KD ${product.price.toStringAsFixed(0)}',
+            _fmt(product.price),
             style: AppTextStyles.labelLarge,
           ),
           const SizedBox(height: 8),

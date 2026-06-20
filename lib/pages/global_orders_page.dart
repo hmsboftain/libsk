@@ -5,6 +5,14 @@ import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import 'global_order_details_page.dart';
 import '../widgets/theme.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -36,7 +44,7 @@ String _parseDate(Map<String, dynamic> data, AppLocalizations l10n) {
 String _parseTotal(Map<String, dynamic> data) {
   final v = data['total'] ?? 0;
   final amount = v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0;
-  return '${amount.toStringAsFixed(0)} KWD';
+  return _fmt(amount);
 }
 
 String _parseItemCount(Map<String, dynamic> data) {

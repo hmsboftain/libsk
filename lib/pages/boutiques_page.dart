@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
@@ -31,7 +32,10 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
         .collection('boutiques')
         .orderBy('name')
         .snapshots();
-    _savedBoutiquesStream = FirestoreService.getSavedBoutiquesStream();
+    final user = FirebaseAuth.instance.currentUser;
+    _savedBoutiquesStream = user != null
+        ? FirestoreService.getSavedBoutiquesStream()
+        : const Stream.empty();
   }
 
   @override
@@ -61,9 +65,7 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isCurrentlyLiked
-                ? l10n.boutiqueRemovedFromSaved
-                : l10n.itemSaved,
+            isCurrentlyLiked ? l10n.boutiqueRemovedFromSaved : l10n.itemSaved,
           ),
           duration: const Duration(seconds: 1),
         ),

@@ -8,6 +8,14 @@ import '../widgets/cart_item.dart';
 import '../widgets/theme.dart';
 import 'checkout_page.dart';
 import 'login_page.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 class CartPage extends StatefulWidget {
   const CartPage({super.key});
@@ -196,7 +204,7 @@ class _CartPageState extends State<CartPage> {
                                 ),
                                 const Spacer(),
                                 Text(
-                                  '${subtotal.toStringAsFixed(0)} KWD',
+                                  _fmt(subtotal),
                                   style: AppTextStyles.bodyLarge.copyWith(
                                     fontWeight: FontWeight.w500,
                                   ),

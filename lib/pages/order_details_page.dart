@@ -6,6 +6,14 @@ import '../navigation/app_header.dart';
 import '../widgets/cart_item.dart';
 import '../widgets/order_item.dart';
 import '../widgets/theme.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -307,7 +315,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                         Text(l10n.subtotal, style: AppTextStyles.bodyMedium),
                         const Spacer(),
                         Text(
-                          '${subtotal.toStringAsFixed(0)} KWD',
+                          _fmt(subtotal),
                           style: AppTextStyles.bodyMedium,
                         ),
                       ],
@@ -318,7 +326,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                         Text(l10n.total, style: AppTextStyles.headingSmall),
                         const Spacer(),
                         Text(
-                          '${widget.order.total.toStringAsFixed(0)} KWD',
+                          _fmt(widget.order.total),
                           style: AppTextStyles.headingSmall,
                         ),
                       ],
@@ -504,7 +512,7 @@ class _OrderItemRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Text(
-            '${item.price.toStringAsFixed(0)} KWD',
+            _fmt(item.price),
             style: AppTextStyles.labelLarge,
           ),
         ],

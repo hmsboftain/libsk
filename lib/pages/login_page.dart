@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
 import 'forgot_password_page.dart';
@@ -51,6 +52,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
   bool _isLoading = false;
   bool _isGoogleLoading = false;
+  bool _isAppleLoading = false;
 
   @override
   void dispose() {
@@ -58,6 +60,8 @@ class _LoginPageState extends State<LoginPage> {
     passwordController.dispose();
     super.dispose();
   }
+
+  // ── Email / password sign-in ──────────────────────────────────────────────
 
   Future<void> _signInUser() async {
     if (!_formKey.currentState!.validate()) return;
@@ -74,7 +78,6 @@ class _LoginPageState extends State<LoginPage> {
       await FirestoreService.setCurrentUserOnline();
       await FirestoreService.prepareGuestCartId();
 
-      // Check roles in parallel
       final results = await Future.wait([
         FirestoreService.isCurrentUserSuperAdmin(),
         FirestoreService.isCurrentUserApprovedOwner(),
@@ -100,16 +103,17 @@ class _LoginPageState extends State<LoginPage> {
     } on FirebaseAuthException catch (e) {
       final l10n = AppLocalizations.of(context)!;
       String message = l10n.loginFailed;
-      if (e.code == 'user-not-found')
+      if (e.code == 'user-not-found') {
         message = l10n.noAccountFoundForThisEmail;
-      else if (e.code == 'wrong-password')
+      } else if (e.code == 'wrong-password') {
         message = l10n.incorrectPassword;
-      else if (e.code == 'invalid-email')
+      } else if (e.code == 'invalid-email') {
         message = l10n.invalidEmailAddress;
-      else if (e.code == 'invalid-credential')
+      } else if (e.code == 'invalid-credential') {
         message = l10n.incorrectEmailOrPassword;
-      else if (e.message != null)
+      } else if (e.message != null) {
         message = e.message!;
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -126,6 +130,8 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  // ── Google sign-in ────────────────────────────────────────────────────────
 
   Future<void> _signInWithGoogle() async {
     setState(() => _isGoogleLoading = true);
@@ -171,6 +177,73 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  // ── Apple sign-in ─────────────────────────────────────────────────────────
+
+  Future<void> _signInWithApple() async {
+    setState(() => _isAppleLoading = true);
+    try {
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      final oauthCredential = OAuthProvider('apple.com').credential(
+        idToken: credential.identityToken,
+        accessToken: credential.authorizationCode,
+      );
+
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        oauthCredential,
+      );
+
+      final user = userCredential.user;
+      if (user != null) {
+        // Apple only sends the name on the very first sign-in.
+        final firstName = credential.givenName ?? '';
+        final lastName = credential.familyName ?? '';
+        if (firstName.isNotEmpty || lastName.isNotEmpty) {
+          await user.updateDisplayName('$firstName $lastName'.trim());
+        }
+        await FirestoreService.createUserProfile(
+          uid: user.uid,
+          firstName: firstName,
+          lastName: lastName,
+          email: user.email ?? credential.email ?? '',
+          phone: '',
+        );
+      }
+
+      await FirestoreService.mergeGuestCartToUser();
+      await FirestoreService.updateCurrentUserLastLogin();
+      await FirestoreService.setCurrentUserOnline();
+
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } on SignInWithAppleAuthorizationException catch (e) {
+      // User cancelled — don't show an error snackbar.
+      if (e.code == AuthorizationErrorCode.canceled) return;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.somethingWentWrong),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.somethingWentWrong),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isAppleLoading = false);
+    }
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -194,6 +267,7 @@ class _LoginPageState extends State<LoginPage> {
                 Text(l10n.welcomeBack, style: AppTextStyles.headingLarge),
                 const SizedBox(height: 40),
 
+                // ── Email ──────────────────────────────────────────
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
@@ -209,8 +283,9 @@ class _LoginPageState extends State<LoginPage> {
                   keyboardType: TextInputType.emailAddress,
                   decoration: _loginInputDecoration(hint: l10n.emailExample),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty)
+                    if (v == null || v.trim().isEmpty) {
                       return l10n.emailRequired;
+                    }
                     if (!v.contains('@') || !v.contains('.')) {
                       return l10n.enterValidEmail;
                     }
@@ -219,6 +294,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 28),
 
+                // ── Password ───────────────────────────────────────
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
@@ -269,6 +345,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 26),
 
+                // ── Sign in button ─────────────────────────────────
                 SizedBox(
                   width: double.infinity,
                   height: 58,
@@ -295,6 +372,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 26),
 
+                // ── Sign up link ───────────────────────────────────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -320,6 +398,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 50),
 
+                // ── Divider ────────────────────────────────────────
                 Row(
                   children: [
                     const Expanded(child: Divider()),
@@ -337,6 +416,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 24),
 
+                // ── Continue with Google ───────────────────────────
                 GestureDetector(
                   onTap: _isGoogleLoading ? null : _signInWithGoogle,
                   child: Container(
@@ -374,6 +454,49 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                   ),
                 ),
+                const SizedBox(height: 14),
+
+                // ── Continue with Apple ────────────────────────────
+                GestureDetector(
+                  onTap: _isAppleLoading ? null : _signInWithApple,
+                  child: Container(
+                    width: double.infinity,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryText,
+                      border: Border.all(color: AppColors.border, width: 0.5),
+                    ),
+                    child: _isAppleLoading
+                        ? const Center(
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: Colors.white,
+                              ),
+                            ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.apple,
+                                size: 26,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                l10n.continueWithApple,
+                                style: AppTextStyles.labelLarge.copyWith(
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 30),
               ],
             ),
           ),

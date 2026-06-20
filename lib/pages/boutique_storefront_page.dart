@@ -4,11 +4,21 @@ import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
+import '../services/follow_service.dart';
 import '../widgets/boutique_logo_avatar.dart';
 import '../widgets/error_state_widget.dart';
+import '../widgets/follow_button.dart';
 import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 import 'product_page.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 enum SortOption { newest, oldest, priceLow, priceHigh }
 
@@ -35,6 +45,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
   late final DocumentReference<Map<String, dynamic>> _boutiqueRef;
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _boutiqueStream;
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _productsStream;
+  late final Stream<int> _followerCountStream;
 
   @override
   void initState() {
@@ -44,6 +55,8 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
         .doc(widget.boutiqueId);
     _boutiqueStream = _boutiqueRef.snapshots();
     _productsStream = _boutiqueRef.collection('products').snapshots();
+    // Use FollowService stream so count updates immediately when follow/unfollow
+    _followerCountStream = FollowService().followerCount(widget.boutiqueId);
   }
 
   Future<void> _onRefresh() async => setState(() {});
@@ -91,10 +104,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          Text(
-            l10n.productsCount(count),
-            style: AppTextStyles.capsLabel,
-          ),
+          Text(l10n.productsCount(count), style: AppTextStyles.capsLabel),
           const Spacer(),
           SizedBox(
             height: 34,
@@ -277,7 +287,38 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(boutiqueName, style: AppTextStyles.headingLarge),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  boutiqueName,
+                                  style: AppTextStyles.headingLarge,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: FollowButton(
+                                  boutiqueId: widget.boutiqueId,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+
+                          // ── Live follower count ──────────────────
+                          StreamBuilder<int>(
+                            stream: _followerCountStream,
+                            builder: (context, snapshot) {
+                              final count = snapshot.data ?? 0;
+                              return Text(
+                                '$count follower${count == 1 ? '' : 's'}',
+                                style: AppTextStyles.bodySmall,
+                              );
+                            },
+                          ),
+
                           const SizedBox(height: 6),
                           Text(
                             boutiqueDescription,
@@ -369,7 +410,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
   }
 }
 
-// ── Storefront product card widget ────────────────────────────────────────────
+// ── Storefront product card ───────────────────────────────────────────────────
 
 class _StorefrontProductCard extends StatelessWidget {
   final QueryDocumentSnapshot<Map<String, dynamic>> doc;
@@ -482,7 +523,7 @@ class _StorefrontProductCard extends StatelessWidget {
           Text(boutiqueName, style: AppTextStyles.bodySmall),
           const SizedBox(height: 4),
           Text(
-            '${product.price.toStringAsFixed(0)} KWD',
+            _fmt(product.price),
             style: AppTextStyles.labelLarge,
           ),
         ],

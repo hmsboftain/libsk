@@ -280,9 +280,9 @@ class _SignUpPageState extends State<SignUpPage> {
       Navigator.pop(context, true);
     } on FirebaseAuthException catch (e) {
       String message = l10n.signUpFailed;
-      if (e.code == 'email-already-in-use')
+      if (e.code == 'email-already-in-use') {
         message = l10n.emailAlreadyInUse;
-      else if (e.code == 'invalid-email')
+      } else if (e.code == 'invalid-email')
         message = l10n.invalidEmailAddress;
       else if (e.code == 'weak-password')
         message = l10n.passwordTooWeak;
@@ -421,8 +421,9 @@ class _SignUpPageState extends State<SignUpPage> {
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty)
+                    if (v == null || v.trim().isEmpty) {
                       return l10n.emailRequired;
+                    }
                     if (!v.contains('@') || !v.contains('.')) {
                       return l10n.enterValidEmail;
                     }
@@ -458,8 +459,9 @@ class _SignUpPageState extends State<SignUpPage> {
                         setState(() => _obscurePassword = !_obscurePassword),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty)
+                    if (v == null || v.trim().isEmpty) {
                       return l10n.passwordRequired;
+                    }
                     if (v.length < 8) return l10n.passwordMinLength;
                     if (!v.contains(RegExp(r'[A-Z]'))) {
                       return l10n.passwordNeedsUppercase;

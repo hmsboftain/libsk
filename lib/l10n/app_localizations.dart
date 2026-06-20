@@ -461,6 +461,12 @@ abstract class AppLocalizations {
   /// **'Continue with Google'**
   String get continueWithGoogle;
 
+  /// No description provided for @continueWithApple.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with Apple'**
+  String get continueWithApple;
+
   /// No description provided for @forgotPassword.
   ///
   /// In en, this message translates to:
@@ -1295,6 +1301,24 @@ abstract class AppLocalizations {
   /// **'Same Day Delivery'**
   String get sameDayDelivery;
 
+  /// No description provided for @madeToOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Made to Order'**
+  String get madeToOrder;
+
+  /// No description provided for @estimatedDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Estimated ready in'**
+  String get estimatedDays;
+
+  /// No description provided for @businessDays.
+  ///
+  /// In en, this message translates to:
+  /// **'business days'**
+  String get businessDays;
+
   /// No description provided for @paymentMethod.
   ///
   /// In en, this message translates to:
@@ -1691,6 +1715,30 @@ abstract class AppLocalizations {
   /// **'{sizeName} — {stock} in stock'**
   String sizeStockEntry(String sizeName, String stock);
 
+  /// No description provided for @sizeGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'Size Guide'**
+  String get sizeGuide;
+
+  /// No description provided for @sizeGuideSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload a chart buyers can reference before selecting a size.'**
+  String get sizeGuideSubtitle;
+
+  /// No description provided for @uploadSizeGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload size guide image'**
+  String get uploadSizeGuide;
+
+  /// No description provided for @changeImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Change image'**
+  String get changeImage;
+
   /// No description provided for @productDetails.
   ///
   /// In en, this message translates to:
@@ -1750,12 +1798,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add a colour'**
   String get addAColour;
-
-  /// No description provided for @madeToOrder.
-  ///
-  /// In en, this message translates to:
-  /// **'Made to order'**
-  String get madeToOrder;
 
   /// No description provided for @madeToOrderSubtitle.
   ///
@@ -2122,6 +2164,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Phone'**
   String get phone;
+
+  /// No description provided for @addressLine1.
+  ///
+  /// In en, this message translates to:
+  /// **'Address Line 1'**
+  String get addressLine1;
+
+  /// No description provided for @addressLine2Optional.
+  ///
+  /// In en, this message translates to:
+  /// **'Address Line 2 (optional)'**
+  String get addressLine2Optional;
+
+  /// No description provided for @city.
+  ///
+  /// In en, this message translates to:
+  /// **'City'**
+  String get city;
+
+  /// No description provided for @zipCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Zip / Postal Code'**
+  String get zipCode;
+
+  /// No description provided for @countryRegion.
+  ///
+  /// In en, this message translates to:
+  /// **'Country / Region'**
+  String get countryRegion;
+
+  /// No description provided for @selectCountry.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Country'**
+  String get selectCountry;
 
   /// No description provided for @somethingWentWrongWhileLoadingAddresses.
   ///
@@ -2789,11 +2867,11 @@ abstract class AppLocalizations {
   /// **'Breakdown'**
   String get breakdown;
 
-  /// No description provided for @commissionsAndSubscriptions.
+  /// No description provided for @commissionsAndPromoSlots.
   ///
   /// In en, this message translates to:
-  /// **'Commissions & subscriptions'**
-  String get commissionsAndSubscriptions;
+  /// **'Commissions & promo slots'**
+  String get commissionsAndPromoSlots;
 
   /// No description provided for @boutiqueManagement.
   ///
@@ -2810,7 +2888,7 @@ abstract class AppLocalizations {
   /// No description provided for @boutiqueOnboardingSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Register a new boutique owner with tier selection'**
+  /// **'Register a new boutique owner'**
   String get boutiqueOnboardingSubtitle;
 
   /// No description provided for @findUser.
@@ -2861,12 +2939,6 @@ abstract class AppLocalizations {
   /// **'OWNER'**
   String get ownerLabel;
 
-  /// No description provided for @tierLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'TIER'**
-  String get tierLabel;
-
   /// No description provided for @ownerCanNowLogin.
   ///
   /// In en, this message translates to:
@@ -2885,12 +2957,6 @@ abstract class AppLocalizations {
   /// **'Description (optional)'**
   String get descriptionOptional;
 
-  /// No description provided for @selectTier.
-  ///
-  /// In en, this message translates to:
-  /// **'SELECT TIER'**
-  String get selectTier;
-
   /// No description provided for @commission.
   ///
   /// In en, this message translates to:
@@ -2902,12 +2968,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Create Boutique'**
   String get createBoutique;
-
-  /// No description provided for @tierSummary.
-  ///
-  /// In en, this message translates to:
-  /// **'{commission} commission · {products} · {images}'**
-  String tierSummary(String commission, String products, String images);
 
   /// No description provided for @cropBanner.
   ///
@@ -3512,7 +3572,7 @@ abstract class AppLocalizations {
   /// No description provided for @revenueBreakdownDescription.
   ///
   /// In en, this message translates to:
-  /// **'Commissions, subscriptions, and promotional slots.'**
+  /// **'Commissions and promotional slots.'**
   String get revenueBreakdownDescription;
 
   /// No description provided for @commissions.
@@ -3526,18 +3586,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'From completed orders'**
   String get commissionsSubtitle;
-
-  /// No description provided for @subscriptions.
-  ///
-  /// In en, this message translates to:
-  /// **'Subscriptions'**
-  String get subscriptions;
-
-  /// No description provided for @subscriptionsSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Boutique tier subscriptions'**
-  String get subscriptionsSubtitle;
 
   /// No description provided for @promoSlots.
   ///
@@ -4078,6 +4126,204 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Total: {amount} KWD'**
   String totalKwd(String amount);
+
+  /// No description provided for @noSalesData.
+  ///
+  /// In en, this message translates to:
+  /// **'No sales data'**
+  String get noSalesData;
+
+  /// No description provided for @failedToLoadBoutiqueDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load boutique details'**
+  String get failedToLoadBoutiqueDetails;
+
+  /// No description provided for @boutiqueSalesOverview.
+  ///
+  /// In en, this message translates to:
+  /// **'Boutique sales overview'**
+  String get boutiqueSalesOverview;
+
+  /// No description provided for @totalSalesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Sales'**
+  String get totalSalesTitle;
+
+  /// No description provided for @allBoutiqueSales.
+  ///
+  /// In en, this message translates to:
+  /// **'All boutique sales'**
+  String get allBoutiqueSales;
+
+  /// No description provided for @totalBoutiqueOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'Total boutique orders'**
+  String get totalBoutiqueOrders;
+
+  /// No description provided for @itemsSold.
+  ///
+  /// In en, this message translates to:
+  /// **'Items Sold'**
+  String get itemsSold;
+
+  /// No description provided for @totalSoldItems.
+  ///
+  /// In en, this message translates to:
+  /// **'Total sold items'**
+  String get totalSoldItems;
+
+  /// No description provided for @bestSeller.
+  ///
+  /// In en, this message translates to:
+  /// **'Best Seller'**
+  String get bestSeller;
+
+  /// No description provided for @quantitySold.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} sold'**
+  String quantitySold(String count);
+
+  /// No description provided for @monthlySales.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly Sales'**
+  String get monthlySales;
+
+  /// No description provided for @recentSales.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent Sales'**
+  String get recentSales;
+
+  /// No description provided for @noSalesFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No sales found.'**
+  String get noSalesFound;
+
+  /// No description provided for @monthJan.
+  ///
+  /// In en, this message translates to:
+  /// **'Jan'**
+  String get monthJan;
+
+  /// No description provided for @monthFeb.
+  ///
+  /// In en, this message translates to:
+  /// **'Feb'**
+  String get monthFeb;
+
+  /// No description provided for @monthMar.
+  ///
+  /// In en, this message translates to:
+  /// **'Mar'**
+  String get monthMar;
+
+  /// No description provided for @monthApr.
+  ///
+  /// In en, this message translates to:
+  /// **'Apr'**
+  String get monthApr;
+
+  /// No description provided for @monthMay.
+  ///
+  /// In en, this message translates to:
+  /// **'May'**
+  String get monthMay;
+
+  /// No description provided for @monthJun.
+  ///
+  /// In en, this message translates to:
+  /// **'Jun'**
+  String get monthJun;
+
+  /// No description provided for @monthJul.
+  ///
+  /// In en, this message translates to:
+  /// **'Jul'**
+  String get monthJul;
+
+  /// No description provided for @monthAug.
+  ///
+  /// In en, this message translates to:
+  /// **'Aug'**
+  String get monthAug;
+
+  /// No description provided for @monthSep.
+  ///
+  /// In en, this message translates to:
+  /// **'Sep'**
+  String get monthSep;
+
+  /// No description provided for @monthOct.
+  ///
+  /// In en, this message translates to:
+  /// **'Oct'**
+  String get monthOct;
+
+  /// No description provided for @monthNov.
+  ///
+  /// In en, this message translates to:
+  /// **'Nov'**
+  String get monthNov;
+
+  /// No description provided for @monthDec.
+  ///
+  /// In en, this message translates to:
+  /// **'Dec'**
+  String get monthDec;
+
+  /// No description provided for @failedToLoadBoutiqueSales.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load boutique sales'**
+  String get failedToLoadBoutiqueSales;
+
+  /// No description provided for @noBoutiqueSalesFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No boutique sales found.'**
+  String get noBoutiqueSalesFound;
+
+  /// No description provided for @boutiqueSalesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Boutique Sales'**
+  String get boutiqueSalesTitle;
+
+  /// No description provided for @boutiquesWithSales.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} boutiques with sales'**
+  String boutiquesWithSales(String count);
+
+  /// No description provided for @orderCountLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} orders'**
+  String orderCountLabel(String count);
+
+  /// No description provided for @paymentSetupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment setup failed'**
+  String get paymentSetupFailed;
+
+  /// No description provided for @productNoLongerAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'{title} is no longer available'**
+  String productNoLongerAvailable(String title);
+
+  /// No description provided for @productNotEnoughStock.
+  ///
+  /// In en, this message translates to:
+  /// **'{title} does not have enough stock'**
+  String productNotEnoughStock(String title);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

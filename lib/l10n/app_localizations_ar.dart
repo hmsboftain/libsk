@@ -192,6 +192,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get continueWithGoogle => 'المتابعة مع Google';
 
   @override
+  String get continueWithApple => 'Continue with Apple';
+
+  @override
   String get forgotPassword => 'نسيت كلمة المرور؟';
 
   @override
@@ -623,6 +626,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get sameDayDelivery => 'توصيل في نفس اليوم';
 
   @override
+  String get madeToOrder => 'صنع عند الطلب';
+
+  @override
+  String get estimatedDays => 'Estimated ready in';
+
+  @override
+  String get businessDays => 'business days';
+
+  @override
   String get paymentMethod => 'طريقة الدفع';
 
   @override
@@ -831,6 +843,18 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String get sizeGuide => 'Size Guide';
+
+  @override
+  String get sizeGuideSubtitle => 'Upload a chart buyers can reference before selecting a size.';
+
+  @override
+  String get uploadSizeGuide => 'Upload size guide image';
+
+  @override
+  String get changeImage => 'Change image';
+
+  @override
   String get productDetails => 'تفاصيل المنتج';
 
   @override
@@ -861,9 +885,6 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get addAColour => 'أضف لوناً';
-
-  @override
-  String get madeToOrder => 'صنع عند الطلب';
 
   @override
   String get madeToOrderSubtitle => 'فعّل إذا كان المنتج يُصنع بعد الشراء';
@@ -1055,6 +1076,24 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get phone => 'الهاتف';
+
+  @override
+  String get addressLine1 => 'Address Line 1';
+
+  @override
+  String get addressLine2Optional => 'Address Line 2 (optional)';
+
+  @override
+  String get city => 'City';
+
+  @override
+  String get zipCode => 'Zip / Postal Code';
+
+  @override
+  String get countryRegion => 'Country / Region';
+
+  @override
+  String get selectCountry => 'Select Country';
 
   @override
   String get somethingWentWrongWhileLoadingAddresses => 'حدث خطأ أثناء تحميل العناوين';
@@ -1410,7 +1449,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get breakdown => 'تفصيل';
 
   @override
-  String get commissionsAndSubscriptions => 'العمولات والاشتراكات';
+  String get commissionsAndPromoSlots => 'العمولات وخانات الترويج';
 
   @override
   String get boutiqueManagement => 'إدارة المتاجر';
@@ -1419,7 +1458,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get boutiqueOnboarding => 'تسجيل متجر جديد';
 
   @override
-  String get boutiqueOnboardingSubtitle => 'تسجيل صاحب متجر جديد مع اختيار الباقة';
+  String get boutiqueOnboardingSubtitle => 'تسجيل صاحب متجر جديد';
 
   @override
   String get findUser => 'البحث عن مستخدم';
@@ -1446,9 +1485,6 @@ class AppLocalizationsAr extends AppLocalizations {
   String get ownerLabel => 'المالك';
 
   @override
-  String get tierLabel => 'الباقة';
-
-  @override
   String get ownerCanNowLogin => 'يمكن للمالك الآن تسجيل الدخول والوصول إلى لوحة المتجر الخاصة به.';
 
   @override
@@ -1460,18 +1496,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String get descriptionOptional => 'الوصف (اختياري)';
 
   @override
-  String get selectTier => 'اختر الباقة';
-
-  @override
   String get commission => 'عمولة';
 
   @override
   String get createBoutique => 'إنشاء متجر';
-
-  @override
-  String tierSummary(String commission, String products, String images) {
-    return '$commission عمولة · $products · $images';
-  }
 
   @override
   String get cropBanner => 'قص البانر';
@@ -1778,19 +1806,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String get revenueBreakdown => 'تفصيل الإيرادات';
 
   @override
-  String get revenueBreakdownDescription => 'العمولات والاشتراكات والمواقع الترويجية.';
+  String get revenueBreakdownDescription => 'العمولات والمواقع الترويجية.';
 
   @override
   String get commissions => 'العمولات';
 
   @override
   String get commissionsSubtitle => 'من الطلبات المكتملة';
-
-  @override
-  String get subscriptions => 'الاشتراكات';
-
-  @override
-  String get subscriptionsSubtitle => 'اشتراكات مستويات البوتيك';
 
   @override
   String get promoSlots => 'مواقع ترويجية';
@@ -2082,5 +2104,114 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String totalKwd(String amount) {
     return 'الإجمالي: $amount د.ك';
+  }
+
+  @override
+  String get noSalesData => 'لا توجد بيانات مبيعات';
+
+  @override
+  String get failedToLoadBoutiqueDetails => 'فشل تحميل تفاصيل البوتيك';
+
+  @override
+  String get boutiqueSalesOverview => 'نظرة عامة على مبيعات البوتيك';
+
+  @override
+  String get totalSalesTitle => 'إجمالي المبيعات';
+
+  @override
+  String get allBoutiqueSales => 'جميع مبيعات البوتيك';
+
+  @override
+  String get totalBoutiqueOrders => 'إجمالي طلبات البوتيك';
+
+  @override
+  String get itemsSold => 'المنتجات المباعة';
+
+  @override
+  String get totalSoldItems => 'إجمالي المنتجات المباعة';
+
+  @override
+  String get bestSeller => 'الأكثر مبيعاً';
+
+  @override
+  String quantitySold(String count) {
+    return '$count مباع';
+  }
+
+  @override
+  String get monthlySales => 'المبيعات الشهرية';
+
+  @override
+  String get recentSales => 'المبيعات الأخيرة';
+
+  @override
+  String get noSalesFound => 'لا توجد مبيعات.';
+
+  @override
+  String get monthJan => 'يناير';
+
+  @override
+  String get monthFeb => 'فبراير';
+
+  @override
+  String get monthMar => 'مارس';
+
+  @override
+  String get monthApr => 'أبريل';
+
+  @override
+  String get monthMay => 'مايو';
+
+  @override
+  String get monthJun => 'يونيو';
+
+  @override
+  String get monthJul => 'يوليو';
+
+  @override
+  String get monthAug => 'أغسطس';
+
+  @override
+  String get monthSep => 'سبتمبر';
+
+  @override
+  String get monthOct => 'أكتوبر';
+
+  @override
+  String get monthNov => 'نوفمبر';
+
+  @override
+  String get monthDec => 'ديسمبر';
+
+  @override
+  String get failedToLoadBoutiqueSales => 'فشل تحميل مبيعات البوتيكات';
+
+  @override
+  String get noBoutiqueSalesFound => 'لا توجد مبيعات للبوتيكات.';
+
+  @override
+  String get boutiqueSalesTitle => 'مبيعات البوتيكات';
+
+  @override
+  String boutiquesWithSales(String count) {
+    return '$count بوتيك بمبيعات';
+  }
+
+  @override
+  String orderCountLabel(String count) {
+    return '$count طلبات';
+  }
+
+  @override
+  String get paymentSetupFailed => 'فشل إعداد الدفع';
+
+  @override
+  String productNoLongerAvailable(String title) {
+    return '$title لم يعد متوفراً';
+  }
+
+  @override
+  String productNotEnoughStock(String title) {
+    return 'المخزون غير كافٍ لـ $title';
   }
 }

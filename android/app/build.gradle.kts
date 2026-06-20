@@ -9,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.libsk"
+    namespace = "com.libsk.app"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 

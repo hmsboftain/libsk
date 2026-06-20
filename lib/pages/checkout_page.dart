@@ -4,23 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
+import '../services/currency_service.dart';
 import 'add_address_page.dart';
 import 'order_confirmation_page.dart';
 import '../widgets/cart_item.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
 
-class CheckoutPage extends StatefulWidget {
-  const CheckoutPage({super.key});
+// ── Branded snackbar ──────────────────────────────────────────────────────────
 
-  @override
-  State<CheckoutPage> createState() => _CheckoutPageState();
-}
-
-// Branded snackbar used for action failures on checkout — ink-on-cream so it
-// matches the rest of the design system rather than the default material dark
-// pill.
 SnackBar _brandedErrorSnackBar(String message) {
   return SnackBar(
     backgroundColor: AppColors.primaryText,
@@ -31,10 +25,33 @@ SnackBar _brandedErrorSnackBar(String message) {
   );
 }
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+class CheckoutPage extends StatefulWidget {
+  const CheckoutPage({super.key});
+
+  @override
+  State<CheckoutPage> createState() => _CheckoutPageState();
+}
+
 class _CheckoutPageState extends State<CheckoutPage> {
-  String deliveryMethod = "Same Day Delivery";
-  String paymentMethod = "Card";
-  double deliveryCost = 5;
+  // ── Delivery / payment ─────────────────────────────────────────────────────
+  String deliveryMethod = 'Regular Delivery';
+  String paymentMethod = 'Card';
+  double deliveryCost = 3;
+
+  // ── Made-to-order (auto-detected) ──────────────────────────────────────────
+  bool _hasMtoItems = false;
+  String _longestMtoTimeframe = '';
+
+  // ── Discount code ──────────────────────────────────────────────────────────
+  String? _discountCodeId;
+  double _discountAmount = 0;
+  String? _appliedCode;
+  bool _isValidatingCode = false;
+  final _codeController = TextEditingController();
+
+  // ── Loading ────────────────────────────────────────────────────────────────
   bool isPlacingOrder = false;
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _cartStream;
@@ -45,21 +62,148 @@ class _CheckoutPageState extends State<CheckoutPage> {
     super.initState();
     _cartStream = FirestoreService.getCartItemsStream();
     _addressesStream = FirestoreService.getSavedAddressesStream();
+
+    final isKuwait = CurrencyService.instance.selectedCountryCode == 'KW';
+    deliveryMethod = isKuwait ? 'Same Day Delivery' : 'Regular Delivery';
+    deliveryCost = isKuwait ? 5 : 3;
   }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  // ── Currency helper ────────────────────────────────────────────────────────
+
+  String _fmt(double kwd) {
+    final service = CurrencyService.instance;
+    final country = countryByCode(service.selectedCountryCode);
+    return service.format(kwd, country.currencySymbol, country.currency);
+  }
+
+  // ── Auto-detect MTO from cart items ────────────────────────────────────────
+  // Called on every rebuild. Reads product docs to get the longest timeframe.
+
+  void _autoDetectMto(List<CartItem> cartItems) {
+    final hasMto = cartItems.any((i) => i.madeToOrder);
+
+    if (hasMto != _hasMtoItems) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _hasMtoItems = hasMto;
+          if (hasMto) {
+            // Force delivery method to MTO, free delivery
+            deliveryMethod = 'Made to Order';
+            deliveryCost = 0;
+          } else if (deliveryMethod == 'Made to Order') {
+            // MTO items removed — reset to default
+            final isKuwait =
+                CurrencyService.instance.selectedCountryCode == 'KW';
+            deliveryMethod = isKuwait
+                ? 'Same Day Delivery'
+                : 'Regular Delivery';
+            deliveryCost = isKuwait ? 5 : 3;
+          }
+        });
+
+        // Fetch longest timeframe from products
+        if (hasMto) _fetchLongestTimeframe(cartItems);
+      });
+    }
+  }
+
+  Future<void> _fetchLongestTimeframe(List<CartItem> cartItems) async {
+    String longest = '';
+    for (final item in cartItems) {
+      if (!item.madeToOrder) continue;
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('boutiques')
+            .doc(item.boutiqueId)
+            .collection('products')
+            .doc(item.productId)
+            .get();
+        final tf = doc.data()?['deliveryTimeframe']?.toString().trim() ?? '';
+        if (tf.isNotEmpty && tf.length > longest.length) longest = tf;
+      } catch (_) {}
+    }
+    if (mounted && longest != _longestMtoTimeframe) {
+      setState(() => _longestMtoTimeframe = longest);
+    }
+  }
+
+  // ── Discount code ──────────────────────────────────────────────────────────
+
+  Future<void> _applyDiscountCode(double subtotal) async {
+    final code = _codeController.text.trim();
+    if (code.isEmpty) return;
+
+    setState(() => _isValidatingCode = true);
+    try {
+      final data = await FirestoreService.validateDiscountCode(
+        code: code,
+        subtotal: subtotal,
+      );
+      setState(() {
+        _discountCodeId = data['codeId']?.toString();
+        _discountAmount = (data['discountAmount'] as num?)?.toDouble() ?? 0;
+        _appliedCode = data['code']?.toString();
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${_appliedCode ?? code} — ${_fmt(_discountAmount)} off',
+          ),
+        ),
+      );
+    } on FirebaseFunctionsException catch (e) {
+      setState(() {
+        _discountCodeId = null;
+        _discountAmount = 0;
+        _appliedCode = null;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        _brandedErrorSnackBar(
+          e.message ?? AppLocalizations.of(context)!.somethingWentWrong,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isValidatingCode = false);
+    }
+  }
+
+  void _removeDiscountCode() {
+    setState(() {
+      _discountCodeId = null;
+      _discountAmount = 0;
+      _appliedCode = null;
+      _codeController.clear();
+    });
+  }
+
+  // ── Payment ────────────────────────────────────────────────────────────────
 
   Future<Map<String, String>> _createPaymentIntent({
     required List<CartItem> cartItems,
     required double deliveryCost,
   }) async {
-    final items = cartItems.map((item) {
-      return {
-        'productId': item.productId,
-        'boutiqueId': item.boutiqueId,
-        'title': item.title,
-        'price': item.price,
-        'quantity': item.quantity,
-      };
-    }).toList();
+    final l10n = AppLocalizations.of(context)!;
+
+    final items = cartItems
+        .map(
+          (item) => {
+            'productId': item.productId,
+            'boutiqueId': item.boutiqueId,
+            'title': item.title,
+            'price': item.price,
+            'quantity': item.quantity,
+          },
+        )
+        .toList();
 
     final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
     final callable = functions.httpsCallable('createPaymentIntent');
@@ -67,7 +211,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final result = await callable.call({
       'items': items,
       'deliveryCost': deliveryCost,
-      'currency': 'kwd',
+      'currency': 'usd',
     });
 
     final data = Map<String, dynamic>.from(result.data as Map);
@@ -75,7 +219,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final paymentIntentId = data['paymentIntentId']?.toString();
 
     if (clientSecret == null || clientSecret.isEmpty) {
-      throw Exception('Missing client secret');
+      throw Exception(l10n.paymentSetupFailed);
     }
 
     return {
@@ -104,9 +248,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
 
     await Stripe.instance.presentPaymentSheet();
-
     return paymentIntentId;
   }
+
+  // ── Place order ────────────────────────────────────────────────────────────
 
   Future<void> _placeOrder({
     required List<CartItem> cartItems,
@@ -121,7 +266,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
       messenger.showSnackBar(SnackBar(content: Text(loc.yourCartIsEmpty)));
       return;
     }
-
     if (!hasAddress) {
       messenger.showSnackBar(
         SnackBar(content: Text(loc.pleaseAddADeliveryAddress)),
@@ -147,22 +291,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
             .get();
 
         if (!productDoc.exists) {
-          throw Exception('${item.title} is no longer available');
+          throw Exception(loc.productNoLongerAvailable(item.title));
         }
 
-        final productData = productDoc.data();
-        final stockValue = productData?['stock'] ?? 0;
-
+        final stockValue = productDoc.data()?['stock'] ?? 0;
         final int currentStock = stockValue is int
             ? stockValue
             : int.tryParse(stockValue.toString()) ?? 0;
 
         if (currentStock < item.quantity) {
-          throw Exception('${item.title} does not have enough stock');
+          throw Exception(loc.productNotEnoughStock(item.title));
         }
       }
 
-      final checkedTotal = checkedSubtotal + deliveryCost;
+      final finalDiscount = _discountAmount > checkedSubtotal
+          ? 0.0
+          : _discountAmount;
+      final checkedTotal = checkedSubtotal + deliveryCost - finalDiscount;
 
       final paymentIntentId = await _startStripeCheckout(
         cartItems: cartItems,
@@ -181,9 +326,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'quantity': item.quantity,
         };
         final color = item.color.trim();
-        if (color.isNotEmpty) {
-          map['color'] = color;
-        }
+        if (color.isNotEmpty) map['color'] = color;
         return map;
       }).toList();
 
@@ -194,6 +337,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
         deliveryMethod: deliveryMethod,
         paymentMethod: paymentMethod,
         paymentIntentId: paymentIntentId,
+        discountCodeId: finalDiscount > 0 ? _discountCodeId : null,
+        discountAmount: finalDiscount > 0 ? finalDiscount : null,
+        // Pass null — the server already has the product's timeframe
+        estimatedDays: null,
       );
 
       for (final item in cartItems) {
@@ -201,7 +348,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
       }
 
       if (!mounted) return;
-
       navigator.push(
         MaterialPageRoute(
           builder: (context) => OrderConfirmationPage(orderNumber: orderNumber),
@@ -209,31 +355,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
       );
     } on StripeException catch (e) {
       if (!mounted) return;
-
       messenger.showSnackBar(
-        _brandedErrorSnackBar(e.error.localizedMessage ?? loc.paymentCancelled),
+        _brandedErrorSnackBar(
+          e.error.localizedMessage ??
+              AppLocalizations.of(context)!.paymentCancelled,
+        ),
       );
     } catch (e) {
-      debugPrint("PLACE ORDER ERROR: $e");
-
+      debugPrint('PLACE ORDER ERROR: $e');
       if (!mounted) return;
-
-      // Surface the actual Cloud Function / Firestore message when present so
-      // the user understands why placing the order failed (e.g. rate limit,
-      // stock unavailable). Fall back to a generic line otherwise.
       final raw = e is FirebaseFunctionsException
           ? (e.message ?? e.code)
           : e is Exception
           ? e.toString().replaceFirst('Exception: ', '')
-          : 'Something went wrong. Please try again.';
-
+          : AppLocalizations.of(context)!.somethingWentWrong;
       messenger.showSnackBar(_brandedErrorSnackBar(raw));
     } finally {
-      if (mounted) {
-        setState(() => isPlacingOrder = false);
-      }
+      if (mounted) setState(() => isPlacingOrder = false);
     }
   }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -259,8 +401,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         user.displayName != null && user.displayName!.trim().isNotEmpty
         ? user.displayName!
         : AppLocalizations.of(context)!.user;
-
     final email = user.email ?? AppLocalizations.of(context)!.noEmail;
+    final isKuwait = CurrencyService.instance.selectedCountryCode == 'KW';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -276,11 +418,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 ),
               );
             }
-
             if (cartSnapshot.hasError) {
               return Center(
                 child: Text(
-                  "${AppLocalizations.of(context)!.couldNotLoadCart}: ${cartSnapshot.error}",
+                  '${AppLocalizations.of(context)!.couldNotLoadCart}: ${cartSnapshot.error}',
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppColors.secondaryText,
                   ),
@@ -290,17 +431,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
             }
 
             final cartDocs = cartSnapshot.data?.docs ?? [];
+            final cartItems = cartDocs
+                .map((doc) => CartItem.fromFirestore(doc.id, doc.data()))
+                .toList();
 
-            final cartItems = cartDocs.map((doc) {
-              return CartItem.fromFirestore(doc.id, doc.data());
-            }).toList();
+            // Auto-detect MTO — sets delivery method automatically
+            _autoDetectMto(cartItems);
 
             double subtotal = 0;
             for (final item in cartItems) {
               subtotal += item.price * item.quantity;
             }
-
-            final double total = subtotal + deliveryCost;
+            final double total = subtotal + deliveryCost - _discountAmount;
 
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _addressesStream,
@@ -330,6 +472,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               thickness: 0.5,
                             ),
                             const SizedBox(height: 18),
+
+                            // ── Account details ──────────────────────
                             Text(
                               AppLocalizations.of(context)!.accountDetails,
                               style: AppTextStyles.capsLabel.copyWith(
@@ -365,6 +509,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               ),
                             ),
                             const SizedBox(height: 28),
+
+                            // ── Delivery address ─────────────────────
                             Text(
                               AppLocalizations.of(context)!.deliveryAddress,
                               style: AppTextStyles.capsLabel.copyWith(
@@ -387,7 +533,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 16),
                                 child: Text(
-                                  "${AppLocalizations.of(context)!.couldNotLoadSavedAddresses}: ${addressSnapshot.error}",
+                                  '${AppLocalizations.of(context)!.couldNotLoadSavedAddresses}: ${addressSnapshot.error}',
                                   style: AppTextStyles.bodySmall,
                                 ),
                               )
@@ -395,13 +541,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               Column(
                                 children: [
                                   if (hasAddress) ...[
-                                    addressInfo(addressDocs.first.data()),
+                                    _addressInfo(addressDocs.first.data()),
                                     const SizedBox(height: 16),
                                   ],
-                                  addressButton(hasAddress: hasAddress),
+                                  _addressButton(hasAddress: hasAddress),
                                 ],
                               ),
                             const SizedBox(height: 28),
+
+                            // ── Delivery method ──────────────────────
                             Text(
                               AppLocalizations.of(context)!.deliveryMethod,
                               style: AppTextStyles.capsLabel.copyWith(
@@ -409,53 +557,123 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               ),
                             ),
                             const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.field,
-                                border: Border.all(
-                                  color: AppColors.border,
-                                  width: 0.5,
+
+                            // If cart has MTO items — show banner, no dropdown
+                            if (_hasMtoItems) ...[
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 16,
                                 ),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: deliveryMethod,
-                                  isExpanded: true,
-                                  dropdownColor: AppColors.field,
-                                  items: [
-                                    DropdownMenuItem(
-                                      value: "Regular Delivery",
-                                      child: Text(
-                                        AppLocalizations.of(
-                                          context,
-                                        )!.regularDelivery,
+                                decoration: BoxDecoration(
+                                  color: AppColors.field,
+                                  border: Border.all(
+                                    color: AppColors.border,
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: Icon(
+                                        Icons.access_time_rounded,
+                                        size: 20,
+                                        color: AppColors.deepAccent,
                                       ),
                                     ),
-                                    DropdownMenuItem(
-                                      value: "Same Day Delivery",
-                                      child: Text(
-                                        AppLocalizations.of(
-                                          context,
-                                        )!.sameDayDelivery,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            AppLocalizations.of(
+                                              context,
+                                            )!.madeToOrder,
+                                            style: AppTextStyles.labelLarge
+                                                .copyWith(
+                                                  color: AppColors.deepAccent,
+                                                ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            _longestMtoTimeframe.isNotEmpty
+                                                ? _longestMtoTimeframe
+                                                : AppLocalizations.of(
+                                                    context,
+                                                  )!.madeToOrderSubtitle,
+                                            style: AppTextStyles.bodySmall
+                                                .copyWith(
+                                                  color:
+                                                      AppColors.secondaryText,
+                                                ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() {
-                                        deliveryMethod = value;
-                                        deliveryCost =
-                                            value == "Regular Delivery" ? 3 : 5;
-                                      });
-                                    }
-                                  },
                                 ),
                               ),
-                            ),
+                            ] else ...[
+                              // Normal dropdown for regular items
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.field,
+                                  border: Border.all(
+                                    color: AppColors.border,
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: deliveryMethod,
+                                    isExpanded: true,
+                                    dropdownColor: AppColors.field,
+                                    items: [
+                                      DropdownMenuItem(
+                                        value: 'Regular Delivery',
+                                        child: Text(
+                                          AppLocalizations.of(
+                                            context,
+                                          )!.regularDelivery,
+                                        ),
+                                      ),
+                                      if (isKuwait)
+                                        DropdownMenuItem(
+                                          value: 'Same Day Delivery',
+                                          child: Text(
+                                            AppLocalizations.of(
+                                              context,
+                                            )!.sameDayDelivery,
+                                          ),
+                                        ),
+                                    ],
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        setState(() {
+                                          deliveryMethod = value;
+                                          deliveryCost =
+                                              value == 'Same Day Delivery'
+                                              ? 5
+                                              : 3;
+                                        });
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
+
                             const SizedBox(height: 28),
+
+                            // ── Payment method ───────────────────────
                             Text(
                               AppLocalizations.of(context)!.paymentMethod,
                               style: AppTextStyles.capsLabel.copyWith(
@@ -481,7 +699,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   dropdownColor: AppColors.field,
                                   items: [
                                     DropdownMenuItem(
-                                      value: "Card",
+                                      value: 'Card',
                                       child: Text(
                                         AppLocalizations.of(context)!.card,
                                       ),
@@ -489,38 +707,149 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   ],
                                   onChanged: (value) {
                                     if (value != null) {
-                                      setState(() {
-                                        paymentMethod = value;
-                                      });
+                                      setState(() => paymentMethod = value);
                                     }
                                   },
                                 ),
                               ),
                             ),
+                            const SizedBox(height: 28),
+
+                            // ── Discount code ────────────────────────
+                            Text(
+                              'Discount Code',
+                              style: AppTextStyles.capsLabel.copyWith(
+                                color: AppColors.secondaryText,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _codeController,
+                                    textCapitalization:
+                                        TextCapitalization.characters,
+                                    enabled: _appliedCode == null,
+                                    decoration: InputDecoration(
+                                      hintText: 'Enter code',
+                                      filled: true,
+                                      fillColor: AppColors.field,
+                                      border: const OutlineInputBorder(
+                                        borderRadius: BorderRadius.zero,
+                                        borderSide: BorderSide(
+                                          color: AppColors.border,
+                                          width: 0.5,
+                                        ),
+                                      ),
+                                      enabledBorder: const OutlineInputBorder(
+                                        borderRadius: BorderRadius.zero,
+                                        borderSide: BorderSide(
+                                          color: AppColors.border,
+                                          width: 0.5,
+                                        ),
+                                      ),
+                                      focusedBorder: const OutlineInputBorder(
+                                        borderRadius: BorderRadius.zero,
+                                        borderSide: BorderSide(
+                                          color: AppColors.deepAccent,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      suffixIcon: _appliedCode != null
+                                          ? IconButton(
+                                              icon: const Icon(
+                                                Icons.close,
+                                                size: 18,
+                                              ),
+                                              onPressed: _removeDiscountCode,
+                                            )
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                SizedBox(
+                                  height: 56,
+                                  child: ElevatedButton(
+                                    onPressed:
+                                        (_isValidatingCode ||
+                                            _appliedCode != null)
+                                        ? null
+                                        : () => _applyDiscountCode(subtotal),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.deepAccent,
+                                      foregroundColor: Colors.white,
+                                      disabledBackgroundColor:
+                                          AppColors.softAccent,
+                                      shape: const RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.zero,
+                                      ),
+                                    ),
+                                    child: _isValidatingCode
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 1.5,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : Text(
+                                            _appliedCode != null
+                                                ? 'Applied'
+                                                : 'Apply',
+                                            style: AppTextStyles.button,
+                                          ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_appliedCode != null) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                '$_appliedCode — ${_fmt(_discountAmount)} off',
+                                style: AppTextStyles.labelSmall.copyWith(
+                                  color: AppColors.deepAccent,
+                                ),
+                              ),
+                            ],
+
                             const SizedBox(height: 40),
                             const Divider(
                               color: AppColors.border,
                               thickness: 0.5,
                             ),
                             const SizedBox(height: 20),
-                            buildTotalRow(
+
+                            // ── Totals ───────────────────────────────
+                            _buildTotalRow(
                               AppLocalizations.of(context)!.subtotal,
-                              "${subtotal.toStringAsFixed(0)} KWD",
+                              _fmt(subtotal),
                             ),
                             const SizedBox(height: 8),
-                            buildTotalRow(
+                            _buildTotalRow(
                               AppLocalizations.of(context)!.delivery,
-                              "${deliveryCost.toStringAsFixed(0)} KWD",
+                              _hasMtoItems
+                                  ? AppLocalizations.of(context)!.madeToOrder
+                                  : _fmt(deliveryCost),
                             ),
+                            if (_discountAmount > 0) ...[
+                              const SizedBox(height: 8),
+                              _buildTotalRow(
+                                'Discount',
+                                '- ${_fmt(_discountAmount)}',
+                              ),
+                            ],
                             const SizedBox(height: 12),
                             const Divider(
                               color: AppColors.border,
                               thickness: 0.5,
                             ),
                             const SizedBox(height: 12),
-                            buildTotalRow(
+                            _buildTotalRow(
                               AppLocalizations.of(context)!.total,
-                              "${total.toStringAsFixed(0)} KWD",
+                              _fmt(total),
                               bold: true,
                             ),
                             const SizedBox(height: 30),
@@ -528,19 +857,19 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         ),
                       ),
                     ),
+
+                    // ── Place order button ───────────────────────────
                     SizedBox(
                       width: double.infinity,
                       height: 70,
                       child: ElevatedButton.icon(
                         onPressed: isPlacingOrder
                             ? null
-                            : () {
-                                _placeOrder(
-                                  cartItems: cartItems,
-                                  total: total,
-                                  hasAddress: hasAddress,
-                                );
-                              },
+                            : () => _placeOrder(
+                                cartItems: cartItems,
+                                total: total,
+                                hasAddress: hasAddress,
+                              ),
                         icon: isPlacingOrder
                             ? const SizedBox(
                                 width: 24,
@@ -578,14 +907,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  Widget addressButton({required bool hasAddress}) {
+  // ── Widget helpers ─────────────────────────────────────────────────────────
+
+  Widget _addressButton({required bool hasAddress}) {
     return GestureDetector(
       onTap: () async {
         await Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const AddAddressPage()),
         );
-
         if (mounted) setState(() {});
       },
       child: Container(
@@ -611,31 +941,72 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  Widget addressInfo(Map<String, dynamic> address) {
+  Widget _addressInfo(Map<String, dynamic> address) {
+    final type = address['type']?.toString() ?? 'kuwait';
+
+    if (type == 'international') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${address["firstName"]} ${address["lastName"]}',
+            style: AppTextStyles.bodyLarge.copyWith(
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          if ((address['addressLine1']?.toString() ?? '').isNotEmpty)
+            Text(
+              address['addressLine1'].toString(),
+              style: AppTextStyles.bodyMedium,
+            ),
+          if ((address['addressLine2']?.toString() ?? '').isNotEmpty)
+            Text(
+              address['addressLine2'].toString(),
+              style: AppTextStyles.bodyMedium,
+            ),
+          Text(
+            [
+              address['city']?.toString() ?? '',
+              address['zipCode']?.toString() ?? '',
+            ].where((s) => s.isNotEmpty).join(', '),
+            style: AppTextStyles.bodyMedium,
+          ),
+          Text(
+            address['phone']?.toString() ?? '',
+            style: AppTextStyles.bodyMedium,
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "${address["firstName"]} ${address["lastName"]}",
+          '${address["firstName"]} ${address["lastName"]}',
           style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 4),
         Text(
-          "${AppLocalizations.of(context)!.block} ${address["block"]} "
-          "${AppLocalizations.of(context)!.street} ${address["street"]} "
-          "${AppLocalizations.of(context)!.house} ${address["house"]}",
+          '${AppLocalizations.of(context)!.block} ${address["block"]} '
+          '${AppLocalizations.of(context)!.street} ${address["street"]} '
+          '${AppLocalizations.of(context)!.house} ${address["house"]}',
           style: AppTextStyles.bodyMedium,
         ),
         Text(
-          "${address["area"]} ${address["governorate"]}",
+          '${address["area"]} ${address["governorate"]}',
           style: AppTextStyles.bodyMedium,
         ),
-        Text(address["phone"] ?? "", style: AppTextStyles.bodyMedium),
+        Text(
+          address['phone']?.toString() ?? '',
+          style: AppTextStyles.bodyMedium,
+        ),
       ],
     );
   }
 
-  Widget buildTotalRow(String title, String value, {bool bold = false}) {
+  Widget _buildTotalRow(String title, String value, {bool bold = false}) {
     return Row(
       children: [
         Text(

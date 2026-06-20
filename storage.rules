@@ -2,19 +2,62 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    match /product_images/{fileName} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    match /boutique_images/{fileName} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    // create/update only — request.resource is null on delete, so this is
+    // intentionally NOT used in delete rules (it would always throw → deny).
+    function isValidImage() {
+      return request.resource.size < 5 * 1024 * 1024 &&
+             request.resource.contentType.matches('image/.*');
     }
 
-    match /hero_banners/{fileName} {
+    function isAdmin() {
+      return isSignedIn() &&
+        firestore.exists(/databases/(default)/documents/admin_users/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/admin_users/$(request.auth.uid)).data.isApproved == true;
+    }
+
+    function ownsBoutique(boutiqueId) {
+      return isSignedIn() &&
+        firestore.exists(/databases/(default)/documents/boutique_owners/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/boutique_owners/$(request.auth.uid)).data.boutiqueId == boutiqueId &&
+        firestore.get(/databases/(default)/documents/boutique_owners/$(request.auth.uid)).data.isApproved == true;
+    }
+
+    function canManageBoutique(boutiqueId) {
+      return ownsBoutique(boutiqueId) || isAdmin();
+    }
+
+    match /product_images/{boutiqueId}/{imageId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow create, update: if isValidImage() && canManageBoutique(boutiqueId);
+      allow delete: if canManageBoutique(boutiqueId);
+    }
+
+    match /size_guides/{boutiqueId}/{imageId} {
+      allow read: if true;
+      allow create, update: if isValidImage() && canManageBoutique(boutiqueId);
+      allow delete: if canManageBoutique(boutiqueId);
+    }
+
+    match /boutique_logos/{boutiqueId}/{imageId} {
+      allow read: if true;
+      allow create, update: if isValidImage() && canManageBoutique(boutiqueId);
+      allow delete: if canManageBoutique(boutiqueId);
+    }
+
+    match /boutique_banners/{boutiqueId}/{imageId} {
+      allow read: if true;
+      allow create, update: if isValidImage() && canManageBoutique(boutiqueId);
+      allow delete: if canManageBoutique(boutiqueId);
+    }
+
+    match /hero_banners/{imageId} {
+      allow read: if true;
+      allow create, update: if isValidImage() && isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /{allPaths=**} {

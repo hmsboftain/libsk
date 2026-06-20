@@ -4,12 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
+import '../services/feed_service.dart';
 import '../widgets/error_state_widget.dart';
+import '../widgets/feed_card.dart';
 import '../widgets/rotating_hero_banner.dart';
 import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 import 'boutique_storefront_page.dart';
 import 'product_page.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -20,10 +30,19 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _firestore = FirebaseFirestore.instance;
+  final _scrollController = ScrollController();
+  final _feedService = FeedService();
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _boutiquesStream;
   late final Stream<QuerySnapshot<Map<String, dynamic>>>
   _featuredProductsStream;
+
+  // ── Feed state ──────────────────────────────────────────────────────────
+  final List<FeedEntry> _feed = [];
+  bool _feedLoading = true;
+  bool _feedLoadingMore = false;
+  bool _feedHasMore = true;
+  DocumentSnapshot<Map<String, dynamic>>? _feedCursor;
 
   @override
   void initState() {
@@ -44,10 +63,89 @@ class _HomePageState extends State<HomePage> {
         .orderBy('featuredExpiresAt')
         .orderBy('featuredOrder')
         .snapshots();
+
+    _scrollController.addListener(_onScroll);
+    _loadInitialFeed();
   }
 
-  // Streams are real-time; pull-to-refresh exists only as a UX affordance
-  Future<void> _onRefresh() async {}
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_feedLoadingMore || !_feedHasMore) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 500) {
+      _loadMoreFeed();
+    }
+  }
+
+  Future<void> _loadInitialFeed() async {
+    setState(() => _feedLoading = true);
+    try {
+      final sponsored = await _feedService.fetchSponsored();
+      final page = await _feedService.fetchMainPage();
+
+      // Top up a sparse followed feed with trending, de-duped by product id.
+      final ids = page.entries.map((e) => e.product.id).toSet();
+      var combined = page.entries;
+      if (page.entries.length < FeedService.pageSize) {
+        final trending = await _feedService.fetchTrending();
+        combined = [
+          ...page.entries,
+          ...trending.where((e) => !ids.contains(e.product.id)),
+        ];
+        ids.addAll(combined.map((e) => e.product.id));
+      }
+
+      final sponsoredDeduped = sponsored
+          .where((e) => !ids.contains(e.product.id))
+          .toList();
+      final interleaved = _feedService.interleave(combined, sponsoredDeduped);
+
+      if (!mounted) return;
+      setState(() {
+        _feed
+          ..clear()
+          ..addAll(interleaved);
+        _feedCursor = page.lastDoc;
+        _feedHasMore = page.hasMore;
+        _feedLoading = false;
+      });
+    } catch (e) {
+      debugPrint('FEED LOAD ERROR: $e');
+      if (!mounted) return;
+      setState(() => _feedLoading = false);
+    }
+  }
+
+  Future<void> _loadMoreFeed() async {
+    if (_feedLoadingMore || !_feedHasMore || _feedCursor == null) return;
+    setState(() => _feedLoadingMore = true);
+    try {
+      final page = await _feedService.fetchMainPage(startAfter: _feedCursor);
+      if (!mounted) return;
+      setState(() {
+        _feed.addAll(page.entries);
+        _feedCursor = page.lastDoc;
+        _feedHasMore = page.hasMore;
+        _feedLoadingMore = false;
+      });
+    } catch (e) {
+      debugPrint('FEED LOAD MORE ERROR: $e');
+      if (!mounted) return;
+      setState(() => _feedLoadingMore = false);
+    }
+  }
+
+  // Featured streams are real-time; refresh just rebuilds the feed.
+  Future<void> _onRefresh() async {
+    _feedService.clearCache();
+    await _loadInitialFeed();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +158,7 @@ class _HomePageState extends State<HomePage> {
           color: AppColors.deepAccent,
           onRefresh: _onRefresh,
           child: SingleChildScrollView(
+            controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,12 +274,66 @@ class _HomePageState extends State<HomePage> {
                   },
                 ),
 
+                const SizedBox(height: 36),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Divider(color: AppColors.border, thickness: 0.5),
+                ),
+                const SizedBox(height: 28),
+
+                // ── For You feed ─────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text('For You', style: AppTextStyles.headingLarge),
+                ),
+                const SizedBox(height: 16),
+                _buildFeedSection(),
+
                 const SizedBox(height: 40),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildFeedSection() {
+    if (_feedLoading) return const FeedSkeleton();
+
+    if (_feed.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Text(
+          'Follow boutiques to see their latest pieces here.',
+          style: AppTextStyles.bodySmall,
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        ..._feed.map(
+          (entry) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: FeedCard(
+              product: entry.product,
+              badge: entry.badge,
+              boutiqueLogoUrl: entry.boutiqueLogoUrl,
+            ),
+          ),
+        ),
+        if (_feedLoadingMore)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: CircularProgressIndicator(
+                color: AppColors.deepAccent,
+                strokeWidth: 1.5,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -297,7 +450,7 @@ class _FeaturedProductCard extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            'KWD ${product.price.toStringAsFixed(0)}',
+            _fmt(product.price),
             style: AppTextStyles.labelLarge.copyWith(fontSize: 16),
           ),
           const SizedBox(height: 8),

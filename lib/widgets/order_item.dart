@@ -2,6 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'cart_item.dart';
 import '../widgets/theme.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 class OrderItem {
   final String id;
@@ -145,10 +153,7 @@ class OrderItemWidget extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    safeDate,
-                    style: AppTextStyles.bodySmall,
-                  ),
+                  Text(safeDate, style: AppTextStyles.bodySmall),
                   const SizedBox(height: 6),
                   Text(
                     '$itemCount item${itemCount == 1 ? '' : 's'}',
@@ -156,7 +161,7 @@ class OrderItemWidget extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '${total.toStringAsFixed(0)} KWD',
+                    _fmt(total),
                     style: AppTextStyles.labelLarge,
                   ),
                 ],

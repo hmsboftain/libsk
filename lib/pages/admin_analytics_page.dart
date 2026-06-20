@@ -1,8 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
+import '../services/currency_service.dart';
 import '../widgets/theme.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
 
 enum AnalyticsFilter { allTime, today, thisWeek, thisMonth }
 
@@ -235,9 +243,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
 
                         _AnalyticsCard(
                           title: l10n.totalRevenue,
-                          value: l10n.amountKwd(
-                            totalRevenue.toStringAsFixed(0),
-                          ),
+                          value: _fmt(totalRevenue),
                           icon: Icons.trending_up_rounded,
                           subtitle: _filterLabel(_selectedFilter, l10n),
                         ),
@@ -251,9 +257,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
                         const SizedBox(height: 12),
                         _AnalyticsCard(
                           title: l10n.averageOrderValue,
-                          value: l10n.amountKwd(
-                            averageOrderValue.toStringAsFixed(1),
-                          ),
+                          value: _fmt(averageOrderValue),
                           icon: Icons.analytics_outlined,
                           subtitle: l10n.revenueDividedByOrderCount,
                         ),

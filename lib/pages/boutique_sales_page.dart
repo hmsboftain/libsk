@@ -1,66 +1,254 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import 'boutique_sales_details_page.dart';
 import '../widgets/theme.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+String? _getBoutiqueIdFromReference(
+  DocumentReference<Map<String, dynamic>> reference,
+) {
+  final pathSegments = reference.path.split('/');
+  final boutiqueIndex = pathSegments.indexOf('boutiques');
+
+  if (boutiqueIndex != -1 && boutiqueIndex + 1 < pathSegments.length) {
+    return pathSegments[boutiqueIndex + 1];
+  }
+
+  return null;
+}
+
+double _parseTotal(dynamic value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString()) ?? 0;
+}
+
+Future<Map<String, String>> _loadBoutiqueNames(
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> orderDocs,
+  AppLocalizations l10n,
+) async {
+  final firestore = FirebaseFirestore.instance;
+
+  final boutiqueIds = orderDocs
+      .map((doc) => _getBoutiqueIdFromReference(doc.reference))
+      .whereType<String>()
+      .toSet()
+      .toList();
+
+  final snapshots = await Future.wait(
+    boutiqueIds.map((boutiqueId) {
+      return firestore.collection('boutiques').doc(boutiqueId).get();
+    }),
+  );
+
+  final Map<String, String> names = {};
+
+  for (int i = 0; i < boutiqueIds.length; i++) {
+    final data = snapshots[i].data();
+    names[boutiqueIds[i]] = data?['name']?.toString() ?? l10n.boutique;
+  }
+
+  return names;
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class BoutiqueSalesPage extends StatelessWidget {
   const BoutiqueSalesPage({super.key});
 
-  String? _getBoutiqueIdFromReference(
-      DocumentReference<Map<String, dynamic>> reference,
-      ) {
-    final pathSegments = reference.path.split('/');
-    final boutiqueIndex = pathSegments.indexOf('boutiques');
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
 
-    if (boutiqueIndex != -1 && boutiqueIndex + 1 < pathSegments.length) {
-      return pathSegments[boutiqueIndex + 1];
-    }
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const AppHeader(showBackButton: true),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: FirestoreService.getAllBoutiqueOrdersStream(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.deepAccent,
+                      ),
+                    );
+                  }
 
-    return null;
-  }
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        l10n.failedToLoadBoutiqueSales,
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                    );
+                  }
 
-  double _parseTotal(dynamic value) {
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString()) ?? 0;
-  }
+                  final allOrderDocs = snapshot.data?.docs ?? [];
 
-  Future<Map<String, String>> _loadBoutiqueNames(
-      List<QueryDocumentSnapshot<Map<String, dynamic>>> orderDocs,
-      ) async {
-    final firestore = FirebaseFirestore.instance;
+                  final orderDocs = allOrderDocs.where((doc) {
+                    final boutiqueId = _getBoutiqueIdFromReference(
+                      doc.reference,
+                    );
+                    return boutiqueId != null;
+                  }).toList();
 
-    final boutiqueIds = orderDocs
-        .map((doc) => _getBoutiqueIdFromReference(doc.reference))
-        .whereType<String>()
-        .toSet()
-        .toList();
+                  if (orderDocs.isEmpty) {
+                    return Center(
+                      child: Text(
+                        l10n.noBoutiqueSalesFound,
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                    );
+                  }
 
-    final snapshots = await Future.wait(
-      boutiqueIds.map((boutiqueId) {
-        return firestore.collection('boutiques').doc(boutiqueId).get();
-      }),
+                  final Map<
+                    String,
+                    List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                  >
+                  groupedOrders = {};
+
+                  for (final doc in orderDocs) {
+                    final boutiqueId = _getBoutiqueIdFromReference(
+                      doc.reference,
+                    );
+                    if (boutiqueId == null) continue;
+
+                    groupedOrders.putIfAbsent(boutiqueId, () => []);
+                    groupedOrders[boutiqueId]!.add(doc);
+                  }
+
+                  return FutureBuilder<Map<String, String>>(
+                    future: _loadBoutiqueNames(orderDocs, l10n),
+                    builder: (context, namesSnapshot) {
+                      if (namesSnapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.deepAccent,
+                          ),
+                        );
+                      }
+
+                      final boutiqueNames = namesSnapshot.data ?? {};
+                      final boutiqueIds = groupedOrders.keys.toList();
+
+                      boutiqueIds.sort((a, b) {
+                        final nameA = boutiqueNames[a] ?? a;
+                        final nameB = boutiqueNames[b] ?? b;
+                        return nameA.toLowerCase().compareTo(
+                          nameB.toLowerCase(),
+                        );
+                      });
+
+                      double maxSales = 0;
+
+                      for (final boutiqueId in boutiqueIds) {
+                        final docs = groupedOrders[boutiqueId]!;
+                        double totalSales = 0;
+
+                        for (final doc in docs) {
+                          totalSales += _parseTotal(doc.data()['total']);
+                        }
+
+                        if (totalSales > maxSales) {
+                          maxSales = totalSales;
+                        }
+                      }
+
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.boutiqueSalesTitle,
+                              style: AppTextStyles.displayMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              l10n.boutiquesWithSales(
+                                boutiqueIds.length.toString(),
+                              ),
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                color: AppColors.secondaryText,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            ...boutiqueIds.map((boutiqueId) {
+                              final docs = groupedOrders[boutiqueId]!;
+                              double totalSales = 0;
+
+                              for (final doc in docs) {
+                                totalSales += _parseTotal(doc.data()['total']);
+                              }
+
+                              final boutiqueName =
+                                  boutiqueNames[boutiqueId] ?? l10n.boutique;
+
+                              return _BoutiqueSalesCard(
+                                boutiqueId: boutiqueId,
+                                boutiqueName: boutiqueName,
+                                totalOrders: docs.length,
+                                totalSales: totalSales,
+                                maxSales: maxSales,
+                                l10n: l10n,
+                              );
+                            }),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
-
-    final Map<String, String> names = {};
-
-    for (int i = 0; i < boutiqueIds.length; i++) {
-      final data = snapshots[i].data();
-      names[boutiqueIds[i]] = data?['name']?.toString() ?? 'Boutique';
-    }
-
-    return names;
   }
+}
 
-  Widget buildBoutiqueCard({
-    required BuildContext context,
-    required String boutiqueId,
-    required String boutiqueName,
-    required int totalOrders,
-    required double totalSales,
-    required double maxSales,
-  }) {
+// ── Boutique sales card widget ────────────────────────────────────────────────
+
+class _BoutiqueSalesCard extends StatelessWidget {
+  final String boutiqueId;
+  final String boutiqueName;
+  final int totalOrders;
+  final double totalSales;
+  final double maxSales;
+  final AppLocalizations l10n;
+
+  const _BoutiqueSalesCard({
+    required this.boutiqueId,
+    required this.boutiqueName,
+    required this.totalOrders,
+    required this.totalSales,
+    required this.maxSales,
+    required this.l10n,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final initials = boutiqueName.trim().isNotEmpty
         ? boutiqueName.trim()[0].toUpperCase()
         : '?';
@@ -72,7 +260,7 @@ class BoutiqueSalesPage extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => BoutiqueSalesDetailsPage(
+            builder: (_) => BoutiqueSalesDetailsPage(
               boutiqueId: boutiqueId,
               boutiqueName: boutiqueName,
             ),
@@ -112,7 +300,7 @@ class BoutiqueSalesPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '$totalOrders orders',
+                    l10n.orderCountLabel(totalOrders.toString()),
                     style: AppTextStyles.bodySmall,
                   ),
                   const SizedBox(height: 8),
@@ -132,160 +320,8 @@ class BoutiqueSalesPage extends StatelessWidget {
             ),
             const SizedBox(width: 14),
             Text(
-              '${totalSales.toStringAsFixed(0)} KWD',
+              _fmt(totalSales),
               style: AppTextStyles.labelLarge,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            const AppHeader(showBackButton: true),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirestoreService.getAllBoutiqueOrdersStream(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.deepAccent,
-                      ),
-                    );
-                  }
-
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        'Failed to load boutique sales',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.secondaryText,
-                        ),
-                      ),
-                    );
-                  }
-
-                  final allOrderDocs = snapshot.data?.docs ?? [];
-
-                  final orderDocs = allOrderDocs.where((doc) {
-                    final boutiqueId =
-                    _getBoutiqueIdFromReference(doc.reference);
-                    return boutiqueId != null;
-                  }).toList();
-
-                  if (orderDocs.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'No boutique sales found.',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.secondaryText,
-                        ),
-                      ),
-                    );
-                  }
-
-                  final Map<String,
-                      List<QueryDocumentSnapshot<Map<String, dynamic>>>>
-                  groupedOrders = {};
-
-                  for (final doc in orderDocs) {
-                    final boutiqueId =
-                    _getBoutiqueIdFromReference(doc.reference);
-                    if (boutiqueId == null) continue;
-
-                    groupedOrders.putIfAbsent(boutiqueId, () => []);
-                    groupedOrders[boutiqueId]!.add(doc);
-                  }
-
-                  return FutureBuilder<Map<String, String>>(
-                    future: _loadBoutiqueNames(orderDocs),
-                    builder: (context, namesSnapshot) {
-                      if (namesSnapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.deepAccent,
-                          ),
-                        );
-                      }
-
-                      final boutiqueNames = namesSnapshot.data ?? {};
-                      final boutiqueIds = groupedOrders.keys.toList();
-
-                      boutiqueIds.sort((a, b) {
-                        final nameA = boutiqueNames[a] ?? a;
-                        final nameB = boutiqueNames[b] ?? b;
-                        return nameA
-                            .toLowerCase()
-                            .compareTo(nameB.toLowerCase());
-                      });
-
-                      double maxSales = 0;
-
-                      for (final boutiqueId in boutiqueIds) {
-                        final docs = groupedOrders[boutiqueId]!;
-                        double totalSales = 0;
-
-                        for (final doc in docs) {
-                          totalSales += _parseTotal(doc.data()['total']);
-                        }
-
-                        if (totalSales > maxSales) {
-                          maxSales = totalSales;
-                        }
-                      }
-
-                      return SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'BOUTIQUE SALES',
-                              style: AppTextStyles.displayMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${boutiqueIds.length} boutiques with sales',
-                              style: AppTextStyles.bodyMedium.copyWith(
-                                color: AppColors.secondaryText,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            ...boutiqueIds.map((boutiqueId) {
-                              final docs = groupedOrders[boutiqueId]!;
-                              double totalSales = 0;
-
-                              for (final doc in docs) {
-                                totalSales += _parseTotal(doc.data()['total']);
-                              }
-
-                              final boutiqueName =
-                                  boutiqueNames[boutiqueId] ?? 'Boutique';
-
-                              return buildBoutiqueCard(
-                                context: context,
-                                boutiqueId: boutiqueId,
-                                boutiqueName: boutiqueName,
-                                totalOrders: docs.length,
-                                totalSales: totalSales,
-                                maxSales: maxSales,
-                              );
-                            }),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
             ),
           ],
         ),
