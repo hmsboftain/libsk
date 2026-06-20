@@ -23,6 +23,14 @@ const db = admin.firestore();
 setGlobalOptions({maxInstances: 10});
 
 const {algoliasearch} = require("algoliasearch");
+const {
+  assertDiscountAppliesToItems,
+  assertKwdCurrency,
+  assertPaymentIntentMatches,
+  calculateDiscountAmount,
+  deliveryCostForMethod,
+  toKwdMinorUnits,
+} = require("./order_helpers");
 
 const PRODUCTS_INDEX = "products";
 const BOUTIQUES_INDEX = "boutiques";
@@ -187,8 +195,9 @@ exports.createPaymentIntent = onCall(async (request) => {
     }
 
     const items = data.items;
-    const deliveryCost = data.deliveryCost;
+    const deliveryMethod = data.deliveryMethod || "";
     const currency = data.currency;
+    const discountCodeId = data.discountCodeId || null;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       throw new HttpsError("invalid-argument", "Items must be a non-empty array.");
@@ -197,12 +206,18 @@ exports.createPaymentIntent = onCall(async (request) => {
       throw new HttpsError("invalid-argument", "Currency is required.");
     }
 
-    const allowedCurrencies = ["kwd", "usd", "gbp", "eur"];
-    if (!allowedCurrencies.includes(currency.toLowerCase())) {
+    try {
+      assertKwdCurrency(currency);
+    } catch (error) {
       throw new HttpsError("invalid-argument", "Unsupported currency.");
+    }
+    const allowedDeliveryMethods = ["Regular Delivery", "Same Day Delivery", "Made to Order"];
+    if (!allowedDeliveryMethods.includes(deliveryMethod)) {
+      throw new HttpsError("invalid-argument", "Invalid delivery method.");
     }
 
     let subtotal = 0;
+    const verifiedItems = [];
     for (const item of items) {
       const boutiqueId = String(item.boutiqueId || "");
       const productId  = String(item.productId  || "");
@@ -223,14 +238,49 @@ exports.createPaymentIntent = onCall(async (request) => {
       if (!productDoc.exists) {
         throw new HttpsError("not-found", `Product ${productId} not found.`);
       }
-
-      subtotal += (Number(productDoc.data().price) || 0) * quantity;
+      const productData = productDoc.data();
+      const serverPrice = Number(productData.price) || 0;
+      subtotal += serverPrice * quantity;
+      verifiedItems.push({boutiqueId, productId, price: serverPrice, quantity});
     }
 
-    const delivery = Number(deliveryCost) || 0;
-    const total = subtotal + delivery;
-    const multiplier = currency.toLowerCase() === "kwd" ? 1000 : 100;
-    const amount = Math.round(total * multiplier);
+    let discountAmount = 0;
+    if (discountCodeId) {
+      const codeSnap = await db.collection("discount_codes").doc(discountCodeId).get();
+      if (!codeSnap.exists) {
+        throw new HttpsError("not-found", "This discount code is no longer valid.");
+      }
+      const codeData = codeSnap.data();
+      if (codeData.isActive !== true) {
+        throw new HttpsError("failed-precondition", "This discount code is no longer active.");
+      }
+      if (codeData.expiresAt && codeData.expiresAt.toDate &&
+          codeData.expiresAt.toDate() < new Date()) {
+        throw new HttpsError("failed-precondition", "This discount code has expired.");
+      }
+      const usageLimit = codeData.usageLimit || null;
+      const usageCount = codeData.usageCount || 0;
+      if (usageLimit !== null && usageCount >= usageLimit) {
+        throw new HttpsError("failed-precondition", "This discount code has reached its usage limit.");
+      }
+      if (codeData.singleUse === true) {
+        const usedSnap = await db.collection("discount_codes").doc(discountCodeId)
+          .collection("used_by").doc(request.auth.uid).get();
+        if (usedSnap.exists) {
+          throw new HttpsError("failed-precondition", "You have already used this discount code.");
+        }
+      }
+      try {
+        assertDiscountAppliesToItems(codeData, verifiedItems);
+      } catch (error) {
+        throw new HttpsError("failed-precondition", error.message);
+      }
+      discountAmount = calculateDiscountAmount(codeData, subtotal);
+    }
+
+    const delivery = deliveryCostForMethod(deliveryMethod);
+    const total = subtotal + delivery - discountAmount;
+    const amount = toKwdMinorUnits(total);
 
     if (amount <= 0) {
       throw new HttpsError("invalid-argument", "Order total must be greater than zero.");
@@ -238,7 +288,11 @@ exports.createPaymentIntent = onCall(async (request) => {
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
-      currency: currency.toLowerCase(),
+      currency: "kwd",
+      metadata: {
+        uid: request.auth.uid,
+        discountCodeId: discountCodeId ? String(discountCodeId) : "",
+      },
     });
 
     return {
@@ -286,6 +340,7 @@ exports.processRefund = onCall(async (request) => {
 // ================= CREATE ORDER =================
 
 exports.createOrder = onCall(async (request) => {
+  const stripe = require("stripe")(stripeSecret.value());
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
@@ -320,7 +375,8 @@ exports.createOrder = onCall(async (request) => {
   if (!allowedPaymentMethods.includes(paymentMethod)) {
     throw new HttpsError("invalid-argument", "Invalid payment method.");
   }
-  if (typeof paymentIntentId !== "string" || paymentIntentId.length > 200) {
+  if (typeof paymentIntentId !== "string" || !paymentIntentId.trim() ||
+      paymentIntentId.length > 200) {
     throw new HttpsError("invalid-argument", "Invalid paymentIntentId.");
   }
 
@@ -367,6 +423,9 @@ exports.createOrder = onCall(async (request) => {
   let verifiedSubtotal = 0;
 
   await db.runTransaction(async (tx) => {
+    verifiedItems.length = 0;
+    verifiedSubtotal = 0;
+
     // Aggregate quantities per unique product first, so duplicate line items
     // (e.g. 4 + 4 of the same product against stock 5) can't each pass an
     // individual stock check and oversell.
@@ -480,19 +539,42 @@ exports.createOrder = onCall(async (request) => {
         }
       }
       const codeValue = Number(codeData.value) || 0;
-      if (codeData.type === "percentage") {
-        discountAmount = parseFloat(((verifiedSubtotal * codeValue) / 100).toFixed(3));
-      } else {
-        discountAmount = Math.min(codeValue, verifiedSubtotal);
+      try {
+        assertDiscountAppliesToItems(codeData, verifiedItems);
+      } catch (error) {
+        throw new HttpsError("failed-precondition", error.message);
       }
+      discountAmount = calculateDiscountAmount({...codeData, value: codeValue}, verifiedSubtotal);
     }
-    // Clamp incoming discountAmount to server-verified value
-    discountAmount = Math.max(0, Math.min(discountAmount, verifiedSubtotal));
 
-    const deliveryCost = deliveryMethod === "Same Day Delivery" ? 5
-      : deliveryMethod === "Made to Order" ? 0
-      : 3;
+    const deliveryCost = deliveryCostForMethod(deliveryMethod);
     const total = verifiedSubtotal + deliveryCost - discountAmount;
+    const expectedAmount = toKwdMinorUnits(total);
+    if (expectedAmount <= 0) {
+      throw new HttpsError("invalid-argument", "Order total must be greater than zero.");
+    }
+
+    const paymentIntentRef = db.collection("payment_intents").doc(paymentIntentId);
+    const paymentIntentSnap = await tx.get(paymentIntentRef);
+    if (paymentIntentSnap.exists) {
+      const lockedData = paymentIntentSnap.data();
+      if (lockedData.uid === uid && lockedData.orderNumber) {
+        throw new HttpsError("already-exists", "This payment has already been used for an order.");
+      }
+      throw new HttpsError("failed-precondition", "This payment has already been used.");
+    }
+
+    let paymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+        expand: ["latest_charge"],
+      });
+      assertPaymentIntentMatches(paymentIntent, {expectedAmount, uid});
+    } catch (error) {
+      logger.warn("Payment verification failed", {uid, paymentIntentId, error});
+      if (error instanceof HttpsError) throw error;
+      throw new HttpsError("failed-precondition", error.message || "Payment could not be verified.");
+    }
 
     const orderBase = {
       orderNumber,
@@ -515,6 +597,15 @@ exports.createOrder = onCall(async (request) => {
 
     tx.set(userOrderRef, orderBase);
     tx.set(globalOrderRef, { ...orderBase, sourceUserOrderId: userOrderRef.id });
+    tx.set(paymentIntentRef, {
+      uid,
+      orderId: userOrderRef.id,
+      orderNumber,
+      amount: expectedAmount,
+      currency: "kwd",
+      status: "consumed",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
     for (const [boutiqueId] of Object.entries(boutiqueMap)) {
       const bItems = verifiedItems.filter(i => i.boutiqueId === boutiqueId);
@@ -1367,10 +1458,48 @@ exports.initiatePromoSlotPayment = onCall(async (request) => {
   throw new HttpsError("unimplemented", "MyFatoorah API key not configured yet.");
 });
 
+async function verifyMyFatoorahInvoicePaid(invoiceId) {
+  const apiKey = myFatoorahApiKey.value();
+  if (!apiKey) {
+    throw new Error("MyFatoorah API key is not configured.");
+  }
+
+  const response = await fetch("https://api.myfatoorah.com/v2/getPaymentStatus", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      Key: String(invoiceId),
+      KeyType: "InvoiceId",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`MyFatoorah payment status failed: ${response.status}`);
+  }
+
+  const body = await response.json();
+  const invoiceStatus = String(body?.Data?.InvoiceStatus || "").toLowerCase();
+  return invoiceStatus === "paid";
+}
+
 exports.promoSlotPaymentWebhook = require("firebase-functions/v2/https").onRequest(async (req, res) => {
   try {
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
     const invoiceId = req.body?.InvoiceId || req.body?.invoiceId;
     if (!invoiceId) { res.status(400).send("Missing InvoiceId"); return; }
+
+    const isPaid = await verifyMyFatoorahInvoicePaid(invoiceId);
+    if (!isPaid) {
+      res.status(200).send("OK");
+      return;
+    }
 
     const snap = await db.collection("promo_slots")
       .where("myFatoorahInvoiceId", "==", String(invoiceId))
@@ -1393,7 +1522,7 @@ exports.promoSlotPaymentWebhook = require("firebase-functions/v2/https").onReque
     res.status(200).send("OK");
   } catch (err) {
     logger.error("Webhook error", err);
-    res.status(200).send("OK");
+    res.status(500).send("Webhook processing failed");
   }
 });
 
