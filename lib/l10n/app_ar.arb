@@ -791,5 +791,6 @@
   "followersCount": "{count, plural, one{متابع واحد} other{{count} متابع}}",
   "@followersCount": { "placeholders": { "count": { "type": "int" } } },
   "appliedToBoutiqueItemsOnly": "ينطبق على منتجات {boutique} فقط",
-  "@appliedToBoutiqueItemsOnly": { "placeholders": { "boutique": { "type": "String" } } }
+  "@appliedToBoutiqueItemsOnly": { "placeholders": { "boutique": { "type": "String" } } },
+  "someRevenueDataUnavailable": "تعذّر تحميل بعض بيانات الإيرادات."
 }

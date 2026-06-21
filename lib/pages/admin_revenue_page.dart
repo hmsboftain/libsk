@@ -94,6 +94,7 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
   double _promoSlotsTotal = 0;
   bool _isLoading = true;
   bool _hasError = false;
+  bool _partialError = false;
 
   double get _grandTotal => _commissionsTotal + _promoSlotsTotal;
 
@@ -103,42 +104,51 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
     _fetchRevenue();
   }
 
-  // Two reads fire in parallel via Future.wait, each filtered server-side
-  // by the selected period — no more full-collection reads on every chip tap
+  // Each read is filtered server-side by the selected period and guarded
+  // independently, so one failing collection (e.g. a permission or index issue)
+  // no longer blanks the whole page — surviving queries still render.
   Future<void> _fetchRevenue() async {
     setState(() {
       _isLoading = true;
       _hasError = false;
+      _partialError = false;
     });
 
+    double commissions = 0;
+    double promoSlots = 0;
+    bool anySuccess = false;
+    bool anyFailure = false;
+
     try {
-      final results = await Future.wait([
-        _revenueQuery('global_orders', _selectedPeriod).get(),
-        _revenueQuery('promo_slot_payments', _selectedPeriod).get(),
-      ]);
-
-      final commissions = _sumField(
-        results[0].docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>(),
-        'commissionAmount',
-      );
-      final promoSlots = _sumField(
-        results[1].docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>(),
-        'amount',
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _commissionsTotal = commissions;
-        _promoSlotsTotal = promoSlots;
-        _isLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _hasError = true;
-      });
+      final snap = await _revenueQuery('global_orders', _selectedPeriod).get();
+      commissions = _sumField(snap.docs, 'commissionAmount');
+      anySuccess = true;
+    } catch (e) {
+      anyFailure = true;
+      debugPrint('REVENUE global_orders query failed: $e');
     }
+
+    try {
+      final snap = await _revenueQuery(
+        'promo_slot_payments',
+        _selectedPeriod,
+      ).get();
+      promoSlots = _sumField(snap.docs, 'amount');
+      anySuccess = true;
+    } catch (e) {
+      anyFailure = true;
+      debugPrint('REVENUE promo_slot_payments query failed: $e');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _commissionsTotal = commissions;
+      _promoSlotsTotal = promoSlots;
+      _isLoading = false;
+      // Full-page error only when nothing loaded; otherwise show partial data.
+      _hasError = anyFailure && !anySuccess;
+      _partialError = anyFailure && anySuccess;
+    });
   }
 
   void _selectPeriod(_RevenuePeriod period) {
@@ -240,6 +250,37 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
                           type: ErrorType.network,
                         )
                       else ...[
+                        if (_partialError) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 14),
+                            decoration: BoxDecoration(
+                              color: AppColors.field,
+                              border: Border.all(
+                                color: AppColors.border,
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.info_outline,
+                                  size: 16,
+                                  color: AppColors.deepAccent,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    l10n.someRevenueDataUnavailable,
+                                    style: AppTextStyles.bodySmall,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
                         // ── Total card ──────────────────────────────
                         Container(
                           width: double.infinity,

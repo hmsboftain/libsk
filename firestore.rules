@@ -224,6 +224,13 @@ service cloud.firestore {
       allow delete: if isBoutiqueOwnerOf(resource.data.boutiqueId) || isAdmin();
     }
 
+    match /promo_slot_payments/{paymentId} {
+      // Admin-only analytics read. Written exclusively by Cloud Functions via
+      // the admin SDK (which bypasses rules), so all client writes are denied.
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /disputes/{disputeId} {
       allow read: if isSignedIn() &&
         (resource.data.customerUid == request.auth.uid || isAdmin());

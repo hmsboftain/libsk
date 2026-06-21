@@ -4522,6 +4522,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Applied to {boutique} items only'**
   String appliedToBoutiqueItemsOnly(String boutique);
+
+  /// No description provided for @someRevenueDataUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Some revenue data couldn\'t be loaded.'**
+  String get someRevenueDataUnavailable;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

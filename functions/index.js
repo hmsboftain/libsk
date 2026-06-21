@@ -405,6 +405,12 @@ exports.createOrder = onCall(async (request) => {
       const productData = productSnap.data();
       const stock       = Number(productData.stock) || 0;
 
+      // Reject items the boutique flagged out of stock, even if a stale client
+      // still has stock > 0 — mirrors the isSoldOut guard in the app UI.
+      if (productData.isOutOfStock === true) {
+        throw new HttpsError("failed-precondition",
+          `${productData.title || "Product"} is out of stock.`);
+      }
       if (stock < qty) {
         throw new HttpsError("failed-precondition",
           `${productData.title || "Product"} does not have enough stock.`);

@@ -60,7 +60,7 @@ class _FeedAddToCartSheetState extends State<FeedAddToCartSheet> {
     final l10n = AppLocalizations.of(context)!;
     final hasColors = _product.colors.isNotEmpty;
 
-    if (_product.stock <= 0) {
+    if (_product.isSoldOut) {
       _snack(l10n.thisProductIsOutOfStock);
       return;
     }

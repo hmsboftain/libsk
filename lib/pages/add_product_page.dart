@@ -9,6 +9,7 @@ import '../core/utils/validators.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../services/storage_service.dart';
+import '../widgets/chip_selector.dart';
 import '../widgets/theme.dart';
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -76,8 +77,6 @@ class _AddProductPageState extends State<AddProductPage> {
   final _salePriceController = TextEditingController();
   final colorInputController = TextEditingController();
   final deliveryTimeframeController = TextEditingController();
-  final sizeNameController = TextEditingController();
-  final sizeStockController = TextEditingController();
 
   bool _isLoading = false;
   bool _madeToOrder = false;
@@ -100,8 +99,6 @@ class _AddProductPageState extends State<AddProductPage> {
     _salePriceController.dispose();
     colorInputController.dispose();
     deliveryTimeframeController.dispose();
-    sizeNameController.dispose();
-    sizeStockController.dispose();
     super.dispose();
   }
 
@@ -183,37 +180,6 @@ class _AddProductPageState extends State<AddProductPage> {
           ? selectedCategories.remove(category)
           : selectedCategories.add(category);
     });
-  }
-
-  // ── Sizes ─────────────────────────────────────────────────────────────────
-
-  void _addSizeEntry() {
-    final l10n = AppLocalizations.of(context)!;
-    final name = sizeNameController.text.trim();
-    final stock = int.tryParse(sizeStockController.text.trim());
-
-    if (name.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.enterSizeName)));
-      return;
-    }
-    if (stock == null || stock < 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.enterValidStock)));
-      return;
-    }
-
-    setState(() {
-      sizeEntries.add({'name': name, 'stock': stock});
-      sizeNameController.clear();
-      sizeStockController.clear();
-    });
-  }
-
-  void _removeSizeEntry(int index) {
-    setState(() => sizeEntries.removeAt(index));
   }
 
   // ── Colours ───────────────────────────────────────────────────────────────
@@ -389,80 +355,11 @@ class _AddProductPageState extends State<AddProductPage> {
       children: [
         _buildLabel(l10n.categories),
         Text(l10n.selectAllThatApply, style: AppTextStyles.bodySmall),
-        const SizedBox(height: 10),
-        if (selectedCategories.isNotEmpty) ...[
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: selectedCategories.map((category) {
-              return InputChip(
-                label: Text(category, style: AppTextStyles.labelSmall),
-                deleteIconColor: AppColors.deepAccent,
-                onDeleted: () => _toggleCategory(category),
-                backgroundColor: AppColors.selectedSoft,
-                side: const BorderSide(color: AppColors.border, width: 0.5),
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.zero,
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 12),
-        ],
-        Container(
-          height: 220,
-          decoration: BoxDecoration(
-            color: AppColors.field,
-            border: Border.all(color: AppColors.border, width: 0.5),
-          ),
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: AppCategories.all.length,
-            separatorBuilder: (_, __) => const Divider(
-              height: 1,
-              thickness: 0.5,
-              color: AppColors.border,
-            ),
-            itemBuilder: (context, index) {
-              final category = AppCategories.all[index];
-              final isSelected = selectedCategories.contains(category);
-              return Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => _toggleCategory(category),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            category,
-                            style: AppTextStyles.bodyMedium.copyWith(
-                              fontWeight: isSelected
-                                  ? FontWeight.w500
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          isSelected
-                              ? Icons.check_box_outlined
-                              : Icons.check_box_outline_blank,
-                          size: 20,
-                          color: isSelected
-                              ? AppColors.deepAccent
-                              : AppColors.softAccent,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+        const SizedBox(height: 12),
+        ChipSelector(
+          options: AppCategories.all,
+          selected: selectedCategories,
+          onToggle: _toggleCategory,
         ),
       ],
     );
@@ -475,79 +372,11 @@ class _AddProductPageState extends State<AddProductPage> {
         _buildLabel(l10n.sizesAndStock),
         Text(l10n.addEachSizeWithStockCount, style: AppTextStyles.bodySmall),
         const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 2,
-              child: TextFormField(
-                controller: sizeNameController,
-                decoration: _inputDecoration(l10n.sizeHint),
-                textCapitalization: TextCapitalization.characters,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextFormField(
-                controller: sizeStockController,
-                keyboardType: TextInputType.number,
-                decoration: _inputDecoration(l10n.stock),
-              ),
-            ),
-          ],
+        SizeChipSelector(
+          initialEntries: sizeEntries,
+          stockLabel: l10n.stock,
+          onChanged: (entries) => sizeEntries = entries,
         ),
-        const SizedBox(height: 10),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton(
-            onPressed: _addSizeEntry,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.deepAccent,
-              side: const BorderSide(color: AppColors.deepAccent, width: 0.5),
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.zero,
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-            child: Text(l10n.addSize, style: AppTextStyles.labelLarge),
-          ),
-        ),
-        if (sizeEntries.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          ...sizeEntries.asMap().entries.map((entry) {
-            final index = entry.key;
-            final item = entry.value;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.field,
-                border: Border.all(color: AppColors.border, width: 0.5),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      l10n.sizeStockEntry(
-                        item['name'].toString(),
-                        item['stock'].toString(),
-                      ),
-                      style: AppTextStyles.bodyMedium,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => _removeSizeEntry(index),
-                    child: const Icon(
-                      Icons.close,
-                      size: 18,
-                      color: AppColors.deepAccent,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
       ],
     );
   }

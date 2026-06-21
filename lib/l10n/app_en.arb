@@ -788,5 +788,6 @@
   "followersCount": "{count, plural, one{1 follower} other{{count} followers}}",
   "@followersCount": { "placeholders": { "count": { "type": "int" } } },
   "appliedToBoutiqueItemsOnly": "Applied to {boutique} items only",
-  "@appliedToBoutiqueItemsOnly": { "placeholders": { "boutique": { "type": "String" } } }
+  "@appliedToBoutiqueItemsOnly": { "placeholders": { "boutique": { "type": "String" } } },
+  "someRevenueDataUnavailable": "Some revenue data couldn't be loaded."
 }

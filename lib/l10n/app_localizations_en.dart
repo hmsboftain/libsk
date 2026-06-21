@@ -2333,4 +2333,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String appliedToBoutiqueItemsOnly(String boutique) {
     return 'Applied to $boutique items only';
   }
+
+  @override
+  String get someRevenueDataUnavailable => 'Some revenue data couldn\'t be loaded.';
 }

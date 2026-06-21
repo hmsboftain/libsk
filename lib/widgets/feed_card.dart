@@ -87,6 +87,7 @@ class _FeedCardState extends State<FeedCard> {
   }
 
   Future<void> _openSheet() async {
+    if (_soldOut) return;
     final added = await FeedAddToCartSheet.show(context, product);
     if (added == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -302,16 +303,21 @@ class _FeedCardState extends State<FeedCard> {
                   child: SizedBox(
                     height: 46,
                     child: ElevatedButton(
-                      onPressed: _openSheet,
+                      onPressed: _soldOut ? null : _openSheet,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.deepAccent,
                         foregroundColor: Colors.white,
+                        disabledBackgroundColor: AppColors.softAccent,
+                        disabledForegroundColor: Colors.white,
                         elevation: 0,
                         shape: const RoundedRectangleBorder(
                           borderRadius: BorderRadius.zero,
                         ),
                       ),
-                      child: Text(l10n.addToCart, style: AppTextStyles.button),
+                      child: Text(
+                        _soldOut ? l10n.outOfStock : l10n.addToCart,
+                        style: AppTextStyles.button,
+                      ),
                     ),
                   ),
                 ),

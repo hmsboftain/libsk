@@ -2333,4 +2333,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String appliedToBoutiqueItemsOnly(String boutique) {
     return 'ينطبق على منتجات $boutique فقط';
   }
+
+  @override
+  String get someRevenueDataUnavailable => 'تعذّر تحميل بعض بيانات الإيرادات.';
 }
