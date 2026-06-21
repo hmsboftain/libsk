@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../navigation/app_header.dart';
 import 'boutique_storefront_page.dart';
 import '../widgets/theme.dart';
@@ -55,7 +56,7 @@ class BoutiqueOversightPage extends StatefulWidget {
 
 class _BoutiqueOversightPageState extends State<BoutiqueOversightPage> {
   // Pinned once — avoids re-firing 4 Firestore reads on every rebuild
-  late final Future<Map<String, dynamic>> _overviewFuture;
+  late Future<Map<String, dynamic>> _overviewFuture;
 
   @override
   void initState() {
@@ -126,13 +127,13 @@ class _BoutiqueOversightPageState extends State<BoutiqueOversightPage> {
                   }
 
                   if (snapshot.hasError || !snapshot.hasData) {
-                    return Center(
-                      child: Text(
-                        l10n.failedToLoadBoutiqueOverview,
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.secondaryText,
-                        ),
-                      ),
+                    return ErrorStateWidget.inline(
+                      title: l10n.failedToLoadBoutiqueOverview,
+                      message: l10n.pullDownToRetry,
+                      onRetry: () => setState(() {
+                        _overviewFuture = _loadBoutiqueOverview();
+                      }),
+                      type: ErrorType.network,
                     );
                   }
 

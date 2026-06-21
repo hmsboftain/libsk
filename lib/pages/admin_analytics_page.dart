@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
 import '../services/currency_service.dart';
@@ -197,11 +198,14 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
                   }
 
                   if (snapshot.hasError || !snapshot.hasData) {
-                    return Center(
-                      child: Text(
-                        l10n.failedToLoadAnalytics,
-                        style: AppTextStyles.bodyMedium,
-                      ),
+                    return ErrorStateWidget.inline(
+                      title: l10n.failedToLoadAnalytics,
+                      message: l10n.pullDownToRetry,
+                      onRetry: () => setState(() {
+                        _analyticsFuture =
+                            _buildOrdersQuery(_selectedFilter).get();
+                      }),
+                      type: ErrorType.network,
                     );
                   }
 

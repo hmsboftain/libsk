@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
+import '../widgets/error_state_widget.dart';
 import '../widgets/theme.dart';
 
 class AllUsersPage extends StatefulWidget {
@@ -206,8 +208,11 @@ class _AllUsersPageState extends State<AllUsersPage> {
     }
 
     if (_error) {
-      return const Center(
-        child: Text('Failed to load users', style: AppTextStyles.bodyMedium),
+      return ErrorStateWidget.inline(
+        title: AppLocalizations.of(context)!.failedToLoadUsers,
+        message: AppLocalizations.of(context)!.pullDownToRetry,
+        onRetry: _loadInitial,
+        type: ErrorType.network,
       );
     }
 

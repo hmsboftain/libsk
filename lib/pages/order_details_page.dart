@@ -159,24 +159,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                 TextField(
                   controller: _descController,
                   maxLines: 3,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: AppColors.field,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(
-                        color: AppColors.border,
-                        width: 0.5,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(
-                        color: AppColors.deepAccent,
-                        width: 1,
-                      ),
-                    ),
-                  ),
+                  decoration: const InputDecoration(),
                 ),
               ],
             ),

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
@@ -65,11 +66,11 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
                   }
 
                   if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        l10n.failedToLoadSavedBoutiques,
-                        style: AppTextStyles.bodySmall,
-                      ),
+                    return ErrorStateWidget.inline(
+                      title: l10n.failedToLoadSavedBoutiques,
+                      message: l10n.pullDownToRetry,
+                      onRetry: () => setState(() {}),
+                      type: ErrorType.network,
                     );
                   }
 

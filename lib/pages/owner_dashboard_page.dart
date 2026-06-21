@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
@@ -141,14 +142,13 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
       onRefresh: _onRefresh,
       child: ListView(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              message,
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.secondaryText,
-              ),
-              textAlign: TextAlign.center,
+          SizedBox(
+            height: 400,
+            child: ErrorStateWidget.inline(
+              title: message,
+              message: AppLocalizations.of(context)!.pullDownToRetry,
+              onRetry: _onRefresh,
+              type: ErrorType.network,
             ),
           ),
         ],

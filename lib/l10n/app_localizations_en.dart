@@ -599,6 +599,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get yourCartIsEmpty => 'Your cart is empty';
 
   @override
+  String get cartEmptySubtitle => 'Discover pieces from Kuwait\'s boutiques and start your bag.';
+
+  @override
+  String get browseBoutiques => 'Browse Boutiques';
+
+  @override
   String get itemRemovedFromCart => 'Item removed from cart';
 
   @override
@@ -681,6 +687,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get failedToLoadProducts => 'Failed to load products';
+
+  @override
+  String get failedToLoadUsers => 'Failed to load users';
 
   @override
   String get noMatchingProductsFound => 'No matching products found';
@@ -2217,4 +2226,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String productNotEnoughStock(String title) {
     return '$title does not have enough stock';
   }
+
+  @override
+  String get secureCheckout => 'Secure checkout';
+
+  @override
+  String get knet => 'KNET';
+
+  @override
+  String get markAsOutOfStock => 'Mark as Out of Stock';
+
+  @override
+  String get markAsOutOfStockSubtitle => 'Hide Add to Cart and show an out-of-stock label, regardless of stock count.';
+
+  @override
+  String get salePrice => 'Sale Price';
+
+  @override
+  String get salePriceHint => 'e.g. 20.000';
+
+  @override
+  String get saleBadge => 'SALE';
+
+  @override
+  String get salePriceMustBeLessThanPrice => 'Sale price must be less than the regular price';
 }

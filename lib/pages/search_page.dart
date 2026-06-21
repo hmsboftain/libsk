@@ -7,18 +7,11 @@ import 'package:http/http.dart' as http;
 import 'package:libsk/l10n/app_localizations.dart';
 
 import '../config/algolia_config.dart';
-import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
-import '../services/currency_service.dart';
+import '../widgets/product_badges.dart';
 import '../widgets/theme.dart';
 import 'boutique_storefront_page.dart';
 import 'product_page.dart';
-
-String _fmt(double kwd) {
-  final service = CurrencyService.instance;
-  final country = countryByCode(service.selectedCountryCode);
-  return service.format(kwd, country.currencySymbol, country.currency);
-}
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -333,6 +326,11 @@ class _SearchProductCard extends StatelessWidget {
     final int stock = stockVal is int
         ? stockVal
         : int.tryParse(stockVal.toString()) ?? 0;
+    final saleVal = hit['salePrice'];
+    final double? salePrice = saleVal is num
+        ? saleVal.toDouble()
+        : double.tryParse(saleVal?.toString() ?? '');
+    final soldOut = stock <= 0 || hit['isOutOfStock'] == true;
     final sizesData = hit['sizes'];
     final sizes = sizesData is List
         ? sizesData.map((e) => e.toString()).toList()
@@ -360,31 +358,40 @@ class _SearchProductCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.imagePlaceholder,
-                border: Border.all(color: AppColors.border, width: 0.5),
-              ),
-              child: displayImageUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: displayImageUrl,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => const Center(
-                        child: Icon(
-                          Icons.image_not_supported_outlined,
-                          size: 24,
-                          color: AppColors.softAccent,
+            child: Stack(
+              children: [
+                Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  decoration: BoxDecoration(
+                    color: AppColors.imagePlaceholder,
+                    border: Border.all(color: AppColors.border, width: 0.5),
+                  ),
+                  child: displayImageUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: displayImageUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => const Center(
+                            child: Icon(
+                              Icons.image_not_supported_outlined,
+                              size: 24,
+                              color: AppColors.softAccent,
+                            ),
+                          ),
+                        )
+                      : const Center(
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            size: 24,
+                            color: AppColors.softAccent,
+                          ),
                         ),
-                      ),
-                    )
-                  : const Center(
-                      child: Icon(
-                        Icons.image_not_supported_outlined,
-                        size: 24,
-                        color: AppColors.softAccent,
-                      ),
-                    ),
+                ),
+                if (soldOut)
+                  OutOfStockOverlay(
+                    label: AppLocalizations.of(context)!.outOfStock,
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: 8),
@@ -402,7 +409,11 @@ class _SearchProductCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 5),
-          Text(_fmt(price), style: AppTextStyles.labelLarge),
+          ProductPriceText(
+            price: price,
+            salePrice: salePrice,
+            saleBadgeLabel: AppLocalizations.of(context)!.saleBadge,
+          ),
           const SizedBox(height: 8),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
@@ -70,7 +71,7 @@ class SuperAdminDashboardPage extends StatefulWidget {
 }
 
 class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
-  late final Future<_DashboardData> _dashboardFuture;
+  late Future<_DashboardData> _dashboardFuture;
 
   @override
   void initState() {
@@ -119,11 +120,13 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                     );
                   }
                   if (snapshot.hasError || !snapshot.hasData) {
-                    return Center(
-                      child: Text(
-                        l10n.failedToLoadDashboard,
-                        style: AppTextStyles.bodyMedium,
-                      ),
+                    return ErrorStateWidget.inline(
+                      title: l10n.failedToLoadDashboard,
+                      message: l10n.pullDownToRetry,
+                      onRetry: () => setState(() {
+                        _dashboardFuture = _loadDashboard();
+                      }),
+                      type: ErrorType.network,
                     );
                   }
 

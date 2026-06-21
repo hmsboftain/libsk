@@ -3,22 +3,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 
-import '../core/constants/countries.dart';
 import '../models/product.dart';
 import '../pages/boutique_storefront_page.dart';
 import '../pages/product_page.dart';
-import '../services/currency_service.dart';
 import '../services/firestore_service.dart';
 import 'boutique_logo_avatar.dart';
 import 'feed_add_to_cart_sheet.dart';
 import 'follow_button.dart';
+import 'product_badges.dart';
 import 'theme.dart';
-
-String _fmt(double kwd) {
-  final service = CurrencyService.instance;
-  final country = countryByCode(service.selectedCountryCode);
-  return service.format(kwd, country.currencySymbol, country.currency);
-}
 
 /// Why a given product is appearing in the feed. Drives the header subtitle.
 enum FeedBadge { followed, hot, sponsored, recommended }
@@ -49,7 +42,7 @@ class _FeedCardState extends State<FeedCard> {
   int _currentImage = 0;
 
   Product get product => widget.product;
-  bool get _soldOut => product.stock <= 0;
+  bool get _soldOut => product.isSoldOut;
 
   /// All gallery images, falling back to the single primary image.
   List<String> get _images {
@@ -166,23 +159,9 @@ class _FeedCardState extends State<FeedCard> {
                 ),
         ),
 
-        // Sold-out badge
+        // Out-of-stock overlay
         if (_soldOut)
-          Positioned(
-            top: 10,
-            left: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.deepAccent.withValues(alpha: 0.9),
-                border: Border.all(color: AppColors.border, width: 0.5),
-              ),
-              child: Text(
-                AppLocalizations.of(context)!.soldOut,
-                style: AppTextStyles.labelSmall.copyWith(color: Colors.white),
-              ),
-            ),
-          ),
+          OutOfStockOverlay(label: AppLocalizations.of(context)!.outOfStock),
 
         // Image counter (e.g. 2/4) — only when multiple images
         if (images.length > 1)
@@ -304,9 +283,10 @@ class _FeedCardState extends State<FeedCard> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    _fmt(product.price),
-                    style: AppTextStyles.labelLarge,
+                  ProductPriceText(
+                    price: product.price,
+                    salePrice: product.salePrice,
+                    saleBadgeLabel: AppLocalizations.of(context)!.saleBadge,
                   ),
                 ],
               ),

@@ -19,18 +19,6 @@ InputDecoration _buildInputDecoration({
     hintText: hintText,
     filled: true,
     fillColor: isDisabled ? AppColors.disabledField : AppColors.field,
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(4),
-      borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(4),
-      borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(4),
-      borderSide: const BorderSide(color: AppColors.deepAccent, width: 1),
-    ),
   );
 }
 

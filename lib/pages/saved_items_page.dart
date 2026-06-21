@@ -2,18 +2,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
+import '../widgets/product_badges.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
 import 'product_page.dart';
-import '../core/constants/countries.dart';
-import '../services/currency_service.dart';
-
-String _fmt(double kwd) {
-  final service = CurrencyService.instance;
-  final country = countryByCode(service.selectedCountryCode);
-  return service.format(kwd, country.currencySymbol, country.currency);
-}
 
 enum SavedSortOption { newest, priceLow, priceHigh }
 
@@ -116,11 +110,11 @@ class _SavedItemsPageState extends State<SavedItemsPage> {
                   }
 
                   if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        l10n.failedToLoadSavedItems,
-                        style: AppTextStyles.bodySmall,
-                      ),
+                    return ErrorStateWidget.inline(
+                      title: l10n.failedToLoadSavedItems,
+                      message: l10n.pullDownToRetry,
+                      onRetry: () => setState(() {}),
+                      type: ErrorType.network,
                     );
                   }
 
@@ -274,10 +268,15 @@ class _SavedProductCard extends StatelessWidget {
     final boutiqueName = item['boutiqueName']?.toString() ?? '';
     final description = item['description']?.toString() ?? '';
     final itemPrice = _price(item);
+    final saleVal = item['salePrice'];
+    final double? salePrice = saleVal is num
+        ? saleVal.toDouble()
+        : double.tryParse(saleVal?.toString() ?? '');
     final stockValue = item['stock'] ?? 0;
     final stock = stockValue is int
         ? stockValue
         : int.tryParse(stockValue.toString()) ?? 0;
+    final soldOut = stock <= 0 || item['isOutOfStock'] == true;
     final sizesData = item['sizes'];
     final sizes = sizesData is List
         ? sizesData.map((s) => s.toString()).toList()
@@ -373,6 +372,8 @@ class _SavedProductCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (soldOut)
+                  OutOfStockOverlay(label: l10n.outOfStock),
               ],
             ),
           ),
@@ -391,7 +392,11 @@ class _SavedProductCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 5),
-          Text(_fmt(itemPrice), style: AppTextStyles.labelLarge),
+          ProductPriceText(
+            price: itemPrice,
+            salePrice: salePrice,
+            saleBadgeLabel: l10n.saleBadge,
+          ),
           const SizedBox(height: 8),
         ],
       ),

@@ -112,32 +112,7 @@ class _YourAccountPageState extends State<YourAccountPage> {
                 TextField(
                   controller: passwordController,
                   obscureText: true,
-                  decoration: InputDecoration(
-                    hintText: l10n.password,
-                    filled: true,
-                    fillColor: AppColors.field,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(
-                        color: AppColors.border,
-                        width: 0.5,
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(
-                        color: AppColors.border,
-                        width: 0.5,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(
-                        color: AppColors.deepAccent,
-                        width: 1,
-                      ),
-                    ),
-                  ),
+                  decoration: InputDecoration(hintText: l10n.password),
                 ),
               ],
             ),

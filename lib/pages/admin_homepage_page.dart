@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
@@ -172,9 +173,11 @@ class _AdminHomepagePageState extends State<AdminHomepagePage> {
                         }
 
                         if (snapshot.hasError) {
-                          return Text(
-                            l10n.failedToLoadBoutiques,
-                            style: AppTextStyles.bodyMedium,
+                          return ErrorStateWidget.inline(
+                            title: l10n.failedToLoadBoutiques,
+                            message: l10n.pullDownToRetry,
+                            onRetry: () => setState(() {}),
+                            type: ErrorType.network,
                           );
                         }
 
@@ -248,9 +251,11 @@ class _AdminHomepagePageState extends State<AdminHomepagePage> {
                         }
 
                         if (snapshot.hasError) {
-                          return Text(
-                            l10n.failedToLoadProducts,
-                            style: AppTextStyles.bodyMedium,
+                          return ErrorStateWidget.inline(
+                            title: l10n.failedToLoadProducts,
+                            message: l10n.pullDownToRetry,
+                            onRetry: () => setState(() {}),
+                            type: ErrorType.network,
                           );
                         }
 

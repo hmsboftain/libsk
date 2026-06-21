@@ -79,20 +79,6 @@ Widget _formField({
       prefixIcon: maxLines == 1
           ? Icon(icon, color: AppColors.deepAccent, size: 20)
           : null,
-      filled: true,
-      fillColor: AppColors.field,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: AppColors.deepAccent, width: 1),
-      ),
       contentPadding: EdgeInsets.symmetric(
         horizontal: 14,
         vertical: maxLines > 1 ? 14 : 0,

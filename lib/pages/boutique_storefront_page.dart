@@ -8,17 +8,10 @@ import '../services/follow_service.dart';
 import '../widgets/boutique_logo_avatar.dart';
 import '../widgets/error_state_widget.dart';
 import '../widgets/follow_button.dart';
+import '../widgets/product_badges.dart';
 import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 import 'product_page.dart';
-import '../core/constants/countries.dart';
-import '../services/currency_service.dart';
-
-String _fmt(double kwd) {
-  final service = CurrencyService.instance;
-  final country = countryByCode(service.selectedCountryCode);
-  return service.format(kwd, country.currencySymbol, country.currency);
-}
 
 enum SortOption { newest, oldest, priceLow, priceHigh }
 
@@ -489,27 +482,8 @@ class _StorefrontProductCard extends StatelessWidget {
                         ),
                       ),
               ),
-              if (stock <= 0)
-                Positioned(
-                  top: 10,
-                  left: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.deepAccent.withValues(alpha: 0.9),
-                      border: Border.all(color: AppColors.border, width: 0.5),
-                    ),
-                    child: Text(
-                      l10n.soldOut,
-                      style: AppTextStyles.labelSmall.copyWith(
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
+              if (product.isSoldOut)
+                OutOfStockOverlay(label: l10n.outOfStock),
             ],
           ),
           const SizedBox(height: 10),
@@ -522,9 +496,10 @@ class _StorefrontProductCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(boutiqueName, style: AppTextStyles.bodySmall),
           const SizedBox(height: 4),
-          Text(
-            _fmt(product.price),
-            style: AppTextStyles.labelLarge,
+          ProductPriceText(
+            price: product.price,
+            salePrice: product.salePrice,
+            saleBadgeLabel: l10n.saleBadge,
           ),
         ],
       ),

@@ -7,27 +7,7 @@ import '../widgets/theme.dart';
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
 InputDecoration _inputDecoration(String hint) {
-  return InputDecoration(
-    hintText: hint,
-    hintStyle: AppTextStyles.bodyMedium.copyWith(
-      color: AppColors.secondaryText,
-    ),
-    filled: true,
-    fillColor: AppColors.field,
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(4),
-      borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(4),
-      borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(4),
-      borderSide: const BorderSide(color: AppColors.deepAccent, width: 1),
-    ),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-  );
+  return InputDecoration(hintText: hint);
 }
 
 // Notification target types — labels are built from l10n, not stored here

@@ -2,18 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
-import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
-import '../services/currency_service.dart';
 import '../services/firestore_service.dart';
 import '../widgets/error_state_widget.dart';
+import '../widgets/product_badges.dart';
 import '../widgets/theme.dart';
-
-String _fmt(double kwd) {
-  final service = CurrencyService.instance;
-  final country = countryByCode(service.selectedCountryCode);
-  return service.format(kwd, country.currencySymbol, country.currency);
-}
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -187,6 +180,16 @@ class _ProductPageState extends State<ProductPage> {
   int _parseStock(Map<String, dynamic> data) {
     final v = data['stock'] ?? widget.stock;
     return v is int ? v : int.tryParse(v.toString()) ?? widget.stock;
+  }
+
+  bool _isOutOfStock(Map<String, dynamic> data) => data['isOutOfStock'] == true;
+
+  /// Active sale price, only when set and genuinely below the regular price.
+  double? _salePrice(Map<String, dynamic> data) {
+    final price = _parsePrice(data);
+    final v = data['salePrice'];
+    final sale = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+    return (sale != null && sale > 0 && sale < price) ? sale : null;
   }
 
   List<String> _galleryImages(Map<String, dynamic> data) {
@@ -484,44 +487,48 @@ class _ProductPageState extends State<ProductPage> {
 
   Widget _buildImageGallery(Map<String, dynamic> data) {
     final images = _galleryImages(data);
+    final soldOut = _parseStock(data) <= 0 || _isOutOfStock(data);
     return GestureDetector(
       onDoubleTap: _isLoadingLike ? null : () => _toggleLike(data),
       child: Stack(
         children: [
           AspectRatio(
             aspectRatio: 4 / 5,
-            child: images.isEmpty
-                ? Container(
-                    color: AppColors.imagePlaceholder,
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.image_not_supported_outlined,
-                      size: 40,
-                      color: AppColors.secondaryText,
-                    ),
-                  )
-                : PageView.builder(
-                    controller: _pageController,
-                    itemCount: images.length,
-                    onPageChanged: (index) =>
-                        setState(() => _selectedImageIndex = index),
-                    itemBuilder: (context, index) => CachedNetworkImage(
-                      imageUrl: images[index],
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) =>
-                          Container(color: AppColors.imagePlaceholder),
-                      errorWidget: (_, __, ___) => Container(
-                        color: AppColors.imagePlaceholder,
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.image_not_supported_outlined,
-                          size: 40,
-                          color: AppColors.secondaryText,
+            child: Opacity(
+              opacity: soldOut ? 0.5 : 1.0,
+              child: images.isEmpty
+                  ? Container(
+                      color: AppColors.imagePlaceholder,
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.image_not_supported_outlined,
+                        size: 40,
+                        color: AppColors.secondaryText,
+                      ),
+                    )
+                  : PageView.builder(
+                      controller: _pageController,
+                      itemCount: images.length,
+                      onPageChanged: (index) =>
+                          setState(() => _selectedImageIndex = index),
+                      itemBuilder: (context, index) => CachedNetworkImage(
+                        imageUrl: images[index],
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) =>
+                            Container(color: AppColors.imagePlaceholder),
+                        errorWidget: (_, __, ___) => Container(
+                          color: AppColors.imagePlaceholder,
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.image_not_supported_outlined,
+                            size: 40,
+                            color: AppColors.secondaryText,
+                          ),
                         ),
                       ),
                     ),
-                  ),
+            ),
           ),
           Positioned(top: 16, right: 16, child: _buildHeartButton(data)),
         ],
@@ -624,6 +631,8 @@ class _ProductPageState extends State<ProductPage> {
     final images = _galleryImages(data);
     final stock = _parseStock(data);
     final price = _parsePrice(data);
+    final salePrice = _salePrice(data);
+    final soldOut = stock <= 0 || _isOutOfStock(data);
     final title = _parseTitle(data);
     final description = _parseDescription(data);
     final boutiqueName = _parseBoutiqueName(data);
@@ -670,8 +679,10 @@ class _ProductPageState extends State<ProductPage> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(
-                      _fmt(price),
+                    ProductPriceText(
+                      price: price,
+                      salePrice: salePrice,
+                      saleBadgeLabel: l10n.saleBadge,
                       style: AppTextStyles.headingSmall,
                     ),
                     const Spacer(),
@@ -750,81 +761,65 @@ class _ProductPageState extends State<ProductPage> {
                 ),
                 const SizedBox(height: 24),
 
-                // ── SIZE header + size guide link ────────────────────────
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(l10n.sizeSection, style: AppTextStyles.labelLarge),
-                    if (guideUrl.isNotEmpty) ...[
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: () => _openSizeGuide(guideUrl),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.straighten_outlined,
-                              size: 14,
-                              color: AppColors.secondaryText,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              l10n.sizeGuide,
-                              style: AppTextStyles.bodySmall.copyWith(
+                // ── Size + colour selectors (hidden when sold out) ───────
+                if (!soldOut) ...[
+                  // ── SIZE header + size guide link ──────────────────────
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(l10n.sizeSection, style: AppTextStyles.labelLarge),
+                      if (guideUrl.isNotEmpty) ...[
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => _openSizeGuide(guideUrl),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.straighten_outlined,
+                                size: 14,
                                 color: AppColors.secondaryText,
-                                decoration: TextDecoration.underline,
-                                decorationColor: AppColors.secondaryText,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 5),
+                              Text(
+                                l10n.sizeGuide,
+                                style: AppTextStyles.bodySmall.copyWith(
+                                  color: AppColors.secondaryText,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: AppColors.secondaryText,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                if (hasSizes)
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: sizes.map(_buildSizeChip).toList(),
-                  )
-                else
-                  Text(l10n.noSizesAvailable, style: AppTextStyles.bodySmall),
-
-                // ── Colours ──────────────────────────────────────────────
-                if (colors.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Text(l10n.colours, style: AppTextStyles.labelLarge),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: colors.map(_buildColorChip).toList(),
                   ),
+                  const SizedBox(height: 12),
+
+                  if (hasSizes)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: sizes.map(_buildSizeChip).toList(),
+                    )
+                  else
+                    Text(l10n.noSizesAvailable, style: AppTextStyles.bodySmall),
+
+                  // ── Colours ──────────────────────────────────────────
+                  if (colors.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    Text(l10n.colours, style: AppTextStyles.labelLarge),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: colors.map(_buildColorChip).toList(),
+                    ),
+                  ],
                 ],
 
                 const SizedBox(height: 28),
-
-                // ── Add to cart ──────────────────────────────────────────
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton(
-                    onPressed: () => _addProductToCart(data),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.deepAccent,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.zero,
-                      ),
-                    ),
-                    child: Text(l10n.addToCart, style: AppTextStyles.button),
-                  ),
-                ),
-                const SizedBox(height: 24),
 
                 // ── Product details accordion ────────────────────────────
                 _buildDropdownSection(
@@ -845,38 +840,88 @@ class _ProductPageState extends State<ProductPage> {
     );
   }
 
+  // ── Sticky add-to-cart footer ──────────────────────────────────────────
+  Widget _buildStickyAddToCart(Map<String, dynamic> data) {
+    final l10n = AppLocalizations.of(context)!;
+    final soldOut = _parseStock(data) <= 0 || _isOutOfStock(data);
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 12),
+          child: SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: ElevatedButton(
+              onPressed: soldOut ? null : () => _addProductToCart(data),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.deepAccent,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.softAccent,
+                disabledForegroundColor: Colors.white,
+                elevation: 0,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero,
+                ),
+              ),
+              child: Text(
+                soldOut ? l10n.outOfStock : l10n.addToCart,
+                style: AppTextStyles.button,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: _productStream,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting &&
-                !snapshot.hasData) {
-              return const Center(
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: _productStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Scaffold(
+            backgroundColor: AppColors.background,
+            body: SafeArea(
+              child: Center(
                 child: CircularProgressIndicator(
                   strokeWidth: 1.5,
                   color: AppColors.deepAccent,
                 ),
-              );
-            }
-            if (snapshot.hasError) {
-              return ErrorStateWidget.inline(
+              ),
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            body: SafeArea(
+              child: ErrorStateWidget.inline(
                 title: l10n.somethingWentWrong,
                 message: l10n.somethingWentWrong,
                 onRetry: () => setState(() {}),
                 type: ErrorType.network,
-              );
-            }
-            if (snapshot.hasData && !snapshot.data!.exists)
-              return const NotFoundPage();
-            return _buildProductContent(_resolveProductData(snapshot.data));
-          },
-        ),
-      ),
+              ),
+            ),
+          );
+        }
+        if (snapshot.hasData && !snapshot.data!.exists) {
+          return const NotFoundPage();
+        }
+        final data = _resolveProductData(snapshot.data);
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          body: SafeArea(child: _buildProductContent(data)),
+          bottomNavigationBar: _buildStickyAddToCart(data),
+        );
+      },
     );
   }
 }

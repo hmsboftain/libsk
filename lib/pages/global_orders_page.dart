@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import 'global_order_details_page.dart';
@@ -140,24 +141,6 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                   }),
                 )
               : null,
-          filled: true,
-          fillColor: AppColors.field,
-          hintStyle: AppTextStyles.bodyMedium.copyWith(
-            color: AppColors.secondaryText,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(4),
-            borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(4),
-            borderSide: const BorderSide(color: AppColors.border, width: 0.5),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(4),
-            borderSide:
-                const BorderSide(color: AppColors.deepAccent, width: 1),
-          ),
         ),
       ),
     );
@@ -186,11 +169,11 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                   }
 
                   if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        l10n.failedToLoadOrders,
-                        style: AppTextStyles.bodyMedium,
-                      ),
+                    return ErrorStateWidget.inline(
+                      title: l10n.failedToLoadOrders,
+                      message: l10n.pullDownToRetry,
+                      onRetry: () => setState(() {}),
+                      type: ErrorType.network,
                     );
                   }
 

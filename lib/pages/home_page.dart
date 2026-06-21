@@ -7,19 +7,12 @@ import '../navigation/app_header.dart';
 import '../services/feed_service.dart';
 import '../widgets/error_state_widget.dart';
 import '../widgets/feed_card.dart';
+import '../widgets/product_badges.dart';
 import '../widgets/rotating_hero_banner.dart';
 import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 import 'boutique_storefront_page.dart';
 import 'product_page.dart';
-import '../core/constants/countries.dart';
-import '../services/currency_service.dart';
-
-String _fmt(double kwd) {
-  final service = CurrencyService.instance;
-  final country = countryByCode(service.selectedCountryCode);
-  return service.format(kwd, country.currencySymbol, country.currency);
-}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -452,6 +445,8 @@ class _FeaturedProductCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (product.isSoldOut)
+                  OutOfStockOverlay(label: l10n.outOfStock),
               ],
             ),
           ),
@@ -470,8 +465,10 @@ class _FeaturedProductCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 5),
-          Text(
-            _fmt(product.price),
+          ProductPriceText(
+            price: product.price,
+            salePrice: product.salePrice,
+            saleBadgeLabel: l10n.saleBadge,
             style: AppTextStyles.labelLarge.copyWith(fontSize: 16),
           ),
           const SizedBox(height: 8),

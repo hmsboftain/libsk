@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
 import '../services/currency_service.dart';
@@ -328,13 +329,11 @@ class _DisputesPageState extends State<DisputesPage> {
                   }
 
                   if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        l10n.failedToLoadDisputes,
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.secondaryText,
-                        ),
-                      ),
+                    return ErrorStateWidget.inline(
+                      title: l10n.failedToLoadDisputes,
+                      message: l10n.pullDownToRetry,
+                      onRetry: () => setState(() {}),
+                      type: ErrorType.network,
                     );
                   }
 

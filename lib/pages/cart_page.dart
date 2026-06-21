@@ -2,12 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/cart_item.dart';
 import '../widgets/theme.dart';
 import 'checkout_page.dart';
 import 'login_page.dart';
+import 'boutiques_page.dart';
 import '../core/constants/countries.dart';
 import '../services/currency_service.dart';
 
@@ -107,11 +109,11 @@ class _CartPageState extends State<CartPage> {
                   }
 
                   if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        l10n.somethingWentWrong,
-                        style: AppTextStyles.bodySmall,
-                      ),
+                    return ErrorStateWidget.inline(
+                      title: l10n.somethingWentWrong,
+                      message: l10n.pullDownToRetry,
+                      onRetry: () => setState(() {}),
+                      type: ErrorType.network,
                     );
                   }
 
@@ -124,6 +126,10 @@ class _CartPageState extends State<CartPage> {
                     0.0,
                     (total, item) => total + item.price * item.quantity,
                   );
+
+                  if (cartItems.isEmpty) {
+                    return _buildEmptyCart(l10n);
+                  }
 
                   return Column(
                     children: [
@@ -140,43 +146,29 @@ class _CartPageState extends State<CartPage> {
                                   style: AppTextStyles.headingLarge,
                                 ),
                                 const SizedBox(height: 18),
-                                if (cartItems.isEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 40),
-                                    child: Center(
-                                      child: Text(
-                                        l10n.yourCartIsEmpty,
-                                        style: AppTextStyles.bodyMedium
-                                            .copyWith(
-                                              color: AppColors.secondaryText,
-                                            ),
+                                Column(
+                                  children: cartItems.map((item) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 18,
                                       ),
-                                    ),
-                                  )
-                                else
-                                  Column(
-                                    children: cartItems.map((item) {
-                                      return Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 18,
-                                        ),
-                                        child: CartItemWidget(
-                                          imageUrl: item.imageUrl,
-                                          title: item.title,
-                                          description: item.description,
-                                          size: item.size,
-                                          color: item.color,
-                                          price: item.price,
-                                          quantity: item.quantity,
-                                          onIncrease: () =>
-                                              _increaseQuantity(item),
-                                          onDecrease: () =>
-                                              _decreaseQuantity(item),
-                                          onDelete: () => _deleteItem(item),
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
+                                      child: CartItemWidget(
+                                        imageUrl: item.imageUrl,
+                                        title: item.title,
+                                        description: item.description,
+                                        size: item.size,
+                                        color: item.color,
+                                        price: item.price,
+                                        quantity: item.quantity,
+                                        onIncrease: () =>
+                                            _increaseQuantity(item),
+                                        onDecrease: () =>
+                                            _decreaseQuantity(item),
+                                        onDelete: () => _deleteItem(item),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
                                 const SizedBox(height: 90),
                               ],
                             ),
@@ -255,6 +247,53 @@ class _CartPageState extends State<CartPage> {
                   );
                 },
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyCart(AppLocalizations l10n) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.shopping_bag_outlined,
+              size: 56,
+              color: AppColors.softAccent,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              l10n.yourCartIsEmpty,
+              style: AppTextStyles.headingSmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.cartEmptySubtitle,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.secondaryText,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 28),
+            ElevatedButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BoutiquesPage()),
+              ),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+              ),
+              child: Text(l10n.browseBoutiques, style: AppTextStyles.button),
             ),
           ],
         ),

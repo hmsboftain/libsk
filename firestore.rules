@@ -61,7 +61,11 @@ service cloud.firestore {
       return d.title       is string && d.title.size()       <= 100 &&
              d.description is string && d.description.size() <= 2000 &&
              d.price       is number && d.price > 0 && d.price <= 100000 &&
-             d.stock       is int    && d.stock              >= 0;
+             d.stock       is int    && d.stock              >= 0 &&
+             (!('isOutOfStock' in d) || d.isOutOfStock is bool) &&
+             (!('salePrice' in d) || d.salePrice == null ||
+               (d.salePrice is number && d.salePrice > 0 &&
+                d.salePrice < d.price));
     }
 
     // Shape guard for guest cart writes — only the fields the app actually

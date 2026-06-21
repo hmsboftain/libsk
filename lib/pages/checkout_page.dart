@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
 import '../services/currency_service.dart';
@@ -419,14 +420,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
               );
             }
             if (cartSnapshot.hasError) {
-              return Center(
-                child: Text(
-                  '${AppLocalizations.of(context)!.couldNotLoadCart}: ${cartSnapshot.error}',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.secondaryText,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+              return ErrorStateWidget.inline(
+                title: AppLocalizations.of(context)!.couldNotLoadCart,
+                message: AppLocalizations.of(context)!.pullDownToRetry,
+                onRetry: () => setState(() {}),
+                type: ErrorType.network,
               );
             }
 
@@ -858,6 +856,38 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       ),
                     ),
 
+                    // ── Trust signals ────────────────────────────────
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.lock_outline,
+                          size: 14,
+                          color: AppColors.secondaryText,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          AppLocalizations.of(context)!.secureCheckout,
+                          style: AppTextStyles.labelSmall,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _paymentPill(
+                          icon: Icons.credit_card,
+                          label: AppLocalizations.of(context)!.card,
+                        ),
+                        const SizedBox(width: 8),
+                        _paymentPill(
+                          label: AppLocalizations.of(context)!.knet,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
                     // ── Place order button ───────────────────────────
                     SizedBox(
                       width: double.infinity,
@@ -891,8 +921,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           foregroundColor: Colors.white,
                           disabledBackgroundColor: AppColors.softAccent,
                           disabledForegroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.zero,
                           ),
                         ),
                       ),
@@ -1023,6 +1053,32 @@ class _CheckoutPageState extends State<CheckoutPage> {
               : AppTextStyles.bodyMedium,
         ),
       ],
+    );
+  }
+
+  Widget _paymentPill({IconData? icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.field,
+        border: Border.all(color: AppColors.border, width: 0.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 13, color: AppColors.secondaryText),
+            const SizedBox(width: 5),
+          ],
+          Text(
+            label,
+            style: AppTextStyles.labelSmall.copyWith(
+              letterSpacing: 0.5,
+              color: AppColors.secondaryText,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
 import '../core/constants/countries.dart';
@@ -171,13 +172,10 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
                   }
 
                   if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        l10n.failedToLoadBoutiqueDetails,
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.secondaryText,
-                        ),
-                      ),
+                    return ErrorStateWidget.inline(
+                      title: l10n.failedToLoadBoutiqueDetails,
+                      message: l10n.pullDownToRetry,
+                      type: ErrorType.network,
                     );
                   }
 

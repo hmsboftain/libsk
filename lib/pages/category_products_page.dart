@@ -2,18 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
-import '../core/constants/countries.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
-import '../services/currency_service.dart';
+import '../widgets/product_badges.dart';
 import '../widgets/theme.dart';
 import 'product_page.dart';
-
-String _fmt(double kwd) {
-  final service = CurrencyService.instance;
-  final country = countryByCode(service.selectedCountryCode);
-  return service.format(kwd, country.currencySymbol, country.currency);
-}
 
 enum CategorySort { newest, priceLow, priceHigh }
 
@@ -337,32 +330,41 @@ class _CategoryProductCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.imagePlaceholder,
-                border: Border.all(color: AppColors.border, width: 0.5),
-              ),
-              child: displayImageUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: displayImageUrl,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorWidget: (_, __, ___) => const Center(
-                        child: Icon(
-                          Icons.image_not_supported_outlined,
-                          size: 24,
-                          color: AppColors.softAccent,
+            child: Stack(
+              children: [
+                Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  decoration: BoxDecoration(
+                    color: AppColors.imagePlaceholder,
+                    border: Border.all(color: AppColors.border, width: 0.5),
+                  ),
+                  child: displayImageUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: displayImageUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          errorWidget: (_, __, ___) => const Center(
+                            child: Icon(
+                              Icons.image_not_supported_outlined,
+                              size: 24,
+                              color: AppColors.softAccent,
+                            ),
+                          ),
+                        )
+                      : const Center(
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            size: 24,
+                            color: AppColors.softAccent,
+                          ),
                         ),
-                      ),
-                    )
-                  : const Center(
-                      child: Icon(
-                        Icons.image_not_supported_outlined,
-                        size: 24,
-                        color: AppColors.softAccent,
-                      ),
-                    ),
+                ),
+                if (product.isSoldOut)
+                  OutOfStockOverlay(
+                    label: AppLocalizations.of(context)!.outOfStock,
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: 8),
@@ -380,7 +382,11 @@ class _CategoryProductCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 5),
-          Text(_fmt(product.price), style: AppTextStyles.labelLarge),
+          ProductPriceText(
+            price: product.price,
+            salePrice: product.salePrice,
+            saleBadgeLabel: AppLocalizations.of(context)!.saleBadge,
+          ),
           const SizedBox(height: 8),
         ],
       ),

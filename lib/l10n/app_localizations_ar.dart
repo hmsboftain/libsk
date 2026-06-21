@@ -192,7 +192,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get continueWithGoogle => 'المتابعة مع Google';
 
   @override
-  String get continueWithApple => 'Continue with Apple';
+  String get continueWithApple => 'تسجيل الدخول بـ Apple';
 
   @override
   String get forgotPassword => 'نسيت كلمة المرور؟';
@@ -599,6 +599,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get yourCartIsEmpty => 'سلتك فارغة';
 
   @override
+  String get cartEmptySubtitle => 'اكتشف قطعاً من متاجر الكويت وابدأ التسوق.';
+
+  @override
+  String get browseBoutiques => 'تصفح المتاجر';
+
+  @override
   String get itemRemovedFromCart => 'تمت إزالة المنتج من السلة';
 
   @override
@@ -626,13 +632,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String get sameDayDelivery => 'توصيل في نفس اليوم';
 
   @override
-  String get madeToOrder => 'صنع عند الطلب';
+  String get madeToOrder => 'حسب الطلب';
 
   @override
-  String get estimatedDays => 'Estimated ready in';
+  String get estimatedDays => 'الوقت المتوقع';
 
   @override
-  String get businessDays => 'business days';
+  String get businessDays => 'أيام عمل';
 
   @override
   String get paymentMethod => 'طريقة الدفع';
@@ -681,6 +687,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get failedToLoadProducts => 'فشل تحميل المنتجات';
+
+  @override
+  String get failedToLoadUsers => 'فشل تحميل المستخدمين';
 
   @override
   String get noMatchingProductsFound => 'لم يتم العثور على منتجات مطابقة';
@@ -843,16 +852,16 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get sizeGuide => 'Size Guide';
+  String get sizeGuide => 'دليل المقاسات';
 
   @override
-  String get sizeGuideSubtitle => 'Upload a chart buyers can reference before selecting a size.';
+  String get sizeGuideSubtitle => 'ارفع جدول مقاسات يساعد المشترين قبل الاختيار.';
 
   @override
-  String get uploadSizeGuide => 'Upload size guide image';
+  String get uploadSizeGuide => 'رفع صورة دليل المقاسات';
 
   @override
-  String get changeImage => 'Change image';
+  String get changeImage => 'تغيير الصورة';
 
   @override
   String get productDetails => 'تفاصيل المنتج';
@@ -1078,22 +1087,22 @@ class AppLocalizationsAr extends AppLocalizations {
   String get phone => 'الهاتف';
 
   @override
-  String get addressLine1 => 'Address Line 1';
+  String get addressLine1 => 'سطر العنوان 1';
 
   @override
-  String get addressLine2Optional => 'Address Line 2 (optional)';
+  String get addressLine2Optional => 'سطر العنوان 2 (اختياري)';
 
   @override
-  String get city => 'City';
+  String get city => 'المدينة';
 
   @override
-  String get zipCode => 'Zip / Postal Code';
+  String get zipCode => 'الرمز البريدي';
 
   @override
-  String get countryRegion => 'Country / Region';
+  String get countryRegion => 'الدولة / المنطقة';
 
   @override
-  String get selectCountry => 'Select Country';
+  String get selectCountry => 'اختر الدولة';
 
   @override
   String get somethingWentWrongWhileLoadingAddresses => 'حدث خطأ أثناء تحميل العناوين';
@@ -1689,7 +1698,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get helpOrdersQ4 => 'كيف أفتح نزاعاً؟';
 
   @override
-  String get helpOrdersA4 => 'لديك 7 أيام من تاريخ التسليم لفتح نزاع. انتقل إلى طلباتك، اختر الطلب المعني، واضغط على \'فتح نزاع\'. صِف مشكلتك وقدّمها. يُرجى ملاحظة أن لأصحاب المتاجر والمدراء الحق في مراجعة النزاعات ورفضها بناءً على طبيعتها وصحتها.';
+  String get helpOrdersA4 => 'لديك 7 أيام من تاريخ التسليم لفتح نزاع. انتقل إلى طلباتك، اختر الطلب المعني، واضغط على \'فتح نزاع\'. صِف مشكلتك وقدّمها.';
 
   @override
   String get helpDeliveryQ1 => 'ما هي المناطق التي تقومون بالتوصيل إليها؟';
@@ -1701,7 +1710,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get helpDeliveryQ2 => 'كم يستغرق التوصيل؟';
 
   @override
-  String get helpDeliveryA2 => 'تعتمد مواعيد التوصيل على نوع التوصيل الذي تختاره وموقعك. يستغرق التوصيل العادي عادةً من يومين إلى أربعة أيام عمل. التوصيل في نفس اليوم متاح في مناطق محددة.';
+  String get helpDeliveryA2 => 'تعتمد مواعيد التوصيل على نوع التوصيل الذي تختاره وموقعك. يستغرق التوصيل العادي عادةً من يومين إلى أربعة أيام عمل.';
 
   @override
   String get helpDeliveryQ3 => 'كم تبلغ تكلفة التوصيل؟';
@@ -1713,19 +1722,19 @@ class AppLocalizationsAr extends AppLocalizations {
   String get helpReturnsQ1 => 'ما هي سياسة الإرجاع؟';
 
   @override
-  String get helpReturnsA1 => 'تتيح LIBSK نافذة إرجاع مدتها 7 أيام من تاريخ التسليم. وقد تعتمد أهلية الإرجاع أيضاً على متطلبات المتجر المعني. يرجى الاطلاع على صفحة المتجر للتحقق من أي شروط إضافية قبل الشراء.';
+  String get helpReturnsA1 => 'تتيح LIBSK نافذة إرجاع مدتها 7 أيام من تاريخ التسليم.';
 
   @override
   String get helpReturnsQ2 => 'كيف أُرجع منتجاً؟';
 
   @override
-  String get helpReturnsA2 => 'لبدء عملية الإرجاع، انتقل إلى طلباتك، اختر المنتج، واضغط على \'طلب الإرجاع\'. سيتولى فريقنا التنسيق مع المتجر نيابةً عنك.';
+  String get helpReturnsA2 => 'لبدء عملية الإرجاع، انتقل إلى طلباتك، اختر المنتج، واضغط على \'طلب الإرجاع\'.';
 
   @override
   String get helpReturnsQ3 => 'كم يستغرق استرداد المبلغ؟';
 
   @override
-  String get helpReturnsA3 => 'بعد الموافقة على الإرجاع، تتم معالجة المبالغ المستردة خلال 5 إلى 7 أيام عمل حسب طريقة الدفع.';
+  String get helpReturnsA3 => 'بعد الموافقة على الإرجاع، تتم معالجة المبالغ المستردة خلال 5 إلى 7 أيام عمل.';
 
   @override
   String get helpPaymentQ1 => 'ما طرق الدفع المقبولة؟';
@@ -1743,43 +1752,43 @@ class AppLocalizationsAr extends AppLocalizations {
   String get helpPaymentQ3 => 'تم خصم المبلغ لكن لم يتم تقديم طلبي.';
 
   @override
-  String get helpPaymentA3 => 'قد يحدث هذا بسبب مشكلة في الاتصال. يرجى التواصل معنا فوراً مع رقم المرجع الخاص بالدفع وسنحل المشكلة خلال 24 ساعة.';
+  String get helpPaymentA3 => 'قد يحدث هذا بسبب مشكلة في الاتصال. يرجى التواصل معنا فوراً مع رقم المرجع الخاص بالدفع.';
 
   @override
   String get helpAccountQ1 => 'كيف أغيّر كلمة المرور؟';
 
   @override
-  String get helpAccountA1 => 'انتقل إلى الملف الشخصي، اضغط على \'حسابك\'، ثم اضغط على \'تغيير كلمة المرور\'. ستتلقى رابط إعادة التعيين على بريدك الإلكتروني المسجل.';
+  String get helpAccountA1 => 'انتقل إلى الملف الشخصي، اضغط على \'حسابك\'، ثم اضغط على \'تغيير كلمة المرور\'.';
 
   @override
   String get helpAccountQ2 => 'كيف أحدّث عنوان التوصيل؟';
 
   @override
-  String get helpAccountA2 => 'انتقل إلى الملف الشخصي، ثم \'العناوين المحفوظة\'. يمكنك إضافة عناوين أو تعديلها أو حذفها في أي وقت.';
+  String get helpAccountA2 => 'انتقل إلى الملف الشخصي، ثم \'العناوين المحفوظة\'.';
 
   @override
   String get helpAccountQ3 => 'كيف أحذف حسابي؟';
 
   @override
-  String get helpAccountA3 => 'يمكنك حذف حسابك من صفحة الملف الشخصي ضمن إعدادات \'حسابك\'. حذف الحساب نهائي ولا يمكن التراجع عنه.';
+  String get helpAccountA3 => 'يمكنك حذف حسابك من صفحة الملف الشخصي ضمن إعدادات \'حسابك\'.';
 
   @override
   String get helpBoutiquesQ1 => 'كيف أصبح صاحب متجر على LIBSK؟';
 
   @override
-  String get helpBoutiquesA1 => 'أرسل لنا بريداً إلكترونياً على boutiques@libsk.com مع تفاصيل متجرك. سيراجع فريقنا طلبك ويتواصل معك خلال 3 أيام عمل.';
+  String get helpBoutiquesA1 => 'أرسل لنا بريداً إلكترونياً على boutiques@libsk.com مع تفاصيل متجرك.';
 
   @override
   String get helpBoutiquesQ2 => 'هل يمكنني حفظ متجر للعودة إليه لاحقاً؟';
 
   @override
-  String get helpBoutiquesA2 => 'نعم. اضغط على أيقونة الحفظ في صفحة أي متجر لإضافته إلى \'المتاجر المحفوظة\' في ملفك الشخصي.';
+  String get helpBoutiquesA2 => 'نعم. اضغط على أيقونة الحفظ في صفحة أي متجر.';
 
   @override
   String get helpBoutiquesQ3 => 'أحد المتاجر لا يستجيب لطلبي.';
 
   @override
-  String get helpBoutiquesA3 => 'إذا لم يحدّث المتجر حالة طلبك خلال 48 ساعة، تواصل مع فريق الدعم وسنتابع الأمر نيابةً عنك.';
+  String get helpBoutiquesA3 => 'إذا لم يحدّث المتجر حالة طلبك خلال 48 ساعة، تواصل مع فريق الدعم.';
 
   @override
   String get homepageControl => 'التحكم بالصفحة الرئيسية';
@@ -2035,7 +2044,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get unknownCustomer => 'عميل غير معروف';
 
   @override
-  String get noDate => 'لا يوجد تاريخ';
+  String get noDate => 'بدون تاريخ';
 
   @override
   String get searchOrders => 'البحث في الطلبات...';
@@ -2217,4 +2226,28 @@ class AppLocalizationsAr extends AppLocalizations {
   String productNotEnoughStock(String title) {
     return 'المخزون غير كافٍ لـ $title';
   }
+
+  @override
+  String get secureCheckout => 'دفع آمن';
+
+  @override
+  String get knet => 'كي نت';
+
+  @override
+  String get markAsOutOfStock => 'وضع علامة نفاد المخزون';
+
+  @override
+  String get markAsOutOfStockSubtitle => 'إخفاء زر الإضافة إلى السلة وإظهار علامة نفاد المخزون بغض النظر عن الكمية.';
+
+  @override
+  String get salePrice => 'سعر التخفيض';
+
+  @override
+  String get salePriceHint => 'مثال: 20.000';
+
+  @override
+  String get saleBadge => 'تخفيض';
+
+  @override
+  String get salePriceMustBeLessThanPrice => 'يجب أن يكون سعر التخفيض أقل من السعر العادي';
 }

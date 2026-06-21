@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
@@ -268,13 +269,11 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
 
         if (snapshot.hasError) {
           return Expanded(
-            child: Center(
-              child: Text(
-                l10n.failedToLoadOrders,
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.secondaryText,
-                ),
-              ),
+            child: ErrorStateWidget.inline(
+              title: l10n.failedToLoadOrders,
+              message: l10n.pullDownToRetry,
+              onRetry: () => setState(() {}),
+              type: ErrorType.network,
             ),
           );
         }

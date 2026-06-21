@@ -22,6 +22,8 @@ class Product {
   final String? deliveryTimeframe;
   final bool postedToFeed;
   final Timestamp? feedPostedAt;
+  final bool isOutOfStock;
+  final double? salePrice;
 
   const Product({
     required this.id,
@@ -40,6 +42,8 @@ class Product {
     required this.deliveryTimeframe,
     required this.postedToFeed,
     required this.feedPostedAt,
+    required this.isOutOfStock,
+    required this.salePrice,
   });
 
   factory Product.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -67,16 +71,33 @@ class Product {
       feedPostedAt: data['feedPostedAt'] is Timestamp
           ? data['feedPostedAt'] as Timestamp
           : null,
+      isOutOfStock: data['isOutOfStock'] == true,
+      salePrice: _parseNullableDouble(data['salePrice']),
     );
   }
 
   String get displayImageUrl =>
       imageUrls.isNotEmpty ? imageUrls.first : imageUrl;
 
+  /// True when the product can't be purchased — manually flagged or no stock.
+  bool get isSoldOut => isOutOfStock || stock <= 0;
+
+  /// The active sale price, only when set and genuinely below [price].
+  double? get effectiveSalePrice =>
+      (salePrice != null && salePrice! > 0 && salePrice! < price)
+      ? salePrice
+      : null;
+
   static double _parseDouble(dynamic value) {
     if (value is num) return value.toDouble();
     if (value == null) return 0;
     return double.tryParse(value.toString()) ?? 0;
+  }
+
+  static double? _parseNullableDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
   }
 
   static int _parseInt(dynamic value) {

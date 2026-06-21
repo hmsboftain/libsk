@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
+import '../widgets/error_state_widget.dart';
 import '../widgets/theme.dart';
 
 class FilteredUsersPage extends StatefulWidget {
@@ -19,7 +21,7 @@ class FilteredUsersPage extends StatefulWidget {
 }
 
 class _FilteredUsersPageState extends State<FilteredUsersPage> {
-  late final Future<QuerySnapshot<Map<String, dynamic>>> _usersFuture;
+  late Future<QuerySnapshot<Map<String, dynamic>>> _usersFuture;
 
   @override
   void initState() {
@@ -156,11 +158,13 @@ class _FilteredUsersPageState extends State<FilteredUsersPage> {
                   }
 
                   if (snapshot.hasError) {
-                    return const Center(
-                      child: Text(
-                        'Failed to load users',
-                        style: AppTextStyles.bodyMedium,
-                      ),
+                    return ErrorStateWidget.inline(
+                      title: AppLocalizations.of(context)!.failedToLoadUsers,
+                      message: AppLocalizations.of(context)!.pullDownToRetry,
+                      onRetry: () => setState(() {
+                        _usersFuture = FirestoreService.getAllUsersOnce();
+                      }),
+                      type: ErrorType.network,
                     );
                   }
 

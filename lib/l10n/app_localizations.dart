@@ -1247,6 +1247,18 @@ abstract class AppLocalizations {
   /// **'Your cart is empty'**
   String get yourCartIsEmpty;
 
+  /// No description provided for @cartEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Discover pieces from Kuwait\'s boutiques and start your bag.'**
+  String get cartEmptySubtitle;
+
+  /// No description provided for @browseBoutiques.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse Boutiques'**
+  String get browseBoutiques;
+
   /// No description provided for @itemRemovedFromCart.
   ///
   /// In en, this message translates to:
@@ -1414,6 +1426,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to load products'**
   String get failedToLoadProducts;
+
+  /// No description provided for @failedToLoadUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load users'**
+  String get failedToLoadUsers;
 
   /// No description provided for @noMatchingProductsFound.
   ///
@@ -4330,6 +4348,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{title} does not have enough stock'**
   String productNotEnoughStock(String title);
+
+  /// No description provided for @secureCheckout.
+  ///
+  /// In en, this message translates to:
+  /// **'Secure checkout'**
+  String get secureCheckout;
+
+  /// No description provided for @knet.
+  ///
+  /// In en, this message translates to:
+  /// **'KNET'**
+  String get knet;
+
+  /// No description provided for @markAsOutOfStock.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as Out of Stock'**
+  String get markAsOutOfStock;
+
+  /// No description provided for @markAsOutOfStockSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide Add to Cart and show an out-of-stock label, regardless of stock count.'**
+  String get markAsOutOfStockSubtitle;
+
+  /// No description provided for @salePrice.
+  ///
+  /// In en, this message translates to:
+  /// **'Sale Price'**
+  String get salePrice;
+
+  /// No description provided for @salePriceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. 20.000'**
+  String get salePriceHint;
+
+  /// No description provided for @saleBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'SALE'**
+  String get saleBadge;
+
+  /// No description provided for @salePriceMustBeLessThanPrice.
+  ///
+  /// In en, this message translates to:
+  /// **'Sale price must be less than the regular price'**
+  String get salePriceMustBeLessThanPrice;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -104,6 +104,7 @@ class _EditProductPageState extends State<EditProductPage> {
   late final TextEditingController titleController;
   late final TextEditingController descriptionController;
   late final TextEditingController priceController;
+  late final TextEditingController salePriceController;
   final colorInputController = TextEditingController();
   final deliveryTimeframeController = TextEditingController();
   final sizeNameController = TextEditingController();
@@ -112,6 +113,7 @@ class _EditProductPageState extends State<EditProductPage> {
   bool _isLoading = false;
   bool _madeToOrder = false;
   bool _postToFeed = false;
+  bool _isOutOfStock = false;
 
   List<String> currentImageUrls = [];
   List<File> selectedNewImages = [];
@@ -151,11 +153,15 @@ class _EditProductPageState extends State<EditProductPage> {
     priceController = TextEditingController(
       text: widget.productData['price']?.toString() ?? '',
     );
+    salePriceController = TextEditingController(
+      text: widget.productData['salePrice']?.toString() ?? '',
+    );
 
     _loadCategories();
     _loadSizeEntries();
     _loadColors();
 
+    _isOutOfStock = widget.productData['isOutOfStock'] == true;
     _madeToOrder = widget.productData['madeToOrder'] == true;
     deliveryTimeframeController.text =
         widget.productData['deliveryTimeframe']?.toString() ?? '';
@@ -229,6 +235,7 @@ class _EditProductPageState extends State<EditProductPage> {
     titleController.dispose();
     descriptionController.dispose();
     priceController.dispose();
+    salePriceController.dispose();
     colorInputController.dispose();
     deliveryTimeframeController.dispose();
     sizeNameController.dispose();
@@ -386,6 +393,23 @@ class _EditProductPageState extends State<EditProductPage> {
       return;
     }
 
+    // Optional sale price — must be a positive number below the regular price.
+    final salePriceText = salePriceController.text.trim();
+    double? salePrice;
+    if (salePriceText.isNotEmpty) {
+      final parsedSale = double.tryParse(salePriceText);
+      final parsedPrice = double.tryParse(priceText);
+      if (parsedSale == null ||
+          parsedSale <= 0 ||
+          (parsedPrice != null && parsedSale >= parsedPrice)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.salePriceMustBeLessThanPrice)),
+        );
+        return;
+      }
+      salePrice = parsedSale;
+    }
+
     if (currentImageUrls.isEmpty && selectedNewImages.isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -457,6 +481,8 @@ class _EditProductPageState extends State<EditProductPage> {
         'title': title,
         'description': description,
         'price': price,
+        'salePrice': salePrice,
+        'isOutOfStock': _isOutOfStock,
         'imageUrls': allImageUrls,
         'stock': totalStock,
         'sizes': sizes,
@@ -982,6 +1008,32 @@ class _EditProductPageState extends State<EditProductPage> {
     );
   }
 
+  Widget _buildAvailabilitySection(AppLocalizations l10n) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.markAsOutOfStock, style: AppTextStyles.labelLarge),
+              const SizedBox(height: 4),
+              Text(
+                l10n.markAsOutOfStockSubtitle,
+                style: AppTextStyles.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: _isOutOfStock,
+          onChanged: (value) => setState(() => _isOutOfStock = value),
+          activeThumbColor: AppColors.deepAccent,
+          activeTrackColor: AppColors.softAccent,
+        ),
+      ],
+    );
+  }
+
   Widget _buildMadeToOrderSection(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1142,6 +1194,30 @@ class _EditProductPageState extends State<EditProductPage> {
                                 return null;
                               },
                             ),
+                            const SizedBox(height: 18),
+                            _buildLabel(l10n.salePrice),
+                            TextFormField(
+                              controller: salePriceController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              decoration: _inputDecoration(l10n.salePriceHint),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return null;
+                                final sale = double.tryParse(v.trim());
+                                if (sale == null || sale <= 0) {
+                                  return l10n.enterValidPrice;
+                                }
+                                final price = double.tryParse(
+                                  priceController.text.trim(),
+                                );
+                                if (price != null && sale >= price) {
+                                  return l10n.salePriceMustBeLessThanPrice;
+                                }
+                                return null;
+                              },
+                            ),
                           ],
                         ),
                       ),
@@ -1158,6 +1234,8 @@ class _EditProductPageState extends State<EditProductPage> {
                       _buildSectionCard(child: _buildColorsSection(l10n)),
                       const SizedBox(height: 16),
                       _buildSectionCard(child: _buildMadeToOrderSection(l10n)),
+                      const SizedBox(height: 16),
+                      _buildSectionCard(child: _buildAvailabilitySection(l10n)),
                       const SizedBox(height: 16),
                       _buildSectionCard(child: _buildPostToFeedSection(l10n)),
                       const SizedBox(height: 22),

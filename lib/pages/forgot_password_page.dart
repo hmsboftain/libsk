@@ -119,32 +119,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       TextFormField(
                         controller: emailController,
                         keyboardType: TextInputType.emailAddress,
-                        decoration: InputDecoration(
-                          hintText: "",
-                          filled: true,
-                          fillColor: AppColors.field,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4),
-                            borderSide: const BorderSide(
-                              color: AppColors.border,
-                              width: 0.5,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4),
-                            borderSide: const BorderSide(
-                              color: AppColors.border,
-                              width: 0.5,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4),
-                            borderSide: const BorderSide(
-                              color: AppColors.deepAccent,
-                              width: 1,
-                            ),
-                          ),
-                        ),
+                        decoration: const InputDecoration(hintText: ""),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return l10n.emailRequired;

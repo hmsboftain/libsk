@@ -199,6 +199,8 @@
   "@thankYouWithName": { "placeholders": { "name": { "type": "String" } } },
   "backToHome": "Back to Home",
   "yourCartIsEmpty": "Your cart is empty",
+  "cartEmptySubtitle": "Discover pieces from Kuwait's boutiques and start your bag.",
+  "browseBoutiques": "Browse Boutiques",
   "itemRemovedFromCart": "Item removed from cart",
   "shippingChargesAndDiscountCodesCalculatedAtCheckout": "Shipping charges and discount codes are calculated at checkout",
   "checkoutButton": "Checkout",
@@ -227,6 +229,7 @@
   "productDeleted": "Product deleted",
   "failedToDeleteProduct": "Failed to delete product",
   "failedToLoadProducts": "Failed to load products",
+  "failedToLoadUsers": "Failed to load users",
   "noMatchingProductsFound": "No matching products found",
   "noMatchingBoutiquesFound": "No matching boutiques found.",
   "noDescriptionAddedYet": "No description added yet.",
@@ -752,5 +755,13 @@
   "productNoLongerAvailable": "{title} is no longer available",
   "@productNoLongerAvailable": { "placeholders": { "title": { "type": "String" } } },
   "productNotEnoughStock": "{title} does not have enough stock",
-  "@productNotEnoughStock": { "placeholders": { "title": { "type": "String" } } }
+  "@productNotEnoughStock": { "placeholders": { "title": { "type": "String" } } },
+  "secureCheckout": "Secure checkout",
+  "knet": "KNET",
+  "markAsOutOfStock": "Mark as Out of Stock",
+  "markAsOutOfStockSubtitle": "Hide Add to Cart and show an out-of-stock label, regardless of stock count.",
+  "salePrice": "Sale Price",
+  "salePriceHint": "e.g. 20.000",
+  "saleBadge": "SALE",
+  "salePriceMustBeLessThanPrice": "Sale price must be less than the regular price"
 }

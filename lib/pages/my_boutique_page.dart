@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../widgets/error_state_widget.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
@@ -421,14 +422,11 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                       }
 
                       if (snapshot.hasError) {
-                        return Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Text(
-                            l10n.failedToLoadProducts,
-                            style: AppTextStyles.bodyMedium.copyWith(
-                              color: AppColors.secondaryText,
-                            ),
-                          ),
+                        return ErrorStateWidget.inline(
+                          title: l10n.failedToLoadProducts,
+                          message: l10n.pullDownToRetry,
+                          onRetry: () => setState(() {}),
+                          type: ErrorType.network,
                         );
                       }
 

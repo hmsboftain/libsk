@@ -16,22 +16,7 @@ InputDecoration _loginInputDecoration({
   required String hint,
   Widget? suffixIcon,
 }) {
-  const border = OutlineInputBorder(
-    borderRadius: BorderRadius.zero,
-    borderSide: BorderSide(color: AppColors.border, width: 0.5),
-  );
-  return InputDecoration(
-    hintText: hint,
-    filled: true,
-    fillColor: AppColors.field,
-    border: border,
-    enabledBorder: border,
-    focusedBorder: const OutlineInputBorder(
-      borderRadius: BorderRadius.zero,
-      borderSide: BorderSide(color: AppColors.deepAccent, width: 1),
-    ),
-    suffixIcon: suffixIcon,
-  );
+  return InputDecoration(hintText: hint, suffixIcon: suffixIcon);
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────

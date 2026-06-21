@@ -410,10 +410,19 @@ exports.createOrder = onCall(async (request) => {
           `${productData.title || "Product"} does not have enough stock.`);
       }
 
+      // Server-side price: prefer a valid sale price below the regular price.
+      // Never trust the client-supplied price.
+      const basePrice = Number(productData.price) || 0;
+      const sale = Number(productData.salePrice);
+      const effectivePrice =
+        Number.isFinite(sale) && sale > 0 && sale < basePrice
+          ? sale
+          : basePrice;
+
       productInfo[key] = {
         ref: productRef,
         data: productData,
-        price: Number(productData.price) || 0,
+        price: effectivePrice,
       };
     }
 
@@ -1187,6 +1196,7 @@ exports.algoliaProductCreated = onDocumentCreated(
       title: data.title || "", description: data.description || "",
       boutiqueName: data.boutiqueName || "", category: data.category || [],
       colors: data.colors || [], price: data.price || 0,
+      salePrice: data.salePrice ?? null, isOutOfStock: data.isOutOfStock || false,
       imageUrl: data.imageUrl || "", imageUrls: data.imageUrls || [],
       stock: data.stock || 0, madeToOrder: data.madeToOrder || false,
     });
@@ -1204,6 +1214,7 @@ exports.algoliaProductUpdated = onDocumentUpdated(
       title: data.title || "", description: data.description || "",
       boutiqueName: data.boutiqueName || "", category: data.category || [],
       colors: data.colors || [], price: data.price || 0,
+      salePrice: data.salePrice ?? null, isOutOfStock: data.isOutOfStock || false,
       imageUrl: data.imageUrl || "", imageUrls: data.imageUrls || [],
       stock: data.stock || 0, madeToOrder: data.madeToOrder || false,
     });
@@ -1282,6 +1293,7 @@ exports.algoliaReindex = onCall(async (request) => {
       title: data.title || "", description: data.description || "",
       boutiqueName: data.boutiqueName || "", category: data.category || [],
       colors: data.colors || [], price: data.price || 0,
+      salePrice: data.salePrice ?? null, isOutOfStock: data.isOutOfStock || false,
       imageUrl: data.imageUrl || "", imageUrls: data.imageUrls || [],
       stock: data.stock || 0, madeToOrder: data.madeToOrder || false,
     };

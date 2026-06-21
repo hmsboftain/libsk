@@ -199,6 +199,8 @@
   "@thankYouWithName": { "placeholders": { "name": { "type": "String" } } },
   "backToHome": "العودة للرئيسية",
   "yourCartIsEmpty": "سلتك فارغة",
+  "cartEmptySubtitle": "اكتشف قطعاً من متاجر الكويت وابدأ التسوق.",
+  "browseBoutiques": "تصفح المتاجر",
   "itemRemovedFromCart": "تمت إزالة المنتج من السلة",
   "shippingChargesAndDiscountCodesCalculatedAtCheckout": "رسوم الشحن وأكواد الخصم تُحسب عند الدفع",
   "checkoutButton": "إتمام الشراء",
@@ -227,6 +229,7 @@
   "productDeleted": "تم حذف المنتج",
   "failedToDeleteProduct": "فشل حذف المنتج",
   "failedToLoadProducts": "فشل تحميل المنتجات",
+  "failedToLoadUsers": "فشل تحميل المستخدمين",
   "noMatchingProductsFound": "لم يتم العثور على منتجات مطابقة",
   "noMatchingBoutiquesFound": "لم يتم العثور على بوتيكات مطابقة.",
   "noDescriptionAddedYet": "لم يتم إضافة وصف بعد.",
@@ -755,5 +758,13 @@
   "productNoLongerAvailable": "{title} لم يعد متوفراً",
   "@productNoLongerAvailable": { "placeholders": { "title": { "type": "String" } } },
   "productNotEnoughStock": "المخزون غير كافٍ لـ {title}",
-  "@productNotEnoughStock": { "placeholders": { "title": { "type": "String" } } }
+  "@productNotEnoughStock": { "placeholders": { "title": { "type": "String" } } },
+  "secureCheckout": "دفع آمن",
+  "knet": "كي نت",
+  "markAsOutOfStock": "وضع علامة نفاد المخزون",
+  "markAsOutOfStockSubtitle": "إخفاء زر الإضافة إلى السلة وإظهار علامة نفاد المخزون بغض النظر عن الكمية.",
+  "salePrice": "سعر التخفيض",
+  "salePriceHint": "مثال: 20.000",
+  "saleBadge": "تخفيض",
+  "salePriceMustBeLessThanPrice": "يجب أن يكون سعر التخفيض أقل من السعر العادي"
 }
