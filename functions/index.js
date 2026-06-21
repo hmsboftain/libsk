@@ -524,11 +524,17 @@ exports.createOrder = onCall(async (request) => {
       : 3;
     const total = verifiedSubtotal + deliveryCost - discountAmount;
 
+    // Flat 15% LIBSK commission on GMV — computed from the order subtotal,
+    // before any discount or delivery fee. Stored on the order so revenue
+    // reporting can sum it directly instead of recomputing at read time.
+    const commissionAmount = parseFloat((verifiedSubtotal * 0.15).toFixed(3));
+
     const orderBase = {
       orderNumber,
       date: dateString,
       itemCount: verifiedItems.reduce((s, i) => s + i.quantity, 0),
       total,
+      commissionAmount,
       status: "Placed",
       customerUid: uid,
       customerName,
@@ -550,6 +556,8 @@ exports.createOrder = onCall(async (request) => {
       const bItems = verifiedItems.filter(i => i.boutiqueId === boutiqueId);
       const bTotal = bItems.reduce((s, i) => s + i.price * i.quantity, 0);
       const bCount = bItems.reduce((s, i) => s + i.quantity, 0);
+      // Flat 15% commission on this boutique's share of the order subtotal.
+      const bCommission = parseFloat((bTotal * 0.15).toFixed(3));
 
       const boutiqueOrderRef = db.collection("boutiques").doc(boutiqueId)
                                  .collection("orders").doc();
@@ -560,6 +568,7 @@ exports.createOrder = onCall(async (request) => {
         date: dateString,
         itemCount: bCount,
         total: bTotal,
+        commissionAmount: bCommission,
         status: "Placed",
         customerUid: uid,
         customerName,
