@@ -101,7 +101,10 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -137,6 +140,9 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                     Expanded(
                       child: TextField(
                         controller: _searchController,
+                        textInputAction: TextInputAction.done,
+                        onEditingComplete: () =>
+                            FocusScope.of(context).unfocus(),
                         style: AppTextStyles.bodyMedium,
                         decoration: InputDecoration(
                           hintText: l10n.searchBoutiquesHint,
@@ -203,6 +209,7 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                       }
 
                       return ListView.builder(
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 16,
@@ -329,6 +336,7 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -77,7 +77,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -94,6 +97,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Form(
                   key: _formKey,
@@ -119,6 +123,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       TextFormField(
                         controller: emailController,
                         keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.done,
+                        onEditingComplete: () =>
+                            FocusScope.of(context).unfocus(),
                         decoration: const InputDecoration(hintText: ""),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -165,6 +172,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

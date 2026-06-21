@@ -159,7 +159,10 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -188,6 +191,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                   color: AppColors.deepAccent,
                                   onRefresh: _onRefresh,
                                   child: ListView(
+                                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                                     children: [
                                       SizedBox(
                                         height: 400,
@@ -240,6 +244,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                       return RefreshIndicator(
                                         onRefresh: _onRefresh,
                                         child: SingleChildScrollView(
+                                          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                                           physics:
                                               const AlwaysScrollableScrollPhysics(),
                                           child: SizedBox(
@@ -263,6 +268,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                       color: AppColors.deepAccent,
                                       onRefresh: _onRefresh,
                                       child: ListView.builder(
+                                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                                         physics:
                                             const AlwaysScrollableScrollPhysics(),
                                         padding: const EdgeInsets.fromLTRB(
@@ -288,6 +294,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

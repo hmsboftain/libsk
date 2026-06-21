@@ -235,8 +235,12 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Form(
             key: _formKey,
@@ -266,6 +270,7 @@ class _LoginPageState extends State<LoginPage> {
                 TextFormField(
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
                   decoration: _loginInputDecoration(hint: l10n.emailExample),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
@@ -293,6 +298,8 @@ class _LoginPageState extends State<LoginPage> {
                 TextFormField(
                   controller: passwordController,
                   obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.done,
+                  onEditingComplete: () => FocusScope.of(context).unfocus(),
                   decoration: _loginInputDecoration(
                     hint: l10n.passwordHidden,
                     suffixIcon: IconButton(
@@ -486,6 +493,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

@@ -162,7 +162,10 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -171,6 +174,7 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
                 color: AppColors.deepAccent,
                 onRefresh: _fetchRevenue,
                 child: SingleChildScrollView(
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
                   child: Column(
@@ -191,6 +195,7 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
                       SizedBox(
                         height: 36,
                         child: ListView.separated(
+                          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                           scrollDirection: Axis.horizontal,
                           itemCount: _RevenuePeriod.values.length,
                           separatorBuilder: (_, __) => const SizedBox(width: 8),
@@ -387,6 +392,7 @@ class _AdminRevenuePageState extends State<AdminRevenuePage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

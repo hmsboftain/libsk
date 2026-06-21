@@ -96,7 +96,11 @@ class ErrorStateWidget extends StatelessWidget {
     if (fullPage) {
       return Scaffold(
         backgroundColor: AppColors.background,
-        body: Center(child: content),
+        body: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          behavior: HitTestBehavior.translucent,
+          child: Center(child: content),
+        ),
       );
     }
 
@@ -117,7 +121,10 @@ class NotFoundPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             Padding(
@@ -163,6 +170,7 @@ class NotFoundPage extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

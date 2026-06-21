@@ -344,12 +344,16 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -513,6 +517,7 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

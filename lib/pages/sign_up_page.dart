@@ -141,6 +141,8 @@ Widget _buildInput({
   String? Function(String?)? validator,
   TextInputType? keyboardType,
   Widget? belowField,
+  TextInputAction? textInputAction,
+  VoidCallback? onEditingComplete,
 }) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,6 +158,8 @@ Widget _buildInput({
         controller: controller,
         obscureText: obscureText,
         keyboardType: keyboardType,
+        textInputAction: textInputAction,
+        onEditingComplete: onEditingComplete,
         decoration: InputDecoration(suffixIcon: suffixIcon),
         validator: validator,
       ),
@@ -351,8 +355,12 @@ class _SignUpPageState extends State<SignUpPage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Form(
             key: _formKey,
@@ -375,6 +383,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       child: _buildInput(
                         label: l10n.firstName,
                         controller: firstNameController,
+                        textInputAction: TextInputAction.next,
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return l10n.firstNameRequired;
@@ -388,6 +397,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       child: _buildInput(
                         label: l10n.lastName,
                         controller: lastNameController,
+                        textInputAction: TextInputAction.next,
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return l10n.lastNameRequired;
@@ -404,6 +414,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   label: l10n.emailAddress,
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
                       return l10n.emailRequired;
@@ -420,6 +431,8 @@ class _SignUpPageState extends State<SignUpPage> {
                   label: l10n.phoneNumber,
                   controller: phoneController,
                   keyboardType: TextInputType.phone,
+                  textInputAction: TextInputAction.done,
+                  onEditingComplete: () => FocusScope.of(context).unfocus(),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
                       return l10n.phoneNumberRequired;
@@ -433,6 +446,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   label: l10n.password,
                   controller: passwordController,
                   obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.next,
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword
@@ -466,6 +480,8 @@ class _SignUpPageState extends State<SignUpPage> {
                   label: l10n.confirmPassword,
                   controller: confirmPasswordController,
                   obscureText: _obscureConfirmPassword,
+                  textInputAction: TextInputAction.done,
+                  onEditingComplete: () => FocusScope.of(context).unfocus(),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscureConfirmPassword
@@ -609,6 +625,7 @@ class _SignUpPageState extends State<SignUpPage> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

@@ -113,7 +113,10 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -133,6 +136,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -141,6 +145,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
       color: AppColors.deepAccent,
       onRefresh: _onRefresh,
       child: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: [
           SizedBox(
             height: 400,
@@ -196,6 +201,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
               color: AppColors.deepAccent,
               onRefresh: _onRefresh,
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
                 child: Column(

@@ -196,7 +196,10 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -212,6 +215,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                       color: AppColors.deepAccent,
                       onRefresh: _onRefresh,
                       child: ListView(
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         children: [
                           Padding(
                             padding: const EdgeInsets.all(24),
@@ -231,6 +235,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -245,6 +250,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
       color: AppColors.deepAccent,
       onRefresh: _onRefresh,
       child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

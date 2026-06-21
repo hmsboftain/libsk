@@ -121,6 +121,7 @@ Future<void> _showMultiSelectSheet({
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: rowHeight * 4),
                   child: ListView.builder(
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                     shrinkWrap: true,
                     padding: EdgeInsets.zero,
                     itemCount: entries.length,
@@ -450,6 +451,9 @@ class _SizeStockFieldState extends State<SizeStockField> {
                       child: TextField(
                         controller: _stock[size],
                         keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        onEditingComplete: () =>
+                            FocusScope.of(context).unfocus(),
                         textAlign: TextAlign.right,
                         style: AppTextStyles.bodyMedium,
                         decoration: const InputDecoration(

@@ -80,7 +80,10 @@ class _OrdersPageState extends State<OrdersPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -157,6 +160,7 @@ class _OrdersPageState extends State<OrdersPage> {
                           color: AppColors.deepAccent,
                           onRefresh: () async => _refreshStream(),
                           child: SingleChildScrollView(
+                            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Column(
@@ -224,6 +228,7 @@ class _OrdersPageState extends State<OrdersPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

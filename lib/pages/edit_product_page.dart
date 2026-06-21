@@ -572,6 +572,7 @@ class _EditProductPageState extends State<EditProductPage> {
           SizedBox(
             height: 150,
             child: ListView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               scrollDirection: Axis.horizontal,
               children: [
                 ...currentImageUrls.asMap().entries.map((entry) {
@@ -814,6 +815,8 @@ class _EditProductPageState extends State<EditProductPage> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
+                textInputAction: TextInputAction.done,
+                onEditingComplete: () => FocusScope.of(context).unfocus(),
                 decoration: _inputDecoration(l10n.salePriceHint),
                 validator: (v) {
                   if (!_discountExpanded) return null;
@@ -915,6 +918,8 @@ class _EditProductPageState extends State<EditProductPage> {
             Expanded(
               child: TextFormField(
                 controller: colorInputController,
+                textInputAction: TextInputAction.done,
+                onEditingComplete: () => FocusScope.of(context).unfocus(),
                 decoration: _inputDecoration(l10n.addAColour),
                 textCapitalization: TextCapitalization.words,
                 onFieldSubmitted: (_) => _addColorTag(),
@@ -1024,6 +1029,8 @@ class _EditProductPageState extends State<EditProductPage> {
           _buildLabel(l10n.deliveryTimeframe),
           TextFormField(
             controller: deliveryTimeframeController,
+            textInputAction: TextInputAction.done,
+            onEditingComplete: () => FocusScope.of(context).unfocus(),
             decoration: _inputDecoration(l10n.deliveryTimeframeHint),
           ),
         ],
@@ -1065,12 +1072,16 @@ class _EditProductPageState extends State<EditProductPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
                 child: Form(
                   key: _formKey,
@@ -1103,6 +1114,7 @@ class _EditProductPageState extends State<EditProductPage> {
                             _buildLabel(l10n.productTitle),
                             TextFormField(
                               controller: titleController,
+                              textInputAction: TextInputAction.next,
                               decoration: _inputDecoration(
                                 l10n.enterProductTitle,
                               ),
@@ -1118,6 +1130,7 @@ class _EditProductPageState extends State<EditProductPage> {
                             TextFormField(
                               controller: descriptionController,
                               maxLines: 4,
+                              textInputAction: TextInputAction.newline,
                               decoration: _inputDecoration(
                                 l10n.enterProductDescription,
                               ),
@@ -1136,6 +1149,9 @@ class _EditProductPageState extends State<EditProductPage> {
                                   const TextInputType.numberWithOptions(
                                     decimal: true,
                                   ),
+                              textInputAction: TextInputAction.done,
+                              onEditingComplete: () =>
+                                  FocusScope.of(context).unfocus(),
                               decoration: _inputDecoration(l10n.priceExample),
                               validator: (v) {
                                 if (v == null || v.trim().isEmpty) {
@@ -1205,6 +1221,7 @@ class _EditProductPageState extends State<EditProductPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

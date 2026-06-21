@@ -320,12 +320,16 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,6 +370,9 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                               controller: emailController,
                               keyboardType: TextInputType.emailAddress,
                               autocorrect: false,
+                              textInputAction: TextInputAction.done,
+                              onEditingComplete: () =>
+                                  FocusScope.of(context).unfocus(),
                               decoration: _inputDec(''),
                             ),
                             const SizedBox(height: 16),
@@ -476,6 +483,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                                   _label(l10n.boutique),
                                   TextFormField(
                                     controller: boutiqueNameController,
+                                    textInputAction: TextInputAction.next,
                                     decoration: _inputDec(''),
                                     validator: (v) =>
                                         v == null || v.trim().isEmpty
@@ -487,6 +495,9 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                                   TextFormField(
                                     controller: boutiqueDescController,
                                     maxLines: 3,
+                                    textInputAction: TextInputAction.done,
+                                    onEditingComplete: () =>
+                                        FocusScope.of(context).unfocus(),
                                     decoration: _inputDec(''),
                                   ),
                                 ],
@@ -562,6 +573,7 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

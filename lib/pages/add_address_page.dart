@@ -145,6 +145,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
             Expanded(
               child: TextFormField(
                 controller: governorateController,
+                textInputAction: TextInputAction.next,
                 decoration: _inputStyle(l10n.governorate),
                 validator: (v) => _requiredValidator(v, l10n.requiredField),
               ),
@@ -153,6 +154,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
             Expanded(
               child: TextFormField(
                 controller: areaController,
+                textInputAction: TextInputAction.next,
                 decoration: _inputStyle(l10n.area),
                 validator: (v) => _requiredValidator(v, l10n.requiredField),
               ),
@@ -167,6 +169,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
             Expanded(
               child: TextFormField(
                 controller: blockController,
+                textInputAction: TextInputAction.next,
                 decoration: _inputStyle(l10n.block),
                 validator: (v) => _requiredValidator(v, l10n.requiredField),
               ),
@@ -175,6 +178,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
             Expanded(
               child: TextFormField(
                 controller: streetController,
+                textInputAction: TextInputAction.next,
                 decoration: _inputStyle(l10n.street),
                 validator: (v) => _requiredValidator(v, l10n.requiredField),
               ),
@@ -189,6 +193,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
             Expanded(
               child: TextFormField(
                 controller: houseController,
+                textInputAction: TextInputAction.next,
                 decoration: _inputStyle(l10n.houseBuilding),
                 validator: (v) => _requiredValidator(v, l10n.requiredField),
               ),
@@ -197,6 +202,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
             Expanded(
               child: TextFormField(
                 controller: floorController,
+                textInputAction: TextInputAction.next,
                 decoration: _inputStyle(l10n.floorOptional),
               ),
             ),
@@ -210,6 +216,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
             Expanded(
               child: TextFormField(
                 controller: apartmentController,
+                textInputAction: TextInputAction.next,
                 decoration: _inputStyle(l10n.apartmentOptional),
               ),
             ),
@@ -218,6 +225,8 @@ class _AddAddressPageState extends State<AddAddressPage> {
               child: TextFormField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.done,
+                onEditingComplete: () => FocusScope.of(context).unfocus(),
                 decoration: _inputStyle(l10n.phoneNumber),
                 validator: (v) => _requiredValidator(v, l10n.requiredField),
               ),
@@ -264,6 +273,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
         // Address line 1
         TextFormField(
           controller: addressLine1Controller,
+          textInputAction: TextInputAction.next,
           decoration: _inputStyle(l10n.addressLine1),
           validator: (v) => _requiredValidator(v, l10n.requiredField),
         ),
@@ -272,6 +282,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
         // Address line 2
         TextFormField(
           controller: addressLine2Controller,
+          textInputAction: TextInputAction.next,
           decoration: _inputStyle(l10n.addressLine2Optional),
         ),
         const SizedBox(height: 16),
@@ -282,6 +293,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
             Expanded(
               child: TextFormField(
                 controller: cityController,
+                textInputAction: TextInputAction.next,
                 decoration: _inputStyle(l10n.city),
                 validator: (v) => _requiredValidator(v, l10n.requiredField),
               ),
@@ -290,6 +302,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
             Expanded(
               child: TextFormField(
                 controller: zipController,
+                textInputAction: TextInputAction.next,
                 decoration: _inputStyle(l10n.zipCode),
               ),
             ),
@@ -301,6 +314,8 @@ class _AddAddressPageState extends State<AddAddressPage> {
         TextFormField(
           controller: phoneController,
           keyboardType: TextInputType.phone,
+          textInputAction: TextInputAction.done,
+          onEditingComplete: () => FocusScope.of(context).unfocus(),
           decoration: _inputStyle(l10n.phoneNumber),
           validator: (v) => _requiredValidator(v, l10n.requiredField),
         ),
@@ -316,7 +331,10 @@ class _AddAddressPageState extends State<AddAddressPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -329,6 +347,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
             ),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: Form(
                   key: _formKey,
@@ -350,6 +369,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
                           Expanded(
                             child: TextFormField(
                               controller: firstNameController,
+                              textInputAction: TextInputAction.next,
                               decoration: _inputStyle(l10n.firstName),
                               validator: (v) =>
                                   _requiredValidator(v, l10n.requiredField),
@@ -359,6 +379,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
                           Expanded(
                             child: TextFormField(
                               controller: lastNameController,
+                              textInputAction: TextInputAction.next,
                               decoration: _inputStyle(l10n.lastName),
                               validator: (v) =>
                                   _requiredValidator(v, l10n.requiredField),
@@ -409,6 +430,7 @@ class _AddAddressPageState extends State<AddAddressPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -114,7 +114,10 @@ class _EditPersonalInformationPageState
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -127,6 +130,7 @@ class _EditPersonalInformationPageState
             const Divider(height: 1, thickness: 0.5),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: Form(
                   key: _formKey,
@@ -141,6 +145,9 @@ class _EditPersonalInformationPageState
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: fullNameController,
+                        textInputAction: TextInputAction.done,
+                        onEditingComplete: () =>
+                            FocusScope.of(context).unfocus(),
                         decoration: const InputDecoration(hintText: ""),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -229,6 +236,7 @@ class _EditPersonalInformationPageState
             ),
           ],
         ),
+      ),
       ),
     );
   }

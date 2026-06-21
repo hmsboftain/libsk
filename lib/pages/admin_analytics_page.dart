@@ -161,6 +161,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
     return SizedBox(
       height: 44,
       child: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         scrollDirection: Axis.horizontal,
         children: [
           _filterChip(AnalyticsFilter.allTime, l10n),
@@ -181,7 +182,10 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -228,6 +232,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
                       _topBoutiqueName(docs) ?? l10n.noSalesYet;
 
                   return SingleChildScrollView(
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -309,6 +314,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

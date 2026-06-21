@@ -102,12 +102,16 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,6 +154,7 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _titleController,
+                      textInputAction: TextInputAction.next,
                       decoration: _inputDecoration(''),
                     ),
 
@@ -159,6 +164,9 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
                     TextField(
                       controller: _bodyController,
                       maxLines: 5,
+                      textInputAction: TextInputAction.done,
+                      onEditingComplete: () =>
+                          FocusScope.of(context).unfocus(),
                       decoration: _inputDecoration(''),
                     ),
 
@@ -198,6 +206,7 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -31,7 +31,10 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -72,6 +75,7 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
                   }
 
                   return ListView.builder(
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                     itemCount: docs.length,
                     itemBuilder: (context, index) {
                       final doc = docs[index];
@@ -102,6 +106,7 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

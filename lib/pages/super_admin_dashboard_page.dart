@@ -104,7 +104,10 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -145,6 +148,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                   final superAdmins = _countRole(data.users, 'super_admin');
 
                   return SingleChildScrollView(
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -489,6 +493,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

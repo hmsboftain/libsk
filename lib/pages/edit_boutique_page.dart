@@ -355,12 +355,16 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
                 child: Form(
                   key: _formKey,
@@ -387,6 +391,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
                             _buildLabel(l10n.boutiqueName),
                             TextFormField(
                               controller: nameController,
+                              textInputAction: TextInputAction.next,
                               decoration: _inputDecoration(
                                 l10n.enterBoutiqueName,
                               ),
@@ -402,6 +407,9 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
                             TextFormField(
                               controller: descriptionController,
                               maxLines: 4,
+                              textInputAction: TextInputAction.done,
+                              onEditingComplete: () =>
+                                  FocusScope.of(context).unfocus(),
                               decoration: _inputDecoration(
                                 l10n.enterBoutiqueDescription,
                               ),
@@ -473,6 +481,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

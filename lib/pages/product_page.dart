@@ -647,6 +647,7 @@ class _ProductPageState extends State<ProductPage> {
       _selectedImageIndex = 0;
 
     return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -887,13 +888,17 @@ class _ProductPageState extends State<ProductPage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
-          return const Scaffold(
+          return Scaffold(
             backgroundColor: AppColors.background,
-            body: SafeArea(
-              child: Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.5,
-                  color: AppColors.deepAccent,
+            body: GestureDetector(
+              onTap: () => FocusScope.of(context).unfocus(),
+              behavior: HitTestBehavior.translucent,
+              child: SafeArea(
+                child: Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    color: AppColors.deepAccent,
+                  ),
                 ),
               ),
             ),
@@ -902,12 +907,16 @@ class _ProductPageState extends State<ProductPage> {
         if (snapshot.hasError) {
           return Scaffold(
             backgroundColor: AppColors.background,
-            body: SafeArea(
-              child: ErrorStateWidget.inline(
-                title: l10n.somethingWentWrong,
-                message: l10n.somethingWentWrong,
-                onRetry: () => setState(() {}),
-                type: ErrorType.network,
+            body: GestureDetector(
+              onTap: () => FocusScope.of(context).unfocus(),
+              behavior: HitTestBehavior.translucent,
+              child: SafeArea(
+                child: ErrorStateWidget.inline(
+                  title: l10n.somethingWentWrong,
+                  message: l10n.somethingWentWrong,
+                  onRetry: () => setState(() {}),
+                  type: ErrorType.network,
+                ),
               ),
             ),
           );
@@ -918,7 +927,11 @@ class _ProductPageState extends State<ProductPage> {
         final data = _resolveProductData(snapshot.data);
         return Scaffold(
           backgroundColor: AppColors.background,
-          body: SafeArea(child: _buildProductContent(data)),
+          body: GestureDetector(
+            onTap: () => FocusScope.of(context).unfocus(),
+            behavior: HitTestBehavior.translucent,
+            child: SafeArea(child: _buildProductContent(data)),
+          ),
           bottomNavigationBar: _buildStickyAddToCart(data),
         );
       },

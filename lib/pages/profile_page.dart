@@ -170,6 +170,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 const Divider(color: AppColors.border, thickness: 0.5),
                 Expanded(
                   child: ListView(
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                     children: kSupportedCountries.map((country) {
                       final isSelected = country.code == currentCode;
                       return InkWell(
@@ -275,12 +276,16 @@ class _ProfilePageState extends State<ProfilePage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -485,6 +490,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

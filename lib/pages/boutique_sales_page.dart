@@ -88,7 +88,10 @@ class _BoutiqueSalesPageState extends State<BoutiqueSalesPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -180,6 +183,7 @@ class _BoutiqueSalesPageState extends State<BoutiqueSalesPage> {
                       }
 
                       return SingleChildScrollView(
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,6 +232,7 @@ class _BoutiqueSalesPageState extends State<BoutiqueSalesPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

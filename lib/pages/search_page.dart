@@ -139,7 +139,10 @@ class _SearchPageState extends State<SearchPage>
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -166,6 +169,9 @@ class _SearchPageState extends State<SearchPage>
                       child: TextField(
                         controller: _queryController,
                         autofocus: true,
+                        textInputAction: TextInputAction.done,
+                        onEditingComplete: () =>
+                            FocusScope.of(context).unfocus(),
                         onChanged: _onQueryChanged,
                         style: AppTextStyles.bodyMedium,
                         decoration: InputDecoration(
@@ -255,6 +261,7 @@ class _SearchPageState extends State<SearchPage>
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -287,6 +294,7 @@ class _SearchPageState extends State<SearchPage>
       );
     }
     return ListView.builder(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
       itemCount: _boutiqueResults.length,
       itemBuilder: (context, index) =>

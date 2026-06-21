@@ -103,6 +103,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     required bool obscureText,
     required VoidCallback onToggle,
     required String? Function(String?) validator,
+    TextInputAction? textInputAction,
+    VoidCallback? onEditingComplete,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,6 +117,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         TextFormField(
           controller: controller,
           obscureText: obscureText,
+          textInputAction: textInputAction,
+          onEditingComplete: onEditingComplete,
           decoration: InputDecoration(
             suffixIcon: IconButton(
               icon: Icon(
@@ -135,7 +139,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -148,6 +155,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             const Divider(height: 1, thickness: 0.5),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: Form(
                   key: _formKey,
@@ -160,6 +168,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         AppLocalizations.of(context)!.currentPasswordLabel,
                         controller: currentPasswordController,
                         obscureText: obscureCurrentPassword,
+                        textInputAction: TextInputAction.next,
                         onToggle: () {
                           setState(() {
                             obscureCurrentPassword = !obscureCurrentPassword;
@@ -177,6 +186,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         label: AppLocalizations.of(context)!.newPasswordLabel,
                         controller: newPasswordController,
                         obscureText: obscureNewPassword,
+                        textInputAction: TextInputAction.next,
                         onToggle: () {
                           setState(() {
                             obscureNewPassword = !obscureNewPassword;
@@ -204,6 +214,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         AppLocalizations.of(context)!.confirmNewPasswordLabel,
                         controller: confirmPasswordController,
                         obscureText: obscureConfirmPassword,
+                        textInputAction: TextInputAction.done,
+                        onEditingComplete: () =>
+                            FocusScope.of(context).unfocus(),
                         onToggle: () {
                           setState(() {
                             obscureConfirmPassword =
@@ -256,6 +269,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -91,7 +91,10 @@ class _CartPageState extends State<CartPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true, isCartPage: true),
@@ -135,6 +138,7 @@ class _CartPageState extends State<CartPage> {
                     children: [
                       Expanded(
                         child: SingleChildScrollView(
+                          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 22),
                             child: Column(
@@ -250,6 +254,7 @@ class _CartPageState extends State<CartPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

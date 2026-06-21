@@ -112,6 +112,8 @@ class _YourAccountPageState extends State<YourAccountPage> {
                 TextField(
                   controller: passwordController,
                   obscureText: true,
+                  textInputAction: TextInputAction.done,
+                  onEditingComplete: () => FocusScope.of(ctx).unfocus(),
                   decoration: InputDecoration(hintText: l10n.password),
                 ),
               ],
@@ -181,7 +183,10 @@ class _YourAccountPageState extends State<YourAccountPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -191,6 +196,7 @@ class _YourAccountPageState extends State<YourAccountPage> {
             const Divider(height: 1, thickness: 0.5),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: Column(
                   children: [
@@ -270,6 +276,7 @@ class _YourAccountPageState extends State<YourAccountPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

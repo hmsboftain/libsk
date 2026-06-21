@@ -55,7 +55,10 @@ class _DiscountCodesPageState extends State<DiscountCodesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -137,6 +140,7 @@ class _DiscountCodesPageState extends State<DiscountCodesPage> {
                                 ),
                               )
                             : ListView.separated(
+                                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                                 padding: const EdgeInsets.fromLTRB(
                                   20,
                                   16,
@@ -164,6 +168,7 @@ class _DiscountCodesPageState extends State<DiscountCodesPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -499,6 +504,7 @@ class _CreateCodeSheetState extends State<_CreateCodeSheet> {
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
       child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -520,6 +526,7 @@ class _CreateCodeSheetState extends State<_CreateCodeSheet> {
             TextField(
               controller: _codeController,
               textCapitalization: TextCapitalization.characters,
+              textInputAction: TextInputAction.next,
               decoration: _inputDecoration('e.g. LUNE10'),
             ),
             const SizedBox(height: 16),
@@ -545,6 +552,8 @@ class _CreateCodeSheetState extends State<_CreateCodeSheet> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              textInputAction: TextInputAction.done,
+              onEditingComplete: () => FocusScope.of(context).unfocus(),
               decoration: _inputDecoration(
                 _type == 'percentage' ? 'e.g. 10' : 'e.g. 2.500',
               ),
@@ -554,6 +563,7 @@ class _CreateCodeSheetState extends State<_CreateCodeSheet> {
             const SizedBox(height: 8),
             TextField(
               controller: _descController,
+              textInputAction: TextInputAction.next,
               decoration: _inputDecoration('e.g. Launch week promo'),
             ),
             const SizedBox(height: 16),
@@ -575,6 +585,8 @@ class _CreateCodeSheetState extends State<_CreateCodeSheet> {
               TextField(
                 controller: _limitController,
                 keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
+                onEditingComplete: () => FocusScope.of(context).unfocus(),
                 decoration: _inputDecoration('e.g. 100'),
               ),
             ],

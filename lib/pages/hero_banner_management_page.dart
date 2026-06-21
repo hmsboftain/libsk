@@ -232,12 +232,16 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -550,16 +554,21 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
                           const SizedBox(height: 14),
                           TextField(
                             controller: _titleController,
+                            textInputAction: TextInputAction.next,
                             decoration: _inputDec(l10n.bannerTitleOptional),
                           ),
                           const SizedBox(height: 10),
                           TextField(
                             controller: _subtitleController,
+                            textInputAction: TextInputAction.next,
                             decoration: _inputDec(l10n.subtitleOptional),
                           ),
                           const SizedBox(height: 10),
                           TextField(
                             controller: _ctaController,
+                            textInputAction: TextInputAction.done,
+                            onEditingComplete: () =>
+                                FocusScope.of(context).unfocus(),
                             decoration: _inputDec(''),
                           ),
                           const SizedBox(height: 16),
@@ -600,6 +609,7 @@ class _HeroBannerManagementPageState extends State<HeroBannerManagementPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -269,6 +269,7 @@ class _DisputesPageState extends State<DisputesPage> {
     return SizedBox(
       height: 36,
       child: ListView.separated(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: _DisputeFilter.values.length,
@@ -311,7 +312,10 @@ class _DisputesPageState extends State<DisputesPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -377,6 +381,7 @@ class _DisputesPageState extends State<DisputesPage> {
                                 ),
                               )
                             : ListView.builder(
+                                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                                 padding: const EdgeInsets.fromLTRB(
                                   20,
                                   8,
@@ -397,6 +402,7 @@ class _DisputesPageState extends State<DisputesPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

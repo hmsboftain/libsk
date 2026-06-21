@@ -97,7 +97,10 @@ class _SplashPageState extends State<SplashPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Stack(
           children: [
             Center(
@@ -139,6 +142,7 @@ class _SplashPageState extends State<SplashPage>
             ),
           ],
         ),
+      ),
       ),
     );
   }

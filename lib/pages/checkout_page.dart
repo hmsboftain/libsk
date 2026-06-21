@@ -412,7 +412,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
     if (user == null) {
       return Scaffold(
         backgroundColor: AppColors.background,
-        body: SafeArea(
+        body: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          behavior: HitTestBehavior.translucent,
+          child: SafeArea(
           child: Center(
             child: Text(
               AppLocalizations.of(context)!.pleaseLogInToContinueToCheckout,
@@ -421,6 +424,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
               ),
             ),
           ),
+        ),
         ),
       );
     }
@@ -434,7 +438,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: _cartStream,
           builder: (context, cartSnapshot) {
@@ -480,6 +487,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     const AppHeader(showBackButton: true),
                     Expanded(
                       child: SingleChildScrollView(
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: const EdgeInsets.symmetric(horizontal: 22),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -755,6 +763,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     controller: _codeController,
                                     textCapitalization:
                                         TextCapitalization.characters,
+                                    textInputAction: TextInputAction.done,
+                                    onEditingComplete: () =>
+                                        FocusScope.of(context).unfocus(),
                                     enabled: _appliedCode == null,
                                     decoration: InputDecoration(
                                       hintText: 'Enter code',
@@ -981,6 +992,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             );
           },
         ),
+      ),
       ),
     );
   }

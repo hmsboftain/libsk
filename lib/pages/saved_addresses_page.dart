@@ -49,7 +49,10 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -85,6 +88,7 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                     return RefreshIndicator(
                       onRefresh: () async => setState(() {}),
                       child: SingleChildScrollView(
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         physics: const AlwaysScrollableScrollPhysics(),
                         child: SizedBox(
                           height: 400,
@@ -110,6 +114,7 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                   return RefreshIndicator(
                     onRefresh: () async => setState(() {}),
                     child: ListView.builder(
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(16),
                       itemCount: docs.length,
@@ -146,6 +151,7 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

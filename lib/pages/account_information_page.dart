@@ -141,7 +141,10 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -160,6 +163,7 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
                   : RefreshIndicator(
                       onRefresh: _onRefresh,
                       child: SingleChildScrollView(
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.symmetric(horizontal: 22),
                         child: Form(
@@ -172,6 +176,7 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
                               const SizedBox(height: 8),
                               TextFormField(
                                 controller: fullNameController,
+                                textInputAction: TextInputAction.next,
                                 decoration: _buildInputDecoration(
                                   hintText: l10n.enterUsername,
                                 ),
@@ -204,6 +209,9 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
                               TextFormField(
                                 controller: phoneController,
                                 keyboardType: TextInputType.phone,
+                                textInputAction: TextInputAction.done,
+                                onEditingComplete: () =>
+                                    FocusScope.of(context).unfocus(),
                                 decoration: _buildInputDecoration(
                                   hintText: l10n.enterPhoneNumber,
                                 ),
@@ -250,6 +258,7 @@ class _AccountInformationPageState extends State<AccountInformationPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

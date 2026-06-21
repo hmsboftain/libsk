@@ -47,7 +47,10 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -80,6 +83,7 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
                     color: AppColors.deepAccent,
                     onRefresh: () async => setState(() {}),
                     child: SingleChildScrollView(
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                       physics: const AlwaysScrollableScrollPhysics(),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,6 +168,7 @@ class _SavedBoutiquesPageState extends State<SavedBoutiquesPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

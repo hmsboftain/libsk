@@ -65,11 +65,15 @@ Widget _formField({
   required IconData icon,
   TextInputType keyboardType = TextInputType.text,
   int maxLines = 1,
+  TextInputAction? textInputAction,
+  VoidCallback? onEditingComplete,
 }) {
   return TextField(
     controller: controller,
     keyboardType: keyboardType,
     maxLines: maxLines,
+    textInputAction: textInputAction,
+    onEditingComplete: onEditingComplete,
     style: AppTextStyles.bodyMedium,
     decoration: InputDecoration(
       hintText: hint,
@@ -251,12 +255,16 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -476,6 +484,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                             controller: _nameController,
                             hint: l10n.yourName,
                             icon: Icons.person_outline,
+                            textInputAction: TextInputAction.next,
                           ),
                           const SizedBox(height: 12),
                           _formField(
@@ -483,6 +492,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                             hint: l10n.yourEmail,
                             icon: Icons.email_outlined,
                             keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
                           ),
                           const SizedBox(height: 12),
                           _formField(
@@ -490,6 +500,9 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                             hint: l10n.describeYourIssue,
                             icon: Icons.message_outlined,
                             maxLines: 4,
+                            textInputAction: TextInputAction.done,
+                            onEditingComplete: () =>
+                                FocusScope.of(context).unfocus(),
                           ),
                           const SizedBox(height: 16),
                           if (_errorMessage != null)
@@ -551,6 +564,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

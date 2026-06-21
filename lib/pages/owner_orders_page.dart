@@ -211,6 +211,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
   Widget _buildFilterChips() {
     final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -266,6 +267,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Expanded(
             child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: EdgeInsets.symmetric(vertical: 12),
               child: OrdersListSkeleton(),
             ),
@@ -292,6 +294,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
               color: AppColors.deepAccent,
               onRefresh: _onRefresh,
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: SizedBox(
                   height: 400,
@@ -330,6 +333,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
             color: AppColors.deepAccent,
             onRefresh: _onRefresh,
             child: ListView.builder(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               itemCount: docs.length,
@@ -350,7 +354,10 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -386,6 +393,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                       color: AppColors.deepAccent,
                       onRefresh: _onRefresh,
                       child: ListView(
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         children: [
                           Padding(
                             padding: const EdgeInsets.all(24),
@@ -404,6 +412,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

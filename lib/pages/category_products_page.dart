@@ -158,7 +158,10 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -291,6 +294,7 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

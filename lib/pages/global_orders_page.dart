@@ -128,6 +128,8 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
       padding: const EdgeInsets.only(top: 14),
       child: TextField(
         controller: searchController,
+        textInputAction: TextInputAction.done,
+        onEditingComplete: () => FocusScope.of(context).unfocus(),
         onChanged: (value) => setState(() => _searchQuery = value.trim()),
         decoration: InputDecoration(
           hintText: l10n.searchOrders,
@@ -152,7 +154,10 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -183,6 +188,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
                       .toList();
 
                   return SingleChildScrollView(
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,6 +253,7 @@ class _GlobalOrdersPageState extends State<GlobalOrdersPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -93,6 +93,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
           shape: const RoundedRectangleBorder(),
           title: Text(l10n.submitDispute, style: AppTextStyles.headingSmall),
           content: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,6 +160,8 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                 TextField(
                   controller: _descController,
                   maxLines: 3,
+                  textInputAction: TextInputAction.done,
+                  onEditingComplete: () => FocusScope.of(ctx).unfocus(),
                   decoration: const InputDecoration(),
                 ),
               ],
@@ -248,12 +251,16 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -411,6 +418,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

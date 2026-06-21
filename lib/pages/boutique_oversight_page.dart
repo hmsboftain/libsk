@@ -109,7 +109,10 @@ class _BoutiqueOversightPageState extends State<BoutiqueOversightPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             // AppHeader stays fixed — visible on loading and error states too
@@ -168,6 +171,7 @@ class _BoutiqueOversightPageState extends State<BoutiqueOversightPage> {
                   final ownerEmail = _getOwnerEmail(ownerData, l10n);
 
                   return SingleChildScrollView(
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,6 +284,7 @@ class _BoutiqueOversightPageState extends State<BoutiqueOversightPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

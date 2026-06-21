@@ -102,6 +102,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
           SizedBox(
             height: 34,
             child: ListView.separated(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               shrinkWrap: true,
               scrollDirection: Axis.horizontal,
               itemCount: options.length,
@@ -153,7 +154,10 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: _boutiqueStream,
           builder: (context, boutiqueSnapshot) {
@@ -199,6 +203,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
             return RefreshIndicator(
               onRefresh: _onRefresh,
               child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -398,6 +403,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
             );
           },
         ),
+      ),
       ),
     );
   }

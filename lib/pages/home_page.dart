@@ -146,7 +146,10 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: RefreshIndicator(
           color: AppColors.deepAccent,
           onRefresh: _onRefresh,
@@ -297,6 +300,7 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

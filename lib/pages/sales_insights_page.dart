@@ -164,7 +164,10 @@ class _SalesInsightsPageState extends State<SalesInsightsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -180,6 +183,7 @@ class _SalesInsightsPageState extends State<SalesInsightsPage> {
                       color: AppColors.deepAccent,
                       onRefresh: _loadInsights,
                       child: SingleChildScrollView(
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
                         child: Column(
@@ -260,6 +264,7 @@ class _SalesInsightsPageState extends State<SalesInsightsPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
