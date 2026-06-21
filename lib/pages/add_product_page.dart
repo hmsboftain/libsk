@@ -468,10 +468,12 @@ class _AddProductPageState extends State<AddProductPage> {
       children: [
         Text(l10n.category, style: AppTextStyles.capsLabel),
         const SizedBox(height: 10),
-        CategoryListSelector(
-          options: AppCategories.all,
+        MultiSelectField(
+          placeholder: l10n.category,
           selected: selectedCategories,
+          options: AppCategories.all,
           onToggle: _toggleCategory,
+          doneLabel: l10n.done,
         ),
       ],
     );
@@ -484,11 +486,12 @@ class _AddProductPageState extends State<AddProductPage> {
         _buildLabel(l10n.sizesAndStock),
         Text(l10n.addEachSizeWithStockCount, style: AppTextStyles.bodySmall),
         const SizedBox(height: 14),
-        SizeStockSelector(
+        SizeStockField(
           initialEntries: sizeEntries,
           onChanged: (entries) => sizeEntries = entries,
-          letterSizesLabel: l10n.letterSizes,
-          numericSizesLabel: l10n.numericSizes,
+          placeholder: l10n.sizes,
+          doneLabel: l10n.done,
+          numericGroupLabel: l10n.numericSizes,
           sizeColumnLabel: l10n.sizeColumnHeader,
           stockColumnLabel: l10n.stock,
         ),

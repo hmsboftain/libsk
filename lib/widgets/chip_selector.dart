@@ -2,116 +2,257 @@ import 'package:flutter/material.dart';
 
 import 'theme.dart';
 
-// Shared 0.5px hairline used by every bordered container here.
+// Shared 0.5px hairline used by every bordered surface here.
 const BorderSide _hairline = BorderSide(color: AppColors.border, width: 0.5);
 
-/// Alphabetical sizes shown in the first size grid.
-const List<String> kLetterSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'];
+/// Alphabetical sizes, shown first in the size picker.
+const List<String> kLetterSizes = ['One Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
-/// Numeric sizes shown in the second size grid.
+/// Numeric sizes, shown after the "Numeric Sizes" divider.
 const List<String> kNumericSizes = [
   '6', '8', '10', '12', '14', '16',
   '28', '30', '32', '34', '36', '38', '40',
 ];
 
-/// Clean multi-select category list — full-width tappable rows with a trailing
-/// checkmark, selected rows tinted [AppColors.selectedSoft]. The parent owns the
-/// [selected] list and is notified of taps via [onToggle]. Square aesthetic.
-class CategoryListSelector extends StatelessWidget {
-  final List<String> options;
-  final List<String> selected;
-  final ValueChanged<String> onToggle;
+/// One entry in a multi-select sheet: a non-selectable section [header] or a
+/// selectable [value].
+class MultiSelectEntry {
+  final String? header;
+  final String? value;
+  const MultiSelectEntry.header(this.header) : value = null;
+  const MultiSelectEntry.value(this.value) : header = null;
+}
 
-  const CategoryListSelector({
-    super.key,
-    required this.options,
-    required this.selected,
-    required this.onToggle,
+/// Tappable field styled like a regular input (square border, same fill) that
+/// shows the placeholder or the current selection and opens a picker on tap.
+class _PickerField extends StatelessWidget {
+  final String text;
+  final bool isPlaceholder;
+  final VoidCallback onTap;
+
+  const _PickerField({
+    required this.text,
+    required this.isPlaceholder,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.background,
-        border: Border.fromBorderSide(_hairline),
-      ),
-      child: Column(
-        children: List.generate(options.length, (i) {
-          final option = options[i];
-          final isSelected = selected.contains(option);
-          final isLast = i == options.length - 1;
-          return Material(
-            color: isSelected ? AppColors.selectedSoft : AppColors.background,
-            child: InkWell(
-              onTap: () => onToggle(option),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: isLast ? null : const Border(bottom: _hairline),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        option,
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          fontWeight: isSelected
-                              ? FontWeight.w500
-                              : FontWeight.w400,
-                        ),
-                      ),
-                    ),
-                    if (isSelected)
-                      const Icon(
-                        Icons.check,
-                        size: 18,
-                        color: AppColors.deepAccent,
-                      ),
-                  ],
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        decoration: const BoxDecoration(
+          color: AppColors.field,
+          border: Border.fromBorderSide(_hairline),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: isPlaceholder
+                      ? AppColors.secondaryText
+                      : AppColors.primaryText,
                 ),
               ),
             ),
-          );
-        }),
+            const Icon(
+              Icons.keyboard_arrow_down,
+              size: 22,
+              color: AppColors.secondaryText,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Shopify-style size + per-size stock editor. Step 1: pick sizes from the
-/// grouped letter / numeric grids. Step 2: a bordered stock table animates in
-/// with one quantity field per selected size. Preserves the existing per-size
-/// stock data structure: emits a list of `{'name': String, 'stock': int}` maps
-/// via [onChanged] whenever the selection or a stock value changes.
-class SizeStockSelector extends StatefulWidget {
+/// Shared multi-select bottom sheet — ~4 rows visible, scrollable for more, a
+/// trailing checkmark on selected rows, and a Done button. Toggling mutates the
+/// caller's [selected] list via [onToggle] and rebuilds the sheet's checkmarks
+/// live. Square aesthetic throughout.
+Future<void> _showMultiSelectSheet({
+  required BuildContext context,
+  required List<MultiSelectEntry> entries,
+  required List<String> selected,
+  required ValueChanged<String> onToggle,
+  required String doneLabel,
+}) {
+  const rowHeight = 56.0;
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: AppColors.background,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+    builder: (sheetContext) {
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 10),
+                Container(width: 36, height: 4, color: AppColors.border),
+                const SizedBox(height: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: rowHeight * 4),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    itemCount: entries.length,
+                    itemBuilder: (context, i) {
+                      final entry = entries[i];
+                      if (entry.value == null) {
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                          decoration: const BoxDecoration(
+                            border: Border(top: _hairline),
+                          ),
+                          child: Text(
+                            entry.header!,
+                            style: AppTextStyles.capsLabel,
+                          ),
+                        );
+                      }
+                      final value = entry.value!;
+                      final isSelected = selected.contains(value);
+                      return InkWell(
+                        onTap: () {
+                          onToggle(value);
+                          setSheetState(() {});
+                        },
+                        child: Container(
+                          height: rowHeight,
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          decoration: const BoxDecoration(
+                            border: Border(bottom: _hairline),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  value,
+                                  style: AppTextStyles.bodyLarge.copyWith(
+                                    fontWeight: isSelected
+                                        ? FontWeight.w500
+                                        : FontWeight.w400,
+                                  ),
+                                ),
+                              ),
+                              if (isSelected)
+                                const Icon(
+                                  Icons.check,
+                                  size: 20,
+                                  color: AppColors.deepAccent,
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.deepAccent,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.zero,
+                        ),
+                      ),
+                      child: Text(doneLabel, style: AppTextStyles.button),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+/// Dropdown-style multi-select field for a flat list of [options]. The parent
+/// owns the [selected] list and is notified of toggles via [onToggle].
+class MultiSelectField extends StatelessWidget {
+  final String placeholder;
+  final List<String> selected;
+  final List<String> options;
+  final ValueChanged<String> onToggle;
+  final String doneLabel;
+
+  const MultiSelectField({
+    super.key,
+    required this.placeholder,
+    required this.selected,
+    required this.options,
+    required this.onToggle,
+    required this.doneLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasSelection = selected.isNotEmpty;
+    return _PickerField(
+      text: hasSelection ? selected.join(', ') : placeholder,
+      isPlaceholder: !hasSelection,
+      onTap: () => _showMultiSelectSheet(
+        context: context,
+        entries: options
+            .map((o) => MultiSelectEntry.value(o))
+            .toList(growable: false),
+        selected: selected,
+        onToggle: onToggle,
+        doneLabel: doneLabel,
+      ),
+    );
+  }
+}
+
+/// Dropdown-style size picker with a per-size stock table that animates in once
+/// a size is selected. Preserves the existing per-size stock data structure:
+/// emits a list of `{'name': String, 'stock': int}` maps via [onChanged].
+class SizeStockField extends StatefulWidget {
   final List<Map<String, dynamic>> initialEntries;
   final ValueChanged<List<Map<String, dynamic>>> onChanged;
-  final String letterSizesLabel;
-  final String numericSizesLabel;
+  final String placeholder;
+  final String doneLabel;
+  final String numericGroupLabel;
   final String sizeColumnLabel;
   final String stockColumnLabel;
 
-  const SizeStockSelector({
+  const SizeStockField({
     super.key,
     required this.initialEntries,
     required this.onChanged,
-    required this.letterSizesLabel,
-    required this.numericSizesLabel,
+    required this.placeholder,
+    required this.doneLabel,
+    required this.numericGroupLabel,
     required this.sizeColumnLabel,
     required this.stockColumnLabel,
   });
 
   @override
-  State<SizeStockSelector> createState() => _SizeStockSelectorState();
+  State<SizeStockField> createState() => _SizeStockFieldState();
 }
 
-class _SizeStockSelectorState extends State<SizeStockSelector> {
-  // Selected size names (insertion order). Display order is normalised to the
-  // grids via [_orderedSelected] so the stock table stays stable.
+class _SizeStockFieldState extends State<SizeStockField> {
+  // Selected size names (insertion order). Display/emit order is normalised to
+  // the canonical grids via [_orderedSelected].
   final List<String> _selected = [];
   // One stock controller per selected size, kept alive across rebuilds so the
   // cursor doesn't jump while typing.
@@ -180,60 +321,43 @@ class _SizeStockSelectorState extends State<SizeStockSelector> {
     return [...known, ...extra];
   }
 
+  List<MultiSelectEntry> _sheetEntries() => [
+    ...kLetterSizes.map((s) => MultiSelectEntry.value(s)),
+    MultiSelectEntry.header(widget.numericGroupLabel),
+    ...kNumericSizes.map((s) => MultiSelectEntry.value(s)),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final hasSelection = _selected.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(widget.letterSizesLabel, style: AppTextStyles.capsLabel),
-        const SizedBox(height: 10),
-        _grid(kLetterSizes),
-        const SizedBox(height: 18),
-        Text(widget.numericSizesLabel, style: AppTextStyles.capsLabel),
-        const SizedBox(height: 10),
-        _grid(kNumericSizes),
+        _PickerField(
+          text: hasSelection
+              ? _orderedSelected().join(', ')
+              : widget.placeholder,
+          isPlaceholder: !hasSelection,
+          onTap: () => _showMultiSelectSheet(
+            context: context,
+            entries: _sheetEntries(),
+            selected: _selected,
+            onToggle: _toggle,
+            doneLabel: widget.doneLabel,
+          ),
+        ),
         AnimatedSize(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeInOut,
           alignment: Alignment.topCenter,
           child: hasSelection
               ? Padding(
-                  padding: const EdgeInsets.only(top: 22),
+                  padding: const EdgeInsets.only(top: 16),
                   child: _stockTable(),
                 )
               : const SizedBox(width: double.infinity),
         ),
       ],
-    );
-  }
-
-  Widget _grid(List<String> sizes) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: sizes.map((size) {
-        final isSelected = _selected.contains(size);
-        return GestureDetector(
-          onTap: () => _toggle(size),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            constraints: const BoxConstraints(minWidth: 52),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.deepAccent : AppColors.background,
-              border: isSelected ? null : const Border.fromBorderSide(_hairline),
-            ),
-            child: Text(
-              size,
-              style: AppTextStyles.labelLarge.copyWith(
-                color: isSelected ? Colors.white : AppColors.primaryText,
-              ),
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 
@@ -263,7 +387,7 @@ class _SizeStockSelectorState extends State<SizeStockSelector> {
                   child: Text(
                     widget.stockColumnLabel.toUpperCase(),
                     style: AppTextStyles.capsLabel,
-                    textAlign: TextAlign.center,
+                    textAlign: TextAlign.right,
                   ),
                 ),
               ],
@@ -288,12 +412,15 @@ class _SizeStockSelectorState extends State<SizeStockSelector> {
                     child: TextField(
                       controller: _stock[size],
                       keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
+                      textAlign: TextAlign.right,
                       style: AppTextStyles.bodyMedium,
                       decoration: const InputDecoration(
                         isDense: true,
                         hintText: '0',
-                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                         filled: true,
                         fillColor: AppColors.field,
                         border: OutlineInputBorder(

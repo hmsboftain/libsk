@@ -5,20 +5,20 @@ class AppCategories {
   const AppCategories._();
 
   static const List<String> all = [
-    'Abaya',
-    'Blazers',
-    'Blouses & Shirts',
-    'Casual Wear',
-    'Coats',
     'Dresses',
-    "Dra'a",
-    'Gowns',
-    'Jackets',
-    'Jumpsuits',
-    'Office Attire',
-    'Pants',
-    'Shoes',
-    'Skirts',
     'Tops',
+    'Bottoms',
+    'Outerwear',
+    'Abayas',
+    'Modest Wear',
+    'Swimwear',
+    'Activewear',
+    'Loungewear',
+    'Accessories',
+    'Bags',
+    'Shoes',
+    'Jewellery',
+    'Beauty',
+    'Kids',
   ];
 }
