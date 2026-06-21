@@ -6,12 +6,31 @@ import 'theme.dart';
 const BorderSide _hairline = BorderSide(color: AppColors.border, width: 0.5);
 
 /// Alphabetical sizes, shown first in the size picker.
-const List<String> kLetterSizes = ['One Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
+const List<String> kLetterSizes = [
+  'One Size',
+  'XS',
+  'S',
+  'M',
+  'L',
+  'XL',
+  'XXL',
+];
 
 /// Numeric sizes, shown after the "Numeric Sizes" divider.
 const List<String> kNumericSizes = [
-  '6', '8', '10', '12', '14', '16',
-  '28', '30', '32', '34', '36', '38', '40',
+  '6',
+  '8',
+  '10',
+  '12',
+  '14',
+  '16',
+  '28',
+  '30',
+  '32',
+  '34',
+  '36',
+  '38',
+  '40',
 ];
 
 /// One entry in a multi-select sheet: a non-selectable section [header] or a
@@ -396,52 +415,72 @@ class _SizeStockFieldState extends State<SizeStockField> {
           ...List.generate(rows.length, (i) {
             final size = rows[i];
             final isLast = i == rows.length - 1;
-            return Container(
-              decoration: BoxDecoration(
-                border: isLast ? null : const Border(bottom: _hairline),
+            // Swipe a row left to remove that size (and its stock field).
+            return Dismissible(
+              key: ValueKey('size_$size'),
+              direction: DismissDirection.endToStart,
+              onDismissed: (_) => _toggle(size),
+              background: Container(
+                color: AppColors.deepAccent,
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(size, style: AppTextStyles.bodyMedium),
-                  ),
-                  SizedBox(
-                    width: 80,
-                    height: 40,
-                    child: TextField(
-                      controller: _stock[size],
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.right,
-                      style: AppTextStyles.bodyMedium,
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        hintText: '0',
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        filled: true,
-                        fillColor: AppColors.field,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.zero,
-                          borderSide: _hairline,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.zero,
-                          borderSide: _hairline,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.zero,
-                          borderSide: BorderSide(
-                            color: AppColors.deepAccent,
-                            width: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  border: isLast ? null : const Border(bottom: _hairline),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(size, style: AppTextStyles.bodyMedium),
+                    ),
+                    SizedBox(
+                      width: 80,
+                      height: 40,
+                      child: TextField(
+                        controller: _stock[size],
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.right,
+                        style: AppTextStyles.bodyMedium,
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          hintText: '0',
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          filled: true,
+                          fillColor: AppColors.field,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.zero,
+                            borderSide: _hairline,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.zero,
+                            borderSide: _hairline,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.zero,
+                            borderSide: BorderSide(
+                              color: AppColors.deepAccent,
+                              width: 1,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           }),
