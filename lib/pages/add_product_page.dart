@@ -466,10 +466,9 @@ class _AddProductPageState extends State<AddProductPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildLabel(l10n.categories),
-        Text(l10n.selectAllThatApply, style: AppTextStyles.bodySmall),
-        const SizedBox(height: 12),
-        ChipSelector(
+        Text(l10n.category, style: AppTextStyles.capsLabel),
+        const SizedBox(height: 10),
+        CategoryListSelector(
           options: AppCategories.all,
           selected: selectedCategories,
           onToggle: _toggleCategory,
@@ -484,11 +483,14 @@ class _AddProductPageState extends State<AddProductPage> {
       children: [
         _buildLabel(l10n.sizesAndStock),
         Text(l10n.addEachSizeWithStockCount, style: AppTextStyles.bodySmall),
-        const SizedBox(height: 12),
-        SizeChipSelector(
+        const SizedBox(height: 14),
+        SizeStockSelector(
           initialEntries: sizeEntries,
-          stockLabel: l10n.stock,
           onChanged: (entries) => sizeEntries = entries,
+          letterSizesLabel: l10n.letterSizes,
+          numericSizesLabel: l10n.numericSizes,
+          sizeColumnLabel: l10n.sizeColumnHeader,
+          stockColumnLabel: l10n.stock,
         ),
       ],
     );

@@ -4546,6 +4546,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Must be less than original price'**
   String get saleLessThanOriginalHint;
+
+  /// No description provided for @category.
+  ///
+  /// In en, this message translates to:
+  /// **'Category'**
+  String get category;
+
+  /// No description provided for @letterSizes.
+  ///
+  /// In en, this message translates to:
+  /// **'Letter Sizes'**
+  String get letterSizes;
+
+  /// No description provided for @numericSizes.
+  ///
+  /// In en, this message translates to:
+  /// **'Numeric Sizes'**
+  String get numericSizes;
+
+  /// No description provided for @sizeColumnHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Size'**
+  String get sizeColumnHeader;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

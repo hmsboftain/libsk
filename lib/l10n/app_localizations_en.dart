@@ -2345,4 +2345,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get saleLessThanOriginalHint => 'Must be less than original price';
+
+  @override
+  String get category => 'Category';
+
+  @override
+  String get letterSizes => 'Letter Sizes';
+
+  @override
+  String get numericSizes => 'Numeric Sizes';
+
+  @override
+  String get sizeColumnHeader => 'Size';
 }

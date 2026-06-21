@@ -792,5 +792,9 @@
   "someRevenueDataUnavailable": "Some revenue data couldn't be loaded.",
   "discountThisItem": "Discount this item",
   "removeDiscount": "Remove discount",
-  "saleLessThanOriginalHint": "Must be less than original price"
+  "saleLessThanOriginalHint": "Must be less than original price",
+  "category": "Category",
+  "letterSizes": "Letter Sizes",
+  "numericSizes": "Numeric Sizes",
+  "sizeColumnHeader": "Size"
 }

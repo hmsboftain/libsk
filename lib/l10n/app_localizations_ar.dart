@@ -2345,4 +2345,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get saleLessThanOriginalHint => 'يجب أن يكون أقل من السعر الأصلي';
+
+  @override
+  String get category => 'الفئة';
+
+  @override
+  String get letterSizes => 'المقاسات الحرفية';
+
+  @override
+  String get numericSizes => 'المقاسات الرقمية';
+
+  @override
+  String get sizeColumnHeader => 'المقاس';
 }

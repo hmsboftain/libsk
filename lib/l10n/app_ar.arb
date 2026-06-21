@@ -795,5 +795,9 @@
   "someRevenueDataUnavailable": "تعذّر تحميل بعض بيانات الإيرادات.",
   "discountThisItem": "خصم على هذا المنتج",
   "removeDiscount": "إزالة الخصم",
-  "saleLessThanOriginalHint": "يجب أن يكون أقل من السعر الأصلي"
+  "saleLessThanOriginalHint": "يجب أن يكون أقل من السعر الأصلي",
+  "category": "الفئة",
+  "letterSizes": "المقاسات الحرفية",
+  "numericSizes": "المقاسات الرقمية",
+  "sizeColumnHeader": "المقاس"
 }
