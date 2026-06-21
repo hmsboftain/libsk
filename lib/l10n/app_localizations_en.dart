@@ -2328,4 +2328,9 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String appliedToBoutiqueItemsOnly(String boutique) {
+    return 'Applied to $boutique items only';
+  }
 }

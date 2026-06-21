@@ -2328,4 +2328,9 @@ class AppLocalizationsAr extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String appliedToBoutiqueItemsOnly(String boutique) {
+    return 'ينطبق على منتجات $boutique فقط';
+  }
 }

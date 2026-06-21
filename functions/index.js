@@ -488,12 +488,15 @@ exports.createOrder = onCall(async (request) => {
           throw new HttpsError("failed-precondition", "You have already used this discount code.");
         }
       }
-      // Scope the discount to items from the boutique that owns the code.
-      // Items from other boutiques are charged at full price.
+      // Boutique-owned codes apply only to that boutique's items (others stay
+      // full price); platform-wide codes (no boutiqueId, created by super
+      // admins) apply to the whole cart.
       const codeBoutiqueId = String(codeData.boutiqueId || "");
-      const discountableSubtotal = verifiedItems
-        .filter((i) => i.boutiqueId === codeBoutiqueId)
-        .reduce((sum, i) => sum + i.price * i.quantity, 0);
+      const discountableSubtotal = codeBoutiqueId
+        ? verifiedItems
+            .filter((i) => i.boutiqueId === codeBoutiqueId)
+            .reduce((sum, i) => sum + i.price * i.quantity, 0)
+        : verifiedSubtotal;
       if (discountableSubtotal <= 0) {
         throw new HttpsError("failed-precondition",
           "This discount code is not valid for the items in your cart");
@@ -636,13 +639,13 @@ exports.validateDiscountCode = onCall(async (request) => {
     }
   }
 
-  // Scope the code to the boutique that owns it — it only applies if that
-  // boutique has items in the current cart.
+  // Boutique-owned codes only apply if that boutique has items in the current
+  // cart. Platform-wide codes (no boutiqueId) skip the membership check.
   const cartBoutiqueIds = Array.isArray(boutiqueIds)
     ? boutiqueIds.map((b) => String(b))
     : [];
   const codeBoutiqueId = String(docData.boutiqueId || "");
-  if (!codeBoutiqueId || !cartBoutiqueIds.includes(codeBoutiqueId)) {
+  if (codeBoutiqueId && !cartBoutiqueIds.includes(codeBoutiqueId)) {
     throw new HttpsError("failed-precondition",
       "This discount code is not valid for the items in your cart");
   }

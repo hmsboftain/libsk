@@ -4516,6 +4516,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, one{1 follower} other{{count} followers}}'**
   String followersCount(int count);
+
+  /// No description provided for @appliedToBoutiqueItemsOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Applied to {boutique} items only'**
+  String appliedToBoutiqueItemsOnly(String boutique);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

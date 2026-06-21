@@ -786,5 +786,7 @@
   "addressHouse": "House",
   "addYourFirstProduct": "Add your first product",
   "followersCount": "{count, plural, one{1 follower} other{{count} followers}}",
-  "@followersCount": { "placeholders": { "count": { "type": "int" } } }
+  "@followersCount": { "placeholders": { "count": { "type": "int" } } },
+  "appliedToBoutiqueItemsOnly": "Applied to {boutique} items only",
+  "@appliedToBoutiqueItemsOnly": { "placeholders": { "boutique": { "type": "String" } } }
 }

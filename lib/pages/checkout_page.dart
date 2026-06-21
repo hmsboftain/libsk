@@ -155,20 +155,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
       );
       // Scope the previewed discount to the owning boutique's items so the
       // preview matches the server-side charge (createOrder is authoritative).
+      // Platform-wide codes (no boutiqueId) apply to the whole cart.
       final codeBoutiqueId = data['boutiqueId']?.toString();
       final codeType = data['type']?.toString();
       final codeValue = (data['value'] as num?)?.toDouble() ?? 0;
-      final discountable = cartItems
-          .where((i) => i.boutiqueId == codeBoutiqueId)
-          .fold<double>(0, (s, i) => s + i.price * i.quantity);
+      final discountable = (codeBoutiqueId == null || codeBoutiqueId.isEmpty)
+          ? subtotal
+          : cartItems
+                .where((i) => i.boutiqueId == codeBoutiqueId)
+                .fold<double>(0, (s, i) => s + i.price * i.quantity);
       final amount = codeType == 'percentage'
           ? double.parse(((discountable * codeValue) / 100).toStringAsFixed(3))
           : (codeValue < discountable ? codeValue : discountable);
+      final boutiqueName = data['boutiqueName']?.toString();
       setState(() {
         _discountCodeId = data['codeId']?.toString();
         _discountAmount = amount;
         _appliedCode = data['code']?.toString();
-        _discountBoutiqueName = data['boutiqueName']?.toString();
+        _discountBoutiqueName =
+            (boutiqueName != null && boutiqueName.isNotEmpty)
+            ? boutiqueName
+            : null;
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -842,7 +849,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       1) ...[
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Applied to $_discountBoutiqueName items only',
+                                  AppLocalizations.of(
+                                    context,
+                                  )!.appliedToBoutiqueItemsOnly(
+                                    _discountBoutiqueName!,
+                                  ),
                                   style: AppTextStyles.labelSmall.copyWith(
                                     color: AppColors.secondaryText,
                                   ),

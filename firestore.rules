@@ -77,7 +77,10 @@ service cloud.firestore {
              d.isActive    is bool &&
              d.usageCount  is int && d.usageCount >= 0 &&
              (d.usageLimit == null || (d.usageLimit is int && d.usageLimit > 0)) &&
-             d.boutiqueId  is string;
+             // Boutique-owned codes carry a boutiqueId (the create rule binds it
+             // to the owner's own boutique). Platform-wide codes created by
+             // admins may omit it.
+             (!('boutiqueId' in d) || d.boutiqueId is string);
     }
 
     // Shape guard for guest cart writes — only the fields the app actually
