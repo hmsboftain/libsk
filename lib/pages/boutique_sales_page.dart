@@ -5,6 +5,7 @@ import '../widgets/error_state_widget.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import 'boutique_sales_details_page.dart';
+import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 import '../core/constants/countries.dart';
 import '../services/currency_service.dart';
@@ -96,11 +97,7 @@ class _BoutiqueSalesPageState extends State<BoutiqueSalesPage> {
                 future: _ordersFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.deepAccent,
-                      ),
-                    );
+                    return const SalesListSkeleton();
                   }
 
                   if (snapshot.hasError) {
@@ -153,11 +150,7 @@ class _BoutiqueSalesPageState extends State<BoutiqueSalesPage> {
                     builder: (context, namesSnapshot) {
                       if (namesSnapshot.connectionState ==
                           ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.deepAccent,
-                          ),
-                        );
+                        return const SalesListSkeleton();
                       }
 
                       final boutiqueNames = namesSnapshot.data ?? {};

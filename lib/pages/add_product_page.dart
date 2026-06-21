@@ -73,6 +73,7 @@ class _AddProductPageState extends State<AddProductPage> {
   final titleController = TextEditingController();
   final descriptionController = TextEditingController();
   final priceController = TextEditingController();
+  final _salePriceController = TextEditingController();
   final colorInputController = TextEditingController();
   final deliveryTimeframeController = TextEditingController();
   final sizeNameController = TextEditingController();
@@ -81,6 +82,7 @@ class _AddProductPageState extends State<AddProductPage> {
   bool _isLoading = false;
   bool _madeToOrder = false;
   bool _postToFeed = true;
+  bool _isOutOfStock = false;
 
   List<File> selectedImages = [];
   List<String> selectedCategories = [];
@@ -95,6 +97,7 @@ class _AddProductPageState extends State<AddProductPage> {
     titleController.dispose();
     descriptionController.dispose();
     priceController.dispose();
+    _salePriceController.dispose();
     colorInputController.dispose();
     deliveryTimeframeController.dispose();
     sizeNameController.dispose();
@@ -252,6 +255,23 @@ class _AddProductPageState extends State<AddProductPage> {
       return;
     }
 
+    // Optional sale price — must be a positive number below the regular price.
+    final salePriceText = _salePriceController.text.trim();
+    double? salePrice;
+    if (salePriceText.isNotEmpty) {
+      final parsedSale = double.tryParse(salePriceText);
+      final parsedPrice = double.tryParse(priceText);
+      if (parsedSale == null ||
+          parsedSale <= 0 ||
+          (parsedPrice != null && parsedSale >= parsedPrice)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.salePriceMustBeLessThanPrice)),
+        );
+        return;
+      }
+      salePrice = parsedSale;
+    }
+
     if (selectedImages.isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -317,6 +337,8 @@ class _AddProductPageState extends State<AddProductPage> {
         title: title,
         description: description,
         price: price,
+        salePrice: salePrice,
+        isOutOfStock: _isOutOfStock,
         imageUrl: imageUrls.first,
         imageUrls: imageUrls,
         stock: totalStock,
@@ -728,6 +750,32 @@ class _AddProductPageState extends State<AddProductPage> {
     );
   }
 
+  Widget _buildAvailabilitySection(AppLocalizations l10n) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.markAsOutOfStock, style: AppTextStyles.labelLarge),
+              const SizedBox(height: 4),
+              Text(
+                l10n.markAsOutOfStockSubtitle,
+                style: AppTextStyles.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: _isOutOfStock,
+          onChanged: (value) => setState(() => _isOutOfStock = value),
+          activeThumbColor: AppColors.deepAccent,
+          activeTrackColor: AppColors.softAccent,
+        ),
+      ],
+    );
+  }
+
   Widget _buildPostToFeedSection(AppLocalizations l10n) {
     return Row(
       children: [
@@ -735,10 +783,10 @@ class _AddProductPageState extends State<AddProductPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Show in feed', style: AppTextStyles.labelLarge),
+              Text(l10n.showInFeed, style: AppTextStyles.labelLarge),
               const SizedBox(height: 4),
               Text(
-                'Followers see this product in their home feed when you post it.',
+                l10n.showInFeedSubtitle,
                 style: AppTextStyles.bodySmall,
               ),
             ],
@@ -881,6 +929,30 @@ class _AddProductPageState extends State<AddProductPage> {
                                 return null;
                               },
                             ),
+                            const SizedBox(height: 18),
+                            _buildLabel(l10n.salePrice),
+                            TextFormField(
+                              controller: _salePriceController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              decoration: _inputDecoration(l10n.salePriceHint),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return null;
+                                final sale = double.tryParse(v.trim());
+                                if (sale == null || sale <= 0) {
+                                  return l10n.enterValidPrice;
+                                }
+                                final price = double.tryParse(
+                                  priceController.text.trim(),
+                                );
+                                if (price != null && sale >= price) {
+                                  return l10n.salePriceMustBeLessThanPrice;
+                                }
+                                return null;
+                              },
+                            ),
                           ],
                         ),
                       ),
@@ -900,6 +972,9 @@ class _AddProductPageState extends State<AddProductPage> {
 
                       const SizedBox(height: 16),
                       _buildSectionCard(child: _buildMadeToOrderSection(l10n)),
+
+                      const SizedBox(height: 16),
+                      _buildSectionCard(child: _buildAvailabilitySection(l10n)),
 
                       const SizedBox(height: 16),
                       _buildSectionCard(child: _buildPostToFeedSection(l10n)),

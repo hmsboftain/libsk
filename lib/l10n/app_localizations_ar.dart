@@ -2250,4 +2250,82 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get salePriceMustBeLessThanPrice => 'يجب أن يكون سعر التخفيض أقل من السعر العادي';
+
+  @override
+  String get pendingOrders => 'الطلبات المعلقة';
+
+  @override
+  String get allCaughtUp => 'كل شيء محدث';
+
+  @override
+  String ordersNeedAction(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count طلبات بحاجة إلى إجراء',
+      one: 'طلب واحد بحاجة إلى إجراء',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get totalEarnings => 'إجمالي الأرباح';
+
+  @override
+  String get allGood => 'كل شيء على ما يرام';
+
+  @override
+  String get stockAlerts => 'تنبيهات المخزون';
+
+  @override
+  String get allStockLevelsGood => 'مستويات المخزون جيدة';
+
+  @override
+  String get manageBoutiqueAndProducts => 'إدارة المتجر والمنتجات';
+
+  @override
+  String get promotions => 'العروض الترويجية';
+
+  @override
+  String get discountCodes => 'أكواد الخصم';
+
+  @override
+  String get discountCodesSubtitle => 'أنشئ أكواداً لعملاء متجرك.';
+
+  @override
+  String get showInFeed => 'العرض في الموجز';
+
+  @override
+  String get showInFeedSubtitle => 'يرى المتابعون هذا المنتج في موجزهم الرئيسي عند نشره.';
+
+  @override
+  String get statusAll => 'الكل';
+
+  @override
+  String noStatusOrders(String status) {
+    return 'لا توجد طلبات $status';
+  }
+
+  @override
+  String get addressBlock => 'قطعة';
+
+  @override
+  String get addressStreet => 'شارع';
+
+  @override
+  String get addressHouse => 'منزل';
+
+  @override
+  String get addYourFirstProduct => 'أضف منتجك الأول';
+
+  @override
+  String followersCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count متابع',
+      one: 'متابع واحد',
+    );
+    return '$_temp0';
+  }
 }

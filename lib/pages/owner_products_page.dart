@@ -6,6 +6,7 @@ import '../models/product.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../services/storage_service.dart';
+import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 import 'edit_product_page.dart';
 import '../core/constants/countries.dart';
@@ -210,10 +211,14 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                                   builder: (context, snapshot) {
                                     if (snapshot.connectionState ==
                                         ConnectionState.waiting) {
-                                      return const Center(
-                                        child: CircularProgressIndicator(
-                                          color: AppColors.deepAccent,
+                                      return const Padding(
+                                        padding: EdgeInsets.fromLTRB(
+                                          20,
+                                          8,
+                                          20,
+                                          24,
                                         ),
+                                        child: ProductListSkeleton(),
                                       );
                                     }
 

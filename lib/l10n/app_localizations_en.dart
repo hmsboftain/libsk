@@ -2250,4 +2250,82 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get salePriceMustBeLessThanPrice => 'Sale price must be less than the regular price';
+
+  @override
+  String get pendingOrders => 'Pending Orders';
+
+  @override
+  String get allCaughtUp => 'All caught up';
+
+  @override
+  String ordersNeedAction(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count orders need action',
+      one: '1 order needs action',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get totalEarnings => 'Total earnings';
+
+  @override
+  String get allGood => 'All good';
+
+  @override
+  String get stockAlerts => 'Stock Alerts';
+
+  @override
+  String get allStockLevelsGood => 'All stock levels good';
+
+  @override
+  String get manageBoutiqueAndProducts => 'Manage boutique & products';
+
+  @override
+  String get promotions => 'Promotions';
+
+  @override
+  String get discountCodes => 'Discount Codes';
+
+  @override
+  String get discountCodesSubtitle => 'Create codes for your boutique customers.';
+
+  @override
+  String get showInFeed => 'Show in feed';
+
+  @override
+  String get showInFeedSubtitle => 'Followers see this product in their home feed when you post it.';
+
+  @override
+  String get statusAll => 'All';
+
+  @override
+  String noStatusOrders(String status) {
+    return 'No $status orders';
+  }
+
+  @override
+  String get addressBlock => 'Block';
+
+  @override
+  String get addressStreet => 'Street';
+
+  @override
+  String get addressHouse => 'House';
+
+  @override
+  String get addYourFirstProduct => 'Add your first product';
+
+  @override
+  String followersCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count followers',
+      one: '1 follower',
+    );
+    return '$_temp0';
+  }
 }

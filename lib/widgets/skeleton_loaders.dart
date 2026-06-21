@@ -222,6 +222,144 @@ class FeedSkeleton extends StatelessWidget {
   }
 }
 
+/// Skeleton for a single product list row — mirrors the owner/boutique product
+/// card: image on the left, details + two action buttons on the right.
+class ProductListRowSkeleton extends StatelessWidget {
+  const ProductListRowSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: AppColors.imagePlaceholder,
+      highlightColor: AppColors.border,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 80,
+              height: 100,
+              color: AppColors.imagePlaceholder,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  SkeletonBox(width: 150, height: 14),
+                  SizedBox(height: 8),
+                  SkeletonBox(width: double.infinity, height: 10),
+                  SizedBox(height: 5),
+                  SkeletonBox(width: 110, height: 10),
+                  SizedBox(height: 12),
+                  SkeletonBox(width: 70, height: 14),
+                  SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SkeletonBox(width: double.infinity, height: 34),
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: SkeletonBox(width: double.infinity, height: 34),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Skeleton for a product list — [count] row placeholders.
+class ProductListSkeleton extends StatelessWidget {
+  final int count;
+  const ProductListSkeleton({super.key, this.count = 4});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: List.generate(count, (_) => const ProductListRowSkeleton()),
+    );
+  }
+}
+
+/// Skeleton for a single boutique sales row — mirrors the boutique sales card:
+/// circular avatar, name + order-count lines, a progress bar, and a trailing
+/// total amount.
+class SalesRowSkeleton extends StatelessWidget {
+  const SalesRowSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: AppColors.imagePlaceholder,
+      highlightColor: AppColors.border,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: const BoxDecoration(
+                color: AppColors.imagePlaceholder,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  SkeletonBox(width: 130, height: 14),
+                  SizedBox(height: 6),
+                  SkeletonBox(width: 80, height: 10),
+                  SizedBox(height: 10),
+                  SkeletonBox(width: double.infinity, height: 4),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            const SkeletonBox(width: 56, height: 14),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Skeleton for the boutique sales list — [count] row placeholders.
+class SalesListSkeleton extends StatelessWidget {
+  final int count;
+  const SalesListSkeleton({super.key, this.count = 5});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+      child: Column(
+        children: List.generate(count, (_) => const SalesRowSkeleton()),
+      ),
+    );
+  }
+}
+
 /// Skeleton for the orders list — 4 card rows.
 class OrdersListSkeleton extends StatelessWidget {
   const OrdersListSkeleton({super.key});

@@ -5,6 +5,7 @@ import 'package:libsk/l10n/app_localizations.dart';
 import '../widgets/error_state_widget.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
+import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 import '../core/constants/countries.dart';
 import '../services/currency_service.dart';
@@ -32,6 +33,11 @@ String _localizedStatus(String status, AppLocalizations l10n) {
     default:
       return status;
   }
+}
+
+String _localizedFilter(String filter, AppLocalizations l10n) {
+  if (filter == 'All') return l10n.statusAll;
+  return _localizedStatus(filter, l10n);
 }
 
 Widget _orderStatusBadge(String status, AppLocalizations l10n) {
@@ -203,6 +209,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
   }
 
   Widget _buildFilterChips() {
+    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -226,7 +233,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                   ),
                 ),
                 child: Text(
-                  filter,
+                  _localizedFilter(filter, l10n),
                   style: AppTextStyles.labelLarge.copyWith(
                     fontSize: 12,
                     color: isSelected ? Colors.white : AppColors.secondaryText,
@@ -258,11 +265,9 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
 
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Expanded(
-            child: Center(
-              child: CircularProgressIndicator(
-                color: AppColors.deepAccent,
-                strokeWidth: 1.5,
-              ),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: OrdersListSkeleton(),
             ),
           );
         }
@@ -310,7 +315,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  'No $_selectedFilter orders',
+                  l10n.noStatusOrders(_localizedFilter(_selectedFilter, l10n)),
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppColors.secondaryText,
                   ),
@@ -505,9 +510,9 @@ class _OrderCard extends StatelessWidget {
     final addressText = address == null
         ? l10n.noAddressAvailable
         : '${address['area'] ?? ''}, ${address['governorate'] ?? ''}\n'
-              'Block ${address['block'] ?? ''} '
-              'Street ${address['street'] ?? ''} '
-              'House ${address['house'] ?? ''}';
+              '${l10n.addressBlock} ${address['block'] ?? ''} '
+              '${l10n.addressStreet} ${address['street'] ?? ''} '
+              '${l10n.addressHouse} ${address['house'] ?? ''}';
 
     final isPlaced = status.toLowerCase() == 'placed';
 

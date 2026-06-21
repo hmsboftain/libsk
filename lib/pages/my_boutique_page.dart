@@ -7,6 +7,7 @@ import '../models/product.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
 import '../services/storage_service.dart';
+import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 import 'add_product_page.dart';
 import 'edit_boutique_page.dart';
@@ -353,7 +354,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                         ),
                       ),
                       child: Text(
-                        'Edit',
+                        l10n.edit,
                         style: AppTextStyles.labelLarge.copyWith(
                           color: AppColors.deepAccent,
                         ),
@@ -411,13 +412,8 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 40),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: AppColors.deepAccent,
-                              strokeWidth: 1.5,
-                            ),
-                          ),
+                          padding: EdgeInsets.symmetric(horizontal: 20),
+                          child: ProductListSkeleton(),
                         );
                       }
 
@@ -457,7 +453,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                                 GestureDetector(
                                   onTap: _addProduct,
                                   child: Text(
-                                    'Add your first product',
+                                    l10n.addYourFirstProduct,
                                     style: AppTextStyles.labelLarge.copyWith(
                                       color: AppColors.deepAccent,
                                     ),

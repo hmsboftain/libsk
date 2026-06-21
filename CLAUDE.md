@@ -127,6 +127,39 @@ The company is registered as **"LIBSK Commission Agency and Trading Company"** (
 
 ---
 
+## Planned Features (Post-Launch)
+
+### Pre-Order System
+Upgrade the current made-to-order toggle to a full pre-order system.
+
+**Boutique owner controls (edit_product_page):**
+- Enable Pre-Order toggle (replaces current MTO toggle)
+- Expected dispatch date (date picker)
+- Pre-order limit (max units they can commit to)
+- Custom message to customers (e.g. "Ships after Eid", "Next run: July")
+- Optional deposit mode — take full price now, or a deposit % with remainder charged on dispatch
+
+**Customer experience (product_page):**
+- "PRE-ORDER" badge replacing "Add to Cart"
+- Estimated dispatch date shown prominently below price
+- Custom boutique message displayed
+- Clear "You'll be charged now, ships [date]" messaging
+- Pre-order confirmation email with expected dispatch date
+
+**Order management:**
+- Pre-orders flagged separately in boutique owner dashboard
+- Dedicated "Pre-Orders" tab for owners to track commitments
+- Owner marks as "Ready to Ship" when dispatch date arrives
+- Separate pre-order status flow distinct from regular orders
+
+**Notes:**
+- Build after launch based on real boutique feedback
+- Replaces current madeToOrder boolean — migrate existing MTO products to new pre-order format
+- Pairs naturally with LUNE drop culture (limited runs, seasonal drops)
+- Detailed technical migration plan lives in `PRE_ORDER_PLAN.md` (project root)
+
+---
+
 ## Coding Conventions
 - Always use server-side Cloud Functions for any financial logic
 - Firestore writes that affect stock, pricing, or orders must go through transactions

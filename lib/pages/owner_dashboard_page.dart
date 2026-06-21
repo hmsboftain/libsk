@@ -220,11 +220,11 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                       children: [
                         Expanded(
                           child: _DashboardStatCard(
-                            title: 'Pending Orders',
+                            title: l10n.pendingOrders,
                             value: pending.toString(),
                             subtitle: pending == 0
-                                ? 'All caught up'
-                                : '$pending need${pending == 1 ? 's' : ''} action',
+                                ? l10n.allCaughtUp
+                                : l10n.ordersNeedAction(pending),
                             icon: Icons.schedule_rounded,
                             isHighlighted: pending > 0,
                             onTap: () => Navigator.push(
@@ -251,9 +251,9 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                       children: [
                         Expanded(
                           child: _DashboardStatCard(
-                            title: 'Revenue',
+                            title: l10n.revenue,
                             value: _formatKwd(revenue),
-                            subtitle: 'Total earnings',
+                            subtitle: l10n.totalEarnings,
                             icon: Icons.account_balance_wallet_outlined,
                             isHighlighted: revenue > 0,
                             onTap: () => Navigator.push(
@@ -271,7 +271,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                             title: l10n.lowStock,
                             value: lowStockProducts.length.toString(),
                             subtitle: lowStockProducts.isEmpty
-                                ? 'All good'
+                                ? l10n.allGood
                                 : lowStockProducts.length == 1
                                 ? l10n.needsRestock
                                 : l10n.needRestock,
@@ -285,7 +285,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                     const SizedBox(height: 28),
 
                     // ── Low-stock alerts ─────────────────────────
-                    Text('Stock Alerts', style: AppTextStyles.headingSmall),
+                    Text(l10n.stockAlerts, style: AppTextStyles.headingSmall),
                     const SizedBox(height: 10),
                     Container(
                       width: double.infinity,
@@ -304,7 +304,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                                 ),
                                 const SizedBox(width: 10),
                                 Text(
-                                  'All stock levels good',
+                                  l10n.allStockLevelsGood,
                                   style: AppTextStyles.bodyMedium.copyWith(
                                     color: AppColors.secondaryText,
                                   ),
@@ -372,7 +372,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                           Expanded(
                             child: _ActionCard(
                               title: l10n.myBoutique,
-                              subtitle: 'Manage boutique & products',
+                              subtitle: l10n.manageBoutiqueAndProducts,
                               icon: Icons.storefront_outlined,
                               onTap: () async {
                                 await Navigator.push(
@@ -409,11 +409,11 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                     const SizedBox(height: 14),
 
                     // ── Promotions ───────────────────────────────
-                    Text('Promotions', style: AppTextStyles.headingSmall),
+                    Text(l10n.promotions, style: AppTextStyles.headingSmall),
                     const SizedBox(height: 10),
                     _ActionCard(
-                      title: 'Discount Codes',
-                      subtitle: 'Create codes for your boutique customers.',
+                      title: l10n.discountCodes,
+                      subtitle: l10n.discountCodesSubtitle,
                       icon: Icons.local_offer_outlined,
                       onTap: () => Navigator.push(
                         context,

@@ -306,7 +306,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                             builder: (context, snapshot) {
                               final count = snapshot.data ?? 0;
                               return Text(
-                                '$count follower${count == 1 ? '' : 's'}',
+                                l10n.followersCount(count),
                                 style: AppTextStyles.bodySmall,
                               );
                             },

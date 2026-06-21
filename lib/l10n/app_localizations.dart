@@ -4396,6 +4396,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sale price must be less than the regular price'**
   String get salePriceMustBeLessThanPrice;
+
+  /// No description provided for @pendingOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending Orders'**
+  String get pendingOrders;
+
+  /// No description provided for @allCaughtUp.
+  ///
+  /// In en, this message translates to:
+  /// **'All caught up'**
+  String get allCaughtUp;
+
+  /// No description provided for @ordersNeedAction.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{1 order needs action} other{{count} orders need action}}'**
+  String ordersNeedAction(int count);
+
+  /// No description provided for @totalEarnings.
+  ///
+  /// In en, this message translates to:
+  /// **'Total earnings'**
+  String get totalEarnings;
+
+  /// No description provided for @allGood.
+  ///
+  /// In en, this message translates to:
+  /// **'All good'**
+  String get allGood;
+
+  /// No description provided for @stockAlerts.
+  ///
+  /// In en, this message translates to:
+  /// **'Stock Alerts'**
+  String get stockAlerts;
+
+  /// No description provided for @allStockLevelsGood.
+  ///
+  /// In en, this message translates to:
+  /// **'All stock levels good'**
+  String get allStockLevelsGood;
+
+  /// No description provided for @manageBoutiqueAndProducts.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage boutique & products'**
+  String get manageBoutiqueAndProducts;
+
+  /// No description provided for @promotions.
+  ///
+  /// In en, this message translates to:
+  /// **'Promotions'**
+  String get promotions;
+
+  /// No description provided for @discountCodes.
+  ///
+  /// In en, this message translates to:
+  /// **'Discount Codes'**
+  String get discountCodes;
+
+  /// No description provided for @discountCodesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create codes for your boutique customers.'**
+  String get discountCodesSubtitle;
+
+  /// No description provided for @showInFeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Show in feed'**
+  String get showInFeed;
+
+  /// No description provided for @showInFeedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Followers see this product in their home feed when you post it.'**
+  String get showInFeedSubtitle;
+
+  /// No description provided for @statusAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get statusAll;
+
+  /// No description provided for @noStatusOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'No {status} orders'**
+  String noStatusOrders(String status);
+
+  /// No description provided for @addressBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Block'**
+  String get addressBlock;
+
+  /// No description provided for @addressStreet.
+  ///
+  /// In en, this message translates to:
+  /// **'Street'**
+  String get addressStreet;
+
+  /// No description provided for @addressHouse.
+  ///
+  /// In en, this message translates to:
+  /// **'House'**
+  String get addressHouse;
+
+  /// No description provided for @addYourFirstProduct.
+  ///
+  /// In en, this message translates to:
+  /// **'Add your first product'**
+  String get addYourFirstProduct;
+
+  /// No description provided for @followersCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{1 follower} other{{count} followers}}'**
+  String followersCount(int count);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

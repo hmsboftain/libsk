@@ -1085,10 +1085,10 @@ class _EditProductPageState extends State<EditProductPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Show in feed', style: AppTextStyles.labelLarge),
+              Text(l10n.showInFeed, style: AppTextStyles.labelLarge),
               const SizedBox(height: 4),
               Text(
-                'Followers see this product in their home feed when you post it.',
+                l10n.showInFeedSubtitle,
                 style: AppTextStyles.bodySmall,
               ),
             ],
