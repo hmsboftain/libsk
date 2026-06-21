@@ -253,6 +253,10 @@ service cloud.firestore {
       allow read, write: if false; // server-only
     }
 
+    match /payment_intents/{intentId} {
+      allow read, write: if false; // server-only order idempotency locks
+    }
+
     match /{path=**}/products/{productId} {
       allow read: if true;
     }
