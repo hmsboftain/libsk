@@ -229,11 +229,11 @@ class _HomePageState extends State<HomePage> {
                     ),
                     const SizedBox(height: 28),
 
-                    // ── Top Boutiques ────────────────────────────────────────
+                    // ── Featured Boutiques ───────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
-                        l10n.topBoutiques,
+                        l10n.featuredBoutiques,
                         style: AppTextStyles.headingLarge,
                       ),
                     ),
