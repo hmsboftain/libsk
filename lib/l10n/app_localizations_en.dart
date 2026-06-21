@@ -2336,4 +2336,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get someRevenueDataUnavailable => 'Some revenue data couldn\'t be loaded.';
+
+  @override
+  String get discountThisItem => 'Discount this item';
+
+  @override
+  String get removeDiscount => 'Remove discount';
+
+  @override
+  String get saleLessThanOriginalHint => 'Must be less than original price';
 }

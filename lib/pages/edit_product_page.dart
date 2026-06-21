@@ -113,6 +113,7 @@ class _EditProductPageState extends State<EditProductPage> {
   bool _madeToOrder = false;
   bool _postToFeed = false;
   bool _isOutOfStock = false;
+  bool _discountExpanded = false;
 
   List<String> currentImageUrls = [];
   List<File> selectedNewImages = [];
@@ -155,6 +156,8 @@ class _EditProductPageState extends State<EditProductPage> {
     salePriceController = TextEditingController(
       text: widget.productData['salePrice']?.toString() ?? '',
     );
+    // Pre-expand the discount section when the product already has a sale price.
+    _discountExpanded = salePriceController.text.trim().isNotEmpty;
 
     _loadCategories();
     _loadSizeEntries();
@@ -753,6 +756,118 @@ class _EditProductPageState extends State<EditProductPage> {
     );
   }
 
+  // Collapsed by default (pre-expanded in edit mode when a sale price already
+  // exists). A tappable row expands the field with a smooth fade/size change.
+  Widget _buildSalePriceSection(AppLocalizations l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() {
+            _discountExpanded = !_discountExpanded;
+            if (!_discountExpanded) salePriceController.clear();
+          }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.sell_outlined,
+                  size: 18,
+                  color: AppColors.deepAccent,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.discountThisItem,
+                  style: AppTextStyles.labelLarge.copyWith(
+                    color: AppColors.deepAccent,
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  _discountExpanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
+                  size: 20,
+                  color: AppColors.deepAccent,
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 220),
+          firstCurve: Curves.easeInOut,
+          secondCurve: Curves.easeInOut,
+          sizeCurve: Curves.easeInOut,
+          crossFadeState: _discountExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          firstChild: const SizedBox(width: double.infinity),
+          secondChild: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: salePriceController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: _inputDecoration(l10n.salePriceHint),
+                validator: (v) {
+                  if (!_discountExpanded) return null;
+                  if (v == null || v.trim().isEmpty) return null;
+                  final sale = double.tryParse(v.trim());
+                  if (sale == null || sale <= 0) {
+                    return l10n.enterValidPrice;
+                  }
+                  final price = double.tryParse(priceController.text.trim());
+                  if (price != null && sale >= price) {
+                    return l10n.salePriceMustBeLessThanPrice;
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.saleLessThanOriginalHint,
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.secondaryText,
+                ),
+              ),
+              const SizedBox(height: 10),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() {
+                  _discountExpanded = false;
+                  salePriceController.clear();
+                }),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.close,
+                      size: 15,
+                      color: AppColors.secondaryText,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      l10n.removeDiscount,
+                      style: AppTextStyles.labelLarge.copyWith(
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildCategorySection(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1028,29 +1143,7 @@ class _EditProductPageState extends State<EditProductPage> {
                               },
                             ),
                             const SizedBox(height: 18),
-                            _buildLabel(l10n.salePrice),
-                            TextFormField(
-                              controller: salePriceController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              decoration: _inputDecoration(l10n.salePriceHint),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) return null;
-                                final sale = double.tryParse(v.trim());
-                                if (sale == null || sale <= 0) {
-                                  return l10n.enterValidPrice;
-                                }
-                                final price = double.tryParse(
-                                  priceController.text.trim(),
-                                );
-                                if (price != null && sale >= price) {
-                                  return l10n.salePriceMustBeLessThanPrice;
-                                }
-                                return null;
-                              },
-                            ),
+                            _buildSalePriceSection(l10n),
                           ],
                         ),
                       ),

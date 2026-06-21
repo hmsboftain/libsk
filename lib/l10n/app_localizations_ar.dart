@@ -2336,4 +2336,13 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get someRevenueDataUnavailable => 'تعذّر تحميل بعض بيانات الإيرادات.';
+
+  @override
+  String get discountThisItem => 'خصم على هذا المنتج';
+
+  @override
+  String get removeDiscount => 'إزالة الخصم';
+
+  @override
+  String get saleLessThanOriginalHint => 'يجب أن يكون أقل من السعر الأصلي';
 }

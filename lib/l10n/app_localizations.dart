@@ -4528,6 +4528,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Some revenue data couldn\'t be loaded.'**
   String get someRevenueDataUnavailable;
+
+  /// No description provided for @discountThisItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Discount this item'**
+  String get discountThisItem;
+
+  /// No description provided for @removeDiscount.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove discount'**
+  String get removeDiscount;
+
+  /// No description provided for @saleLessThanOriginalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Must be less than original price'**
+  String get saleLessThanOriginalHint;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

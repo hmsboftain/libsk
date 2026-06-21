@@ -792,5 +792,8 @@
   "@followersCount": { "placeholders": { "count": { "type": "int" } } },
   "appliedToBoutiqueItemsOnly": "ينطبق على منتجات {boutique} فقط",
   "@appliedToBoutiqueItemsOnly": { "placeholders": { "boutique": { "type": "String" } } },
-  "someRevenueDataUnavailable": "تعذّر تحميل بعض بيانات الإيرادات."
+  "someRevenueDataUnavailable": "تعذّر تحميل بعض بيانات الإيرادات.",
+  "discountThisItem": "خصم على هذا المنتج",
+  "removeDiscount": "إزالة الخصم",
+  "saleLessThanOriginalHint": "يجب أن يكون أقل من السعر الأصلي"
 }

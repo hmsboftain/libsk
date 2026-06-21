@@ -82,6 +82,7 @@ class _AddProductPageState extends State<AddProductPage> {
   bool _madeToOrder = false;
   bool _postToFeed = true;
   bool _isOutOfStock = false;
+  bool _discountExpanded = false;
 
   List<File> selectedImages = [];
   List<String> selectedCategories = [];
@@ -348,6 +349,118 @@ class _AddProductPageState extends State<AddProductPage> {
   }
 
   // ── Section builders ──────────────────────────────────────────────────────
+
+  // Collapsed by default — owners opt in to a sale price via a tappable row
+  // that expands the field with a smooth fade/size transition.
+  Widget _buildSalePriceSection(AppLocalizations l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() {
+            _discountExpanded = !_discountExpanded;
+            if (!_discountExpanded) _salePriceController.clear();
+          }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.sell_outlined,
+                  size: 18,
+                  color: AppColors.deepAccent,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.discountThisItem,
+                  style: AppTextStyles.labelLarge.copyWith(
+                    color: AppColors.deepAccent,
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  _discountExpanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
+                  size: 20,
+                  color: AppColors.deepAccent,
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 220),
+          firstCurve: Curves.easeInOut,
+          secondCurve: Curves.easeInOut,
+          sizeCurve: Curves.easeInOut,
+          crossFadeState: _discountExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          firstChild: const SizedBox(width: double.infinity),
+          secondChild: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _salePriceController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: _inputDecoration(l10n.salePriceHint),
+                validator: (v) {
+                  if (!_discountExpanded) return null;
+                  if (v == null || v.trim().isEmpty) return null;
+                  final sale = double.tryParse(v.trim());
+                  if (sale == null || sale <= 0) {
+                    return l10n.enterValidPrice;
+                  }
+                  final price = double.tryParse(priceController.text.trim());
+                  if (price != null && sale >= price) {
+                    return l10n.salePriceMustBeLessThanPrice;
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.saleLessThanOriginalHint,
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.secondaryText,
+                ),
+              ),
+              const SizedBox(height: 10),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() {
+                  _discountExpanded = false;
+                  _salePriceController.clear();
+                }),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.close,
+                      size: 15,
+                      color: AppColors.secondaryText,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      l10n.removeDiscount,
+                      style: AppTextStyles.labelLarge.copyWith(
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _buildCategorySection(AppLocalizations l10n) {
     return Column(
@@ -759,29 +872,7 @@ class _AddProductPageState extends State<AddProductPage> {
                               },
                             ),
                             const SizedBox(height: 18),
-                            _buildLabel(l10n.salePrice),
-                            TextFormField(
-                              controller: _salePriceController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              decoration: _inputDecoration(l10n.salePriceHint),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) return null;
-                                final sale = double.tryParse(v.trim());
-                                if (sale == null || sale <= 0) {
-                                  return l10n.enterValidPrice;
-                                }
-                                final price = double.tryParse(
-                                  priceController.text.trim(),
-                                );
-                                if (price != null && sale >= price) {
-                                  return l10n.salePriceMustBeLessThanPrice;
-                                }
-                                return null;
-                              },
-                            ),
+                            _buildSalePriceSection(l10n),
                           ],
                         ),
                       ),

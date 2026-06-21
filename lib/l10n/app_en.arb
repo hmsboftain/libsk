@@ -789,5 +789,8 @@
   "@followersCount": { "placeholders": { "count": { "type": "int" } } },
   "appliedToBoutiqueItemsOnly": "Applied to {boutique} items only",
   "@appliedToBoutiqueItemsOnly": { "placeholders": { "boutique": { "type": "String" } } },
-  "someRevenueDataUnavailable": "Some revenue data couldn't be loaded."
+  "someRevenueDataUnavailable": "Some revenue data couldn't be loaded.",
+  "discountThisItem": "Discount this item",
+  "removeDiscount": "Remove discount",
+  "saleLessThanOriginalHint": "Must be less than original price"
 }
