@@ -68,6 +68,18 @@ service cloud.firestore {
                 d.salePrice < d.price));
     }
 
+    function isValidDiscountCode() {
+      let d = request.resource.data;
+      return d.code        is string && d.code.size() >= 1 && d.code.size() <= 40 &&
+             d.type in ['percentage', 'flat'] &&
+             d.value       is number && d.value > 0 &&
+             (d.type != 'percentage' || d.value <= 100) &&
+             d.isActive    is bool &&
+             d.usageCount  is int && d.usageCount >= 0 &&
+             (d.usageLimit == null || (d.usageLimit is int && d.usageLimit > 0)) &&
+             d.boutiqueId  is string;
+    }
+
     // Shape guard for guest cart writes — only the fields the app actually
     // writes, each bounded. Present-only checks so partial updates (e.g. just
     // quantity) still pass. Closes the unauthenticated free-storage vector.
@@ -193,6 +205,20 @@ service cloud.firestore {
       allow create: if false;
       allow update: if isAdmin();
       allow delete: if false;
+    }
+
+    match /discount_codes/{codeId} {
+      // Owners read their own codes (query filters by boutiqueId); admins read all.
+      allow read: if isBoutiqueOwnerOf(resource.data.boutiqueId) || isAdmin();
+      allow create: if (isBoutiqueOwnerOf(request.resource.data.boutiqueId) || isAdmin()) &&
+        isValidDiscountCode();
+      // usageCount is incremented only by Cloud Functions (admin SDK bypasses
+      // rules); clients may toggle isActive etc. but never tamper with the
+      // redemption counter.
+      allow update: if (isBoutiqueOwnerOf(resource.data.boutiqueId) || isAdmin()) &&
+        isValidDiscountCode() &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['usageCount']);
+      allow delete: if isBoutiqueOwnerOf(resource.data.boutiqueId) || isAdmin();
     }
 
     match /disputes/{disputeId} {

@@ -509,6 +509,7 @@ class _CreateCodeSheetState extends State<_CreateCodeSheet> {
       if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {
+      debugPrint('CREATE DISCOUNT CODE ERROR: $e');
       _snack('Failed to create code. Try again.');
     } finally {
       if (mounted) setState(() => _isSaving = false);

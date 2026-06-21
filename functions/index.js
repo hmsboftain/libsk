@@ -488,12 +488,24 @@ exports.createOrder = onCall(async (request) => {
           throw new HttpsError("failed-precondition", "You have already used this discount code.");
         }
       }
+      // Scope the discount to items from the boutique that owns the code.
+      // Items from other boutiques are charged at full price.
+      const codeBoutiqueId = String(codeData.boutiqueId || "");
+      const discountableSubtotal = verifiedItems
+        .filter((i) => i.boutiqueId === codeBoutiqueId)
+        .reduce((sum, i) => sum + i.price * i.quantity, 0);
+      if (discountableSubtotal <= 0) {
+        throw new HttpsError("failed-precondition",
+          "This discount code is not valid for the items in your cart");
+      }
       const codeValue = Number(codeData.value) || 0;
       if (codeData.type === "percentage") {
-        discountAmount = parseFloat(((verifiedSubtotal * codeValue) / 100).toFixed(3));
+        discountAmount = parseFloat(((discountableSubtotal * codeValue) / 100).toFixed(3));
       } else {
-        discountAmount = Math.min(codeValue, verifiedSubtotal);
+        discountAmount = Math.min(codeValue, discountableSubtotal);
       }
+      // The discount can never exceed the in-boutique (discountable) subtotal.
+      discountAmount = Math.min(discountAmount, discountableSubtotal);
     }
     // Clamp incoming discountAmount to server-verified value
     discountAmount = Math.max(0, Math.min(discountAmount, verifiedSubtotal));
@@ -585,7 +597,7 @@ exports.validateDiscountCode = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
 
-  const { code, subtotal } = request.data || {};
+  const { code, subtotal, boutiqueIds } = request.data || {};
 
   if (!code || typeof code !== "string" || code.length > 50) {
     throw new HttpsError("invalid-argument", "Invalid code.");
@@ -622,6 +634,17 @@ exports.validateDiscountCode = onCall(async (request) => {
     if (usedSnap.exists) {
       throw new HttpsError("failed-precondition", "You have already used this code.");
     }
+  }
+
+  // Scope the code to the boutique that owns it — it only applies if that
+  // boutique has items in the current cart.
+  const cartBoutiqueIds = Array.isArray(boutiqueIds)
+    ? boutiqueIds.map((b) => String(b))
+    : [];
+  const codeBoutiqueId = String(docData.boutiqueId || "");
+  if (!codeBoutiqueId || !cartBoutiqueIds.includes(codeBoutiqueId)) {
+    throw new HttpsError("failed-precondition",
+      "This discount code is not valid for the items in your cart");
   }
 
   const type = docData.type;

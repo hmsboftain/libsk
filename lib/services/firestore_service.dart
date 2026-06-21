@@ -503,15 +503,18 @@ class FirestoreService {
   // ── Discount codes (feature #8) ────────────────────────────────────────────
 
   /// Calls the [validateDiscountCode] Cloud Function.
-  /// Returns a map with keys: codeId, code, type, value, discountAmount, description.
+  /// Returns a map with keys: codeId, code, type, value, discountAmount,
+  /// description, boutiqueId, boutiqueName.
   static Future<Map<String, dynamic>> validateDiscountCode({
     required String code,
     required double subtotal,
+    required List<String> boutiqueIds,
   }) async {
     final callable = _functions.httpsCallable('validateDiscountCode');
     final result = await callable.call({
       'code': code.toUpperCase().trim(),
       'subtotal': subtotal,
+      'boutiqueIds': boutiqueIds,
     });
     return Map<String, dynamic>.from(result.data as Map);
   }

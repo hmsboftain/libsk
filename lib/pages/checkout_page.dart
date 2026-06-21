@@ -49,6 +49,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   String? _discountCodeId;
   double _discountAmount = 0;
   String? _appliedCode;
+  String? _discountBoutiqueName;
   bool _isValidatingCode = false;
   final _codeController = TextEditingController();
 
@@ -137,20 +138,37 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   // ── Discount code ──────────────────────────────────────────────────────────
 
-  Future<void> _applyDiscountCode(double subtotal) async {
+  Future<void> _applyDiscountCode(
+    double subtotal,
+    List<CartItem> cartItems,
+  ) async {
     final code = _codeController.text.trim();
     if (code.isEmpty) return;
 
+    final boutiqueIds = cartItems.map((i) => i.boutiqueId).toSet().toList();
     setState(() => _isValidatingCode = true);
     try {
       final data = await FirestoreService.validateDiscountCode(
         code: code,
         subtotal: subtotal,
+        boutiqueIds: boutiqueIds,
       );
+      // Scope the previewed discount to the owning boutique's items so the
+      // preview matches the server-side charge (createOrder is authoritative).
+      final codeBoutiqueId = data['boutiqueId']?.toString();
+      final codeType = data['type']?.toString();
+      final codeValue = (data['value'] as num?)?.toDouble() ?? 0;
+      final discountable = cartItems
+          .where((i) => i.boutiqueId == codeBoutiqueId)
+          .fold<double>(0, (s, i) => s + i.price * i.quantity);
+      final amount = codeType == 'percentage'
+          ? double.parse(((discountable * codeValue) / 100).toStringAsFixed(3))
+          : (codeValue < discountable ? codeValue : discountable);
       setState(() {
         _discountCodeId = data['codeId']?.toString();
-        _discountAmount = (data['discountAmount'] as num?)?.toDouble() ?? 0;
+        _discountAmount = amount;
         _appliedCode = data['code']?.toString();
+        _discountBoutiqueName = data['boutiqueName']?.toString();
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -165,6 +183,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         _discountCodeId = null;
         _discountAmount = 0;
         _appliedCode = null;
+        _discountBoutiqueName = null;
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -182,6 +201,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       _discountCodeId = null;
       _discountAmount = 0;
       _appliedCode = null;
+      _discountBoutiqueName = null;
       _codeController.clear();
     });
   }
@@ -774,7 +794,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                         (_isValidatingCode ||
                                             _appliedCode != null)
                                         ? null
-                                        : () => _applyDiscountCode(subtotal),
+                                        : () => _applyDiscountCode(
+                                            subtotal,
+                                            cartItems,
+                                          ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.deepAccent,
                                       foregroundColor: Colors.white,
@@ -811,6 +834,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   color: AppColors.deepAccent,
                                 ),
                               ),
+                              if (_discountBoutiqueName != null &&
+                                  cartItems
+                                          .map((i) => i.boutiqueId)
+                                          .toSet()
+                                          .length >
+                                      1) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Applied to $_discountBoutiqueName items only',
+                                  style: AppTextStyles.labelSmall.copyWith(
+                                    color: AppColors.secondaryText,
+                                  ),
+                                ),
+                              ],
                             ],
 
                             const SizedBox(height: 40),
