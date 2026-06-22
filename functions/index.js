@@ -170,6 +170,85 @@ async function checkRateLimit(key, maxRequests, windowSeconds) {
   });
 }
 
+function getEffectiveProductPrice(productData) {
+  const basePrice = Number(productData.price) || 0;
+  const sale = Number(productData.salePrice);
+  return Number.isFinite(sale) && sale > 0 && sale < basePrice
+    ? sale
+    : basePrice;
+}
+
+function getDeliveryCostForMethod(deliveryMethod, fallbackDeliveryCost) {
+  if (deliveryMethod === "Same Day Delivery") return 5;
+  if (deliveryMethod === "Made to Order") return 0;
+  if (deliveryMethod === "Regular Delivery") return 3;
+  return Number(fallbackDeliveryCost) || 0;
+}
+
+function calculateDiscountAmount(codeData, verifiedItems, verifiedSubtotal) {
+  const codeBoutiqueId = String(codeData.boutiqueId || "");
+  const discountableSubtotal = codeBoutiqueId
+    ? verifiedItems
+        .filter((i) => i.boutiqueId === codeBoutiqueId)
+        .reduce((sum, i) => sum + i.price * i.quantity, 0)
+    : verifiedSubtotal;
+  if (discountableSubtotal <= 0) {
+    throw new HttpsError("failed-precondition",
+      "This discount code is not valid for the items in your cart");
+  }
+
+  const codeValue = Number(codeData.value) || 0;
+  const rawDiscount = codeData.type === "percentage"
+    ? parseFloat(((discountableSubtotal * codeValue) / 100).toFixed(3))
+    : Math.min(codeValue, discountableSubtotal);
+  return Math.max(0, Math.min(rawDiscount, discountableSubtotal, verifiedSubtotal));
+}
+
+async function maybeRefundOwnPaymentIntent(stripe, paymentIntentId, uid, reason) {
+  if (!paymentIntentId || typeof paymentIntentId !== "string") return;
+
+  try {
+    const existingOrder = await db.collection("global_orders")
+      .where("paymentIntentId", "==", paymentIntentId)
+      .limit(1)
+      .get();
+    if (!existingOrder.empty) return;
+
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+      expand: ["latest_charge"],
+    });
+    if (paymentIntent.status !== "succeeded") return;
+    if (String(paymentIntent.metadata?.uid || "") !== uid) return;
+
+    const latestCharge = paymentIntent.latest_charge;
+    if (latestCharge && typeof latestCharge === "object") {
+      const amount = Number(latestCharge.amount) || 0;
+      const amountRefunded = Number(latestCharge.amount_refunded) || 0;
+      if (latestCharge.refunded === true || (amount > 0 && amountRefunded >= amount)) {
+        return;
+      }
+    }
+
+    await stripe.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+        reason: "requested_by_customer",
+        metadata: {
+          source: "createOrder",
+          failureReason: String(reason || "order_failed").slice(0, 200),
+        },
+      },
+      {idempotencyKey: `create-order-failure-${paymentIntentId}`},
+    );
+  } catch (refundError) {
+    logger.error("Failed to refund payment after createOrder failure", {
+      paymentIntentId,
+      uid,
+      refundError,
+    });
+  }
+}
+
 // ================= PAYMENTS =================
 
 exports.createPaymentIntent = onCall(async (request) => {
@@ -188,7 +267,9 @@ exports.createPaymentIntent = onCall(async (request) => {
 
     const items = data.items;
     const deliveryCost = data.deliveryCost;
+    const deliveryMethod = data.deliveryMethod || "";
     const currency = data.currency;
+    const discountCodeId = data.discountCodeId || null;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       throw new HttpsError("invalid-argument", "Items must be a non-empty array.");
@@ -203,6 +284,7 @@ exports.createPaymentIntent = onCall(async (request) => {
     }
 
     let subtotal = 0;
+    const verifiedItems = [];
     for (const item of items) {
       const boutiqueId = String(item.boutiqueId || "");
       const productId  = String(item.productId  || "");
@@ -224,11 +306,57 @@ exports.createPaymentIntent = onCall(async (request) => {
         throw new HttpsError("not-found", `Product ${productId} not found.`);
       }
 
-      subtotal += (Number(productDoc.data().price) || 0) * quantity;
+      const productData = productDoc.data();
+      const stock = Number(productData.stock) || 0;
+      if (productData.isOutOfStock === true) {
+        throw new HttpsError("failed-precondition",
+          `${productData.title || "Product"} is out of stock.`);
+      }
+      if (stock < quantity) {
+        throw new HttpsError("failed-precondition",
+          `${productData.title || "Product"} does not have enough stock.`);
+      }
+
+      const price = getEffectiveProductPrice(productData);
+      subtotal += price * quantity;
+      verifiedItems.push({boutiqueId, price, quantity});
     }
 
-    const delivery = Number(deliveryCost) || 0;
-    const total = subtotal + delivery;
+    let discountAmount = 0;
+    if (discountCodeId) {
+      const discountCodeRef = db.collection("discount_codes").doc(String(discountCodeId));
+      const codeSnap = await discountCodeRef.get();
+      if (!codeSnap.exists) {
+        throw new HttpsError("not-found", "This discount code is no longer valid.");
+      }
+
+      const codeData = codeSnap.data();
+      if (codeData.isActive !== true) {
+        throw new HttpsError("failed-precondition", "This discount code is no longer active.");
+      }
+      if (codeData.expiresAt && codeData.expiresAt.toDate &&
+          codeData.expiresAt.toDate() < new Date()) {
+        throw new HttpsError("failed-precondition", "This discount code has expired.");
+      }
+      const usageLimit = codeData.usageLimit || null;
+      const usageCount = codeData.usageCount || 0;
+      if (usageLimit !== null && usageCount >= usageLimit) {
+        throw new HttpsError("failed-precondition", "This discount code has reached its usage limit.");
+      }
+      if (codeData.singleUse === true) {
+        const usedSnap = await discountCodeRef.collection("used_by")
+          .doc(request.auth.uid)
+          .get();
+        if (usedSnap.exists) {
+          throw new HttpsError("failed-precondition", "You have already used this discount code.");
+        }
+      }
+
+      discountAmount = calculateDiscountAmount(codeData, verifiedItems, subtotal);
+    }
+
+    const delivery = getDeliveryCostForMethod(deliveryMethod, deliveryCost);
+    const total = subtotal + delivery - discountAmount;
     const multiplier = currency.toLowerCase() === "kwd" ? 1000 : 100;
     const amount = Math.round(total * multiplier);
 
@@ -239,6 +367,10 @@ exports.createPaymentIntent = onCall(async (request) => {
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency: currency.toLowerCase(),
+      metadata: {
+        uid: request.auth.uid,
+        ...(discountCodeId ? {discountCodeId: String(discountCodeId)} : {}),
+      },
     });
 
     return {
@@ -290,17 +422,20 @@ exports.createOrder = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
 
+  const stripe = require("stripe")(stripeSecret.value());
+  const uid             = request.auth.uid;
+  const data            = request.data || {};
+  const paymentIntentId = data.paymentIntentId || "";
+
+  try {
   const orderRateOk = await checkRateLimit(`order_${request.auth.uid}`, 5, 3600);
   if (!orderRateOk) {
     throw new HttpsError("resource-exhausted", "Too many requests. Please try again later.");
   }
 
-  const uid             = request.auth.uid;
-  const data            = request.data || {};
   const items           = data.items;
   const deliveryMethod  = data.deliveryMethod  || "";
   const paymentMethod   = data.paymentMethod   || "";
-  const paymentIntentId = data.paymentIntentId || "";
   const discountCodeId  = data.discountCodeId  || null;
   const estimatedDays   = Number(data.estimatedDays) || null;
 
@@ -367,6 +502,11 @@ exports.createOrder = onCall(async (request) => {
   let verifiedSubtotal = 0;
 
   await db.runTransaction(async (tx) => {
+    // Firestore may retry this callback; keep retry-local state from leaking
+    // into the committed attempt.
+    verifiedItems.length = 0;
+    verifiedSubtotal = 0;
+
     // Aggregate quantities per unique product first, so duplicate line items
     // (e.g. 4 + 4 of the same product against stock 5) can't each pass an
     // individual stock check and oversell.
@@ -494,27 +634,7 @@ exports.createOrder = onCall(async (request) => {
           throw new HttpsError("failed-precondition", "You have already used this discount code.");
         }
       }
-      // Boutique-owned codes apply only to that boutique's items (others stay
-      // full price); platform-wide codes (no boutiqueId, created by super
-      // admins) apply to the whole cart.
-      const codeBoutiqueId = String(codeData.boutiqueId || "");
-      const discountableSubtotal = codeBoutiqueId
-        ? verifiedItems
-            .filter((i) => i.boutiqueId === codeBoutiqueId)
-            .reduce((sum, i) => sum + i.price * i.quantity, 0)
-        : verifiedSubtotal;
-      if (discountableSubtotal <= 0) {
-        throw new HttpsError("failed-precondition",
-          "This discount code is not valid for the items in your cart");
-      }
-      const codeValue = Number(codeData.value) || 0;
-      if (codeData.type === "percentage") {
-        discountAmount = parseFloat(((discountableSubtotal * codeValue) / 100).toFixed(3));
-      } else {
-        discountAmount = Math.min(codeValue, discountableSubtotal);
-      }
-      // The discount can never exceed the in-boutique (discountable) subtotal.
-      discountAmount = Math.min(discountAmount, discountableSubtotal);
+      discountAmount = calculateDiscountAmount(codeData, verifiedItems, verifiedSubtotal);
     }
     // Clamp incoming discountAmount to server-verified value
     discountAmount = Math.max(0, Math.min(discountAmount, verifiedSubtotal));
@@ -606,6 +726,15 @@ exports.createOrder = onCall(async (request) => {
   });
 
   return { orderNumber };
+  } catch (error) {
+    await maybeRefundOwnPaymentIntent(
+      stripe,
+      paymentIntentId,
+      uid,
+      error?.message || error?.code || "createOrder failed",
+    );
+    throw error;
+  }
 });
 
 // ================= DISCOUNT CODES =================

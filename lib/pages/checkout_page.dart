@@ -239,7 +239,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final result = await callable.call({
       'items': items,
       'deliveryCost': deliveryCost,
+      'deliveryMethod': deliveryMethod,
       'currency': 'usd',
+      if (_discountCodeId != null && _discountAmount > 0)
+        'discountCodeId': _discountCodeId,
     });
 
     final data = Map<String, dynamic>.from(result.data as Map);
@@ -322,7 +325,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
           throw Exception(loc.productNoLongerAvailable(item.title));
         }
 
-        final stockValue = productDoc.data()?['stock'] ?? 0;
+        final productData = productDoc.data();
+        if (productData?['isOutOfStock'] == true) {
+          throw Exception(loc.productNotEnoughStock(item.title));
+        }
+
+        final stockValue = productData?['stock'] ?? 0;
         final int currentStock = stockValue is int
             ? stockValue
             : int.tryParse(stockValue.toString()) ?? 0;
