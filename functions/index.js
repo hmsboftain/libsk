@@ -23,6 +23,15 @@ const db = admin.firestore();
 setGlobalOptions({maxInstances: 10});
 
 const {algoliasearch} = require("algoliasearch");
+const {
+  ALLOWED_DELIVERY_METHODS,
+  deliveryCostForMethod,
+  effectiveProductPrice,
+  kwdToStripeAmount,
+  normalizeDeliveryMethod,
+  paymentIntentMismatchReason,
+  roundKwd,
+} = require("./order_helpers");
 
 const PRODUCTS_INDEX = "products";
 const BOUTIQUES_INDEX = "boutiques";
@@ -170,6 +179,205 @@ async function checkRateLimit(key, maxRequests, windowSeconds) {
   });
 }
 
+async function buildOrderQuote({items, deliveryMethod, discountCodeId, uid, tx}) {
+  const productKeyOf = (b, p) => `${b}__${p}`;
+  const productAgg = {};
+
+  for (const item of items) {
+    const boutiqueId = String(item.boutiqueId || "");
+    const productId  = String(item.productId  || "");
+    const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
+
+    if (!boutiqueId || !productId) {
+      throw new HttpsError("invalid-argument", "Invalid product information.");
+    }
+    if (quantity > 100) {
+      throw new HttpsError("invalid-argument", "Quantity cannot exceed 100 per item.");
+    }
+
+    const key = productKeyOf(boutiqueId, productId);
+    if (!productAgg[key]) productAgg[key] = { boutiqueId, productId, qty: 0 };
+    productAgg[key].qty += quantity;
+  }
+
+  const productInfo = {};
+  for (const key of Object.keys(productAgg)) {
+    const { boutiqueId, productId, qty } = productAgg[key];
+    const productRef = db.collection("boutiques").doc(boutiqueId)
+      .collection("products").doc(productId);
+    const productSnap = await tx.get(productRef);
+
+    if (!productSnap.exists) {
+      throw new HttpsError("not-found", "A product in your cart is no longer available.");
+    }
+
+    const productData = productSnap.data();
+    const stock = Number(productData.stock) || 0;
+
+    if (productData.isOutOfStock === true) {
+      throw new HttpsError("failed-precondition",
+        `${productData.title || "Product"} is out of stock.`);
+    }
+    if (stock < qty) {
+      throw new HttpsError("failed-precondition",
+        `${productData.title || "Product"} does not have enough stock.`);
+    }
+
+    productInfo[key] = {
+      ref: productRef,
+      data: productData,
+      price: effectiveProductPrice(productData),
+    };
+  }
+
+  const verifiedItems = [];
+  let verifiedSubtotal = 0;
+
+  for (const item of items) {
+    const boutiqueId = String(item.boutiqueId || "");
+    const productId  = String(item.productId  || "");
+    const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
+    const info        = productInfo[productKeyOf(boutiqueId, productId)];
+    const productData = info.data;
+    const serverPrice = info.price;
+
+    verifiedSubtotal += serverPrice * quantity;
+
+    const verifiedItem = {
+      productId,
+      boutiqueId,
+      title:        productData.title        || item.title       || "",
+      imageUrl:     item.imageUrl            || "",
+      description:  productData.description  || item.description || "",
+      size:         item.size                || "",
+      price:        serverPrice,
+      quantity,
+      boutiqueName: productData.boutiqueName || "",
+    };
+    const color = String(item.color || "").trim();
+    if (color) verifiedItem.color = color;
+    verifiedItems.push(verifiedItem);
+  }
+
+  verifiedSubtotal = roundKwd(verifiedSubtotal);
+  if (verifiedSubtotal > 5000) {
+    throw new HttpsError("invalid-argument", "Order total cannot exceed KD 5,000.");
+  }
+
+  let discountAmount = 0;
+  let discountCodeRef = null;
+  if (discountCodeId) {
+    discountCodeRef = db.collection("discount_codes").doc(discountCodeId);
+    const codeSnap = await tx.get(discountCodeRef);
+    if (!codeSnap.exists) {
+      throw new HttpsError("not-found", "This discount code is no longer valid.");
+    }
+
+    const codeData = codeSnap.data();
+    if (codeData.isActive !== true) {
+      throw new HttpsError("failed-precondition", "This discount code is no longer active.");
+    }
+    if (codeData.expiresAt && codeData.expiresAt.toDate &&
+        codeData.expiresAt.toDate() < new Date()) {
+      throw new HttpsError("failed-precondition", "This discount code has expired.");
+    }
+    const usageLimit = codeData.usageLimit || null;
+    const usageCount = codeData.usageCount || 0;
+    if (usageLimit !== null && usageCount >= usageLimit) {
+      throw new HttpsError("failed-precondition", "This discount code has reached its usage limit.");
+    }
+    if (codeData.singleUse === true) {
+      const usedSnap = await tx.get(discountCodeRef.collection("used_by").doc(uid));
+      if (usedSnap.exists) {
+        throw new HttpsError("failed-precondition", "You have already used this discount code.");
+      }
+    }
+
+    const codeBoutiqueId = String(codeData.boutiqueId || "");
+    const discountableSubtotal = codeBoutiqueId
+      ? verifiedItems
+          .filter((i) => i.boutiqueId === codeBoutiqueId)
+          .reduce((sum, i) => sum + i.price * i.quantity, 0)
+      : verifiedSubtotal;
+    if (discountableSubtotal <= 0) {
+      throw new HttpsError("failed-precondition",
+        "This discount code is not valid for the items in your cart");
+    }
+
+    const codeValue = Number(codeData.value) || 0;
+    if (codeData.type === "percentage") {
+      discountAmount = roundKwd((discountableSubtotal * codeValue) / 100);
+    } else {
+      discountAmount = Math.min(codeValue, discountableSubtotal);
+    }
+    discountAmount = roundKwd(Math.min(discountAmount, discountableSubtotal));
+  }
+
+  const deliveryCost = deliveryCostForMethod(deliveryMethod);
+  const total = roundKwd(verifiedSubtotal + deliveryCost - discountAmount);
+  const commissionAmount = roundKwd(verifiedSubtotal * 0.15);
+
+  return {
+    commissionAmount,
+    deliveryCost,
+    discountAmount,
+    discountCodeRef,
+    itemCount: verifiedItems.reduce((s, i) => s + i.quantity, 0),
+    productAgg,
+    productInfo,
+    total,
+    verifiedItems,
+    verifiedSubtotal,
+  };
+}
+
+async function getVerifiedPaymentIntent(stripe, paymentIntentId) {
+  try {
+    return await stripe.paymentIntents.retrieve(paymentIntentId, {
+      expand: ["latest_charge"],
+    });
+  } catch (error) {
+    logger.error("Failed to retrieve payment intent", {paymentIntentId, error});
+    throw new HttpsError("failed-precondition", "Payment could not be verified.");
+  }
+}
+
+async function refundUnusedPaymentIntent(stripe, paymentIntentId, uid, reason) {
+  try {
+    const lockSnap = await db.collection("payment_intents").doc(paymentIntentId).get();
+    if (lockSnap.exists) return;
+
+    const paymentIntent = await getVerifiedPaymentIntent(stripe, paymentIntentId);
+    const mismatch = paymentIntentMismatchReason({
+      paymentIntent,
+      uid,
+      expectedAmount: Number(paymentIntent.amount),
+    });
+    if (mismatch) return;
+
+    await stripe.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+        reason: "requested_by_customer",
+        metadata: { reason: "order_creation_failed" },
+      },
+      { idempotencyKey: `order-failure-${paymentIntentId}` },
+    );
+    logger.warn("Refunded unused payment after order failure", {
+      paymentIntentId,
+      uid,
+      reason: reason && reason.message || String(reason),
+    });
+  } catch (refundError) {
+    logger.error("Failed to refund unused payment intent", {
+      paymentIntentId,
+      uid,
+      refundError,
+      orderError: reason,
+    });
+  }
+}
+
 // ================= PAYMENTS =================
 
 exports.createPaymentIntent = onCall(async (request) => {
@@ -187,50 +395,30 @@ exports.createPaymentIntent = onCall(async (request) => {
     }
 
     const items = data.items;
-    const deliveryCost = data.deliveryCost;
-    const currency = data.currency;
+    const deliveryMethod = normalizeDeliveryMethod(
+      data.deliveryMethod,
+      data.deliveryCost,
+    );
+    const discountCodeId = data.discountCodeId || null;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       throw new HttpsError("invalid-argument", "Items must be a non-empty array.");
     }
-    if (!currency || typeof currency !== "string") {
-      throw new HttpsError("invalid-argument", "Currency is required.");
+    if (items.length > 50) {
+      throw new HttpsError("invalid-argument", "Order cannot contain more than 50 items.");
+    }
+    if (!ALLOWED_DELIVERY_METHODS.includes(deliveryMethod)) {
+      throw new HttpsError("invalid-argument", "Invalid delivery method.");
     }
 
-    const allowedCurrencies = ["kwd", "usd", "gbp", "eur"];
-    if (!allowedCurrencies.includes(currency.toLowerCase())) {
-      throw new HttpsError("invalid-argument", "Unsupported currency.");
-    }
-
-    let subtotal = 0;
-    for (const item of items) {
-      const boutiqueId = String(item.boutiqueId || "");
-      const productId  = String(item.productId  || "");
-      const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
-
-      if (!boutiqueId || !productId) {
-        throw new HttpsError("invalid-argument", "Each item must have boutiqueId and productId.");
-      }
-      if (quantity > 100) {
-        throw new HttpsError("invalid-argument", "Quantity cannot exceed 100 per item.");
-      }
-
-      const productDoc = await db
-        .collection("boutiques").doc(boutiqueId)
-        .collection("products").doc(productId)
-        .get();
-
-      if (!productDoc.exists) {
-        throw new HttpsError("not-found", `Product ${productId} not found.`);
-      }
-
-      subtotal += (Number(productDoc.data().price) || 0) * quantity;
-    }
-
-    const delivery = Number(deliveryCost) || 0;
-    const total = subtotal + delivery;
-    const multiplier = currency.toLowerCase() === "kwd" ? 1000 : 100;
-    const amount = Math.round(total * multiplier);
+    const quote = await db.runTransaction((tx) => buildOrderQuote({
+      items,
+      deliveryMethod,
+      discountCodeId,
+      uid: request.auth.uid,
+      tx,
+    }));
+    const amount = kwdToStripeAmount(quote.total);
 
     if (amount <= 0) {
       throw new HttpsError("invalid-argument", "Order total must be greater than zero.");
@@ -238,12 +426,19 @@ exports.createPaymentIntent = onCall(async (request) => {
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
-      currency: currency.toLowerCase(),
+      currency: "kwd",
+      metadata: {
+        uid: request.auth.uid,
+        orderTotalKwd: String(quote.total),
+        discountCodeId: discountCodeId ? String(discountCodeId) : "",
+      },
     });
 
     return {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
+      amount,
+      currency: "kwd",
     };
   } catch (error) {
     logger.error("Stripe error", error);
@@ -286,6 +481,8 @@ exports.processRefund = onCall(async (request) => {
 // ================= CREATE ORDER =================
 
 exports.createOrder = onCall(async (request) => {
+  const stripe = require("stripe")(stripeSecret.value());
+
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
@@ -298,7 +495,7 @@ exports.createOrder = onCall(async (request) => {
   const uid             = request.auth.uid;
   const data            = request.data || {};
   const items           = data.items;
-  const deliveryMethod  = data.deliveryMethod  || "";
+  const deliveryMethod  = normalizeDeliveryMethod(data.deliveryMethod, data.deliveryCost);
   const paymentMethod   = data.paymentMethod   || "";
   const paymentIntentId = data.paymentIntentId || "";
   const discountCodeId  = data.discountCodeId  || null;
@@ -311,30 +508,21 @@ exports.createOrder = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Order cannot contain more than 50 items.");
   }
 
-  const allowedDeliveryMethods = ["Regular Delivery", "Same Day Delivery", "Made to Order"];
   const allowedPaymentMethods  = ["Card"];
 
-  if (!allowedDeliveryMethods.includes(deliveryMethod)) {
+  if (!ALLOWED_DELIVERY_METHODS.includes(deliveryMethod)) {
     throw new HttpsError("invalid-argument", "Invalid delivery method.");
   }
   if (!allowedPaymentMethods.includes(paymentMethod)) {
     throw new HttpsError("invalid-argument", "Invalid payment method.");
   }
-  if (typeof paymentIntentId !== "string" || paymentIntentId.length > 200) {
+  if (typeof paymentIntentId !== "string" ||
+      paymentIntentId.trim().length === 0 ||
+      paymentIntentId.length > 200) {
     throw new HttpsError("invalid-argument", "Invalid paymentIntentId.");
   }
 
-  const counterRef = db.collection("metadata").doc("order_counter");
-  const orderNumber = await db.runTransaction(async (tx) => {
-    const snap = await tx.get(counterRef);
-    let last = 100000;
-    if (snap.exists && typeof snap.data().lastOrderNumber === "number") {
-      last = snap.data().lastOrderNumber;
-    }
-    const next = last + 1;
-    tx.set(counterRef, { lastOrderNumber: next }, { merge: true });
-    return String(next);
-  });
+  const paymentIntent = await getVerifiedPaymentIntent(stripe, paymentIntentId);
 
   const [addressSnap, userDoc] = await Promise.all([
     db.collection("users").doc(uid)
@@ -354,6 +542,8 @@ exports.createOrder = onCall(async (request) => {
 
   const userOrderRef   = db.collection("users").doc(uid).collection("orders").doc();
   const globalOrderRef = db.collection("global_orders").doc(userOrderRef.id);
+  const counterRef = db.collection("metadata").doc("order_counter");
+  const paymentIntentRef = db.collection("payment_intents").doc(paymentIntentId);
 
   const boutiqueMap = {};
   for (const item of items) {
@@ -363,249 +553,134 @@ exports.createOrder = onCall(async (request) => {
     boutiqueMap[bid].push(item);
   }
 
-  const verifiedItems = [];
-  let verifiedSubtotal = 0;
-
-  await db.runTransaction(async (tx) => {
-    // Aggregate quantities per unique product first, so duplicate line items
-    // (e.g. 4 + 4 of the same product against stock 5) can't each pass an
-    // individual stock check and oversell.
-    const productKeyOf = (b, p) => `${b}__${p}`;
-    const productAgg = {};
-    for (const item of items) {
-      const boutiqueId = String(item.boutiqueId || "");
-      const productId  = String(item.productId  || "");
-      const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
-
-      if (!boutiqueId || !productId) {
-        throw new HttpsError("invalid-argument", "Invalid product information.");
-      }
-      if (quantity > 100) {
-        throw new HttpsError("invalid-argument", "Quantity cannot exceed 100 per item.");
-      }
-
-      const key = productKeyOf(boutiqueId, productId);
-      if (!productAgg[key]) productAgg[key] = { boutiqueId, productId, qty: 0 };
-      productAgg[key].qty += quantity;
-    }
-
-    // Read each unique product once and verify stock against the AGGREGATED
-    // quantity, capturing the server price for line-item construction below.
-    const productInfo = {};
-    for (const key of Object.keys(productAgg)) {
-      const { boutiqueId, productId, qty } = productAgg[key];
-      const productRef  = db.collection("boutiques").doc(boutiqueId)
-                            .collection("products").doc(productId);
-      const productSnap = await tx.get(productRef);
-
-      if (!productSnap.exists) {
-        throw new HttpsError("not-found", "A product in your cart is no longer available.");
-      }
-
-      const productData = productSnap.data();
-      const stock       = Number(productData.stock) || 0;
-
-      // Reject items the boutique flagged out of stock, even if a stale client
-      // still has stock > 0 — mirrors the isSoldOut guard in the app UI.
-      if (productData.isOutOfStock === true) {
-        throw new HttpsError("failed-precondition",
-          `${productData.title || "Product"} is out of stock.`);
-      }
-      if (stock < qty) {
-        throw new HttpsError("failed-precondition",
-          `${productData.title || "Product"} does not have enough stock.`);
-      }
-
-      // Server-side price: prefer a valid sale price below the regular price.
-      // Never trust the client-supplied price.
-      const basePrice = Number(productData.price) || 0;
-      const sale = Number(productData.salePrice);
-      const effectivePrice =
-        Number.isFinite(sale) && sale > 0 && sale < basePrice
-          ? sale
-          : basePrice;
-
-      productInfo[key] = {
-        ref: productRef,
-        data: productData,
-        price: effectivePrice,
-      };
-    }
-
-    // Build verified line items (kept per line for the order record) using the
-    // server-verified price; never trust the client-supplied price.
-    for (const item of items) {
-      const boutiqueId = String(item.boutiqueId || "");
-      const productId  = String(item.productId  || "");
-      const quantity   = Math.max(1, Math.floor(Number(item.quantity) || 1));
-      const info        = productInfo[productKeyOf(boutiqueId, productId)];
-      const productData = info.data;
-      const serverPrice = info.price;
-
-      verifiedSubtotal += serverPrice * quantity;
-
-      const verifiedItem = {
-        productId,
-        boutiqueId,
-        title:        productData.title        || item.title       || "",
-        imageUrl:     item.imageUrl            || "",
-        description:  productData.description  || item.description || "",
-        size:         item.size                || "",
-        price:        serverPrice,
-        quantity,
-        boutiqueName: productData.boutiqueName || "",
-      };
-      const color = String(item.color || "").trim();
-      if (color) verifiedItem.color = color;
-      verifiedItems.push(verifiedItem);
-    }
-
-    if (verifiedSubtotal > 5000) {
-      throw new HttpsError("invalid-argument", "Order total cannot exceed KD 5,000.");
-    }
-
-    // Validate discount code server-side — full validation inside the
-    // transaction (snapshot isolation), mirroring validateDiscountCode so an
-    // expired / exhausted / already-used code can't be replayed via createOrder.
-    let discountAmount = 0;
-    let discountCodeRef = null;
-    if (discountCodeId) {
-      discountCodeRef = db.collection("discount_codes").doc(discountCodeId);
-      const codeSnap = await tx.get(discountCodeRef);
-      if (!codeSnap.exists) {
-        throw new HttpsError("not-found", "This discount code is no longer valid.");
-      }
-      const codeData = codeSnap.data();
-      if (codeData.isActive !== true) {
-        throw new HttpsError("failed-precondition", "This discount code is no longer active.");
-      }
-      if (codeData.expiresAt && codeData.expiresAt.toDate &&
-          codeData.expiresAt.toDate() < new Date()) {
-        throw new HttpsError("failed-precondition", "This discount code has expired.");
-      }
-      const usageLimit = codeData.usageLimit || null;
-      const usageCount = codeData.usageCount || 0;
-      if (usageLimit !== null && usageCount >= usageLimit) {
-        throw new HttpsError("failed-precondition", "This discount code has reached its usage limit.");
-      }
-      if (codeData.singleUse === true) {
-        const usedSnap = await tx.get(discountCodeRef.collection("used_by").doc(uid));
-        if (usedSnap.exists) {
-          throw new HttpsError("failed-precondition", "You have already used this discount code.");
+  let orderResult;
+  try {
+    orderResult = await db.runTransaction(async (tx) => {
+      const paymentIntentSnap = await tx.get(paymentIntentRef);
+      if (paymentIntentSnap.exists) {
+        const lockData = paymentIntentSnap.data() || {};
+        if (lockData.customerUid === uid && lockData.orderNumber) {
+          return { orderNumber: lockData.orderNumber, alreadyConsumed: true };
         }
+        throw new HttpsError("already-exists", "This payment has already been used.");
       }
-      // Boutique-owned codes apply only to that boutique's items (others stay
-      // full price); platform-wide codes (no boutiqueId, created by super
-      // admins) apply to the whole cart.
-      const codeBoutiqueId = String(codeData.boutiqueId || "");
-      const discountableSubtotal = codeBoutiqueId
-        ? verifiedItems
-            .filter((i) => i.boutiqueId === codeBoutiqueId)
-            .reduce((sum, i) => sum + i.price * i.quantity, 0)
-        : verifiedSubtotal;
-      if (discountableSubtotal <= 0) {
-        throw new HttpsError("failed-precondition",
-          "This discount code is not valid for the items in your cart");
+
+      const quote = await buildOrderQuote({
+        items,
+        deliveryMethod,
+        discountCodeId,
+        uid,
+        tx,
+      });
+
+      const expectedAmount = kwdToStripeAmount(quote.total);
+      const paymentMismatch = paymentIntentMismatchReason({
+        paymentIntent,
+        uid,
+        expectedAmount,
+      });
+      if (paymentMismatch) {
+        throw new HttpsError("failed-precondition", paymentMismatch);
       }
-      const codeValue = Number(codeData.value) || 0;
-      if (codeData.type === "percentage") {
-        discountAmount = parseFloat(((discountableSubtotal * codeValue) / 100).toFixed(3));
-      } else {
-        discountAmount = Math.min(codeValue, discountableSubtotal);
+
+      const counterSnap = await tx.get(counterRef);
+      let last = 100000;
+      if (counterSnap.exists && typeof counterSnap.data().lastOrderNumber === "number") {
+        last = counterSnap.data().lastOrderNumber;
       }
-      // The discount can never exceed the in-boutique (discountable) subtotal.
-      discountAmount = Math.min(discountAmount, discountableSubtotal);
-    }
-    // Clamp incoming discountAmount to server-verified value
-    discountAmount = Math.max(0, Math.min(discountAmount, verifiedSubtotal));
+      const orderNumber = String(last + 1);
 
-    const deliveryCost = deliveryMethod === "Same Day Delivery" ? 5
-      : deliveryMethod === "Made to Order" ? 0
-      : 3;
-    const total = verifiedSubtotal + deliveryCost - discountAmount;
-
-    // Flat 15% LIBSK commission on GMV — computed from the order subtotal,
-    // before any discount or delivery fee. Stored on the order so revenue
-    // reporting can sum it directly instead of recomputing at read time.
-    const commissionAmount = parseFloat((verifiedSubtotal * 0.15).toFixed(3));
-
-    const orderBase = {
-      orderNumber,
-      date: dateString,
-      itemCount: verifiedItems.reduce((s, i) => s + i.quantity, 0),
-      total,
-      commissionAmount,
-      status: "Placed",
-      customerUid: uid,
-      customerName,
-      customerEmail,
-      deliveryMethod,
-      paymentMethod,
-      paymentIntentId,
-      address: addressData,
-      items: verifiedItems,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      ...(discountCodeId && discountAmount > 0 ? { discountCodeId, discountAmount } : {}),
-      ...(deliveryMethod === "Made to Order" && estimatedDays ? { estimatedDays } : {}),
-    };
-
-    tx.set(userOrderRef, orderBase);
-    tx.set(globalOrderRef, { ...orderBase, sourceUserOrderId: userOrderRef.id });
-
-    for (const [boutiqueId] of Object.entries(boutiqueMap)) {
-      const bItems = verifiedItems.filter(i => i.boutiqueId === boutiqueId);
-      const bTotal = bItems.reduce((s, i) => s + i.price * i.quantity, 0);
-      const bCount = bItems.reduce((s, i) => s + i.quantity, 0);
-      // Flat 15% commission on this boutique's share of the order subtotal.
-      const bCommission = parseFloat((bTotal * 0.15).toFixed(3));
-
-      const boutiqueOrderRef = db.collection("boutiques").doc(boutiqueId)
-                                 .collection("orders").doc();
-
-      tx.set(boutiqueOrderRef, {
+      const orderBase = {
         orderNumber,
-        sourceUserOrderId: userOrderRef.id,
         date: dateString,
-        itemCount: bCount,
-        total: bTotal,
-        commissionAmount: bCommission,
+        itemCount: quote.itemCount,
+        total: quote.total,
+        commissionAmount: quote.commissionAmount,
         status: "Placed",
         customerUid: uid,
         customerName,
         customerEmail,
         deliveryMethod,
         paymentMethod,
+        paymentIntentId,
         address: addressData,
-        items: bItems,
+        items: quote.verifiedItems,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        ...(discountCodeId && quote.discountAmount > 0 ?
+          { discountCodeId, discountAmount: quote.discountAmount } : {}),
+        ...(deliveryMethod === "Made to Order" && estimatedDays ? { estimatedDays } : {}),
+      };
+
+      tx.set(paymentIntentRef, {
+        paymentIntentId,
+        customerUid: uid,
+        orderNumber,
+        orderId: userOrderRef.id,
+        amount: paymentIntent.amount,
+        expectedAmount,
+        currency: "kwd",
+        status: paymentIntent.status,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-    }
+      tx.set(counterRef, { lastOrderNumber: Number(orderNumber) }, { merge: true });
+      tx.set(userOrderRef, orderBase);
+      tx.set(globalOrderRef, { ...orderBase, sourceUserOrderId: userOrderRef.id });
 
-    // Decrement stock + bump counters once per unique product, by the
-    // aggregated quantity (matches the aggregated stock check above).
-    for (const key of Object.keys(productAgg)) {
-      tx.update(productInfo[key].ref, {
-        stock: admin.firestore.FieldValue.increment(-productAgg[key].qty),
-        weeklyOrders: admin.firestore.FieldValue.increment(productAgg[key].qty),
-        salesCount: admin.firestore.FieldValue.increment(productAgg[key].qty),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    }
-    // Record discount usage atomically with the order. Previously this was a
-    // separate post-commit transaction (D1) — if it failed, the order kept the
-    // discount but usageCount / used_by never updated, enabling replay.
-    if (discountCodeRef && discountAmount > 0) {
-      tx.update(discountCodeRef, {
-        usageCount: admin.firestore.FieldValue.increment(1),
-      });
-      tx.set(
-        discountCodeRef.collection("used_by").doc(uid),
-        { usedAt: admin.firestore.FieldValue.serverTimestamp() },
-      );
-    }
-  });
+      for (const [boutiqueId] of Object.entries(boutiqueMap)) {
+        const bItems = quote.verifiedItems.filter(i => i.boutiqueId === boutiqueId);
+        const bTotal = roundKwd(bItems.reduce((s, i) => s + i.price * i.quantity, 0));
+        const bCount = bItems.reduce((s, i) => s + i.quantity, 0);
+        const bCommission = roundKwd(bTotal * 0.15);
 
-  return { orderNumber };
+        const boutiqueOrderRef = db.collection("boutiques").doc(boutiqueId)
+                                  .collection("orders").doc();
+
+        tx.set(boutiqueOrderRef, {
+          orderNumber,
+          sourceUserOrderId: userOrderRef.id,
+          date: dateString,
+          itemCount: bCount,
+          total: bTotal,
+          commissionAmount: bCommission,
+          status: "Placed",
+          customerUid: uid,
+          customerName,
+          customerEmail,
+          deliveryMethod,
+          paymentMethod,
+          address: addressData,
+          items: bItems,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      for (const key of Object.keys(quote.productAgg)) {
+        tx.update(quote.productInfo[key].ref, {
+          stock: admin.firestore.FieldValue.increment(-quote.productAgg[key].qty),
+          weeklyOrders: admin.firestore.FieldValue.increment(quote.productAgg[key].qty),
+          salesCount: admin.firestore.FieldValue.increment(quote.productAgg[key].qty),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (quote.discountCodeRef && quote.discountAmount > 0) {
+        tx.update(quote.discountCodeRef, {
+          usageCount: admin.firestore.FieldValue.increment(1),
+        });
+        tx.set(
+          quote.discountCodeRef.collection("used_by").doc(uid),
+          { usedAt: admin.firestore.FieldValue.serverTimestamp() },
+        );
+      }
+
+      return { orderNumber, alreadyConsumed: false };
+    });
+  } catch (error) {
+    await refundUnusedPaymentIntent(stripe, paymentIntentId, uid, error);
+    throw error;
+  }
+
+  return { orderNumber: orderResult.orderNumber };
 });
 
 // ================= DISCOUNT CODES =================
