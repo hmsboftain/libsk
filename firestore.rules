@@ -263,6 +263,10 @@ service cloud.firestore {
       allow read, write: if false; // server-only
     }
 
+    match /payment_intents/{docId} {
+      allow read, write: if false; // server-only
+    }
+
     match /{path=**}/products/{productId} {
       allow read: if true;
     }
