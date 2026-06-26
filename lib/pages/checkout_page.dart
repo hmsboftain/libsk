@@ -238,8 +238,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     final result = await callable.call({
       'items': items,
+      'deliveryMethod': deliveryMethod,
       'deliveryCost': deliveryCost,
-      'currency': 'usd',
+      'currency': 'kwd',
+      if (_discountCodeId != null && _discountCodeId!.isNotEmpty)
+        'discountCodeId': _discountCodeId,
     });
 
     final data = Map<String, dynamic>.from(result.data as Map);
