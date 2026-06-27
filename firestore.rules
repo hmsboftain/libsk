@@ -231,6 +231,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /payment_intents/{paymentIntentId} {
+      // Consumed atomically by createOrder via the admin SDK to prevent replay.
+      allow read, write: if false;
+    }
+
     match /disputes/{disputeId} {
       allow read: if isSignedIn() &&
         (resource.data.customerUid == request.auth.uid || isAdmin());
