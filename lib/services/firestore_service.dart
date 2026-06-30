@@ -230,6 +230,10 @@ class FirestoreService {
     }
 
     final productData = productDoc.data();
+    if (productData?['isOutOfStock'] == true) {
+      throw Exception('$title is out of stock');
+    }
+
     final stockValue = productData?['stock'] ?? 0;
     final int currentStock = stockValue is int
         ? stockValue
@@ -263,6 +267,7 @@ class FirestoreService {
 
       await docRef.update({
         'quantity': currentQuantity + 1,
+        'price': _effectiveCartPrice(productData, price),
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } else {
@@ -274,7 +279,7 @@ class FirestoreService {
         'description': description,
         'size': size,
         if (normalizedColor.isNotEmpty) 'color': normalizedColor,
-        'price': price,
+        'price': _effectiveCartPrice(productData, price),
         'quantity': 1,
         // Store madeToOrder flag so checkout can detect it
         if (productData?['madeToOrder'] == true) 'madeToOrder': true,
@@ -315,6 +320,10 @@ class FirestoreService {
       throw Exception('$title is no longer available');
     }
 
+    if (productDoc.data()?['isOutOfStock'] == true) {
+      throw Exception('$title is out of stock');
+    }
+
     final stockValue = productDoc.data()?['stock'] ?? 0;
     final int currentStock = stockValue is int
         ? stockValue
@@ -328,6 +337,23 @@ class FirestoreService {
       'quantity': quantity,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  static double _effectiveCartPrice(
+    Map<String, dynamic>? productData,
+    double fallback,
+  ) {
+    final baseValue = productData?['price'];
+    final basePrice = baseValue is num
+        ? baseValue.toDouble()
+        : double.tryParse(baseValue?.toString() ?? '') ?? fallback;
+    final saleValue = productData?['salePrice'];
+    final salePrice = saleValue is num
+        ? saleValue.toDouble()
+        : double.tryParse(saleValue?.toString() ?? '');
+    return salePrice != null && salePrice > 0 && salePrice < basePrice
+        ? salePrice
+        : basePrice;
   }
 
   static Future<void> deleteCartItem(String docId) async {
