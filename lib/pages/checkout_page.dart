@@ -217,7 +217,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Future<Map<String, String>> _createPaymentIntent({
     required List<CartItem> cartItems,
-    required double deliveryCost,
+    required String deliveryMethod,
+    String? discountCodeId,
   }) async {
     final l10n = AppLocalizations.of(context)!;
 
@@ -238,8 +239,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     final result = await callable.call({
       'items': items,
-      'deliveryCost': deliveryCost,
-      'currency': 'usd',
+      'deliveryMethod': deliveryMethod,
+      if (discountCodeId != null && discountCodeId.isNotEmpty)
+        'discountCodeId': discountCodeId,
+      'currency': 'kwd',
     });
 
     final data = Map<String, dynamic>.from(result.data as Map);
@@ -258,11 +261,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Future<String> _startStripeCheckout({
     required List<CartItem> cartItems,
-    required double deliveryCost,
+    required String deliveryMethod,
+    String? discountCodeId,
   }) async {
     final result = await _createPaymentIntent(
       cartItems: cartItems,
-      deliveryCost: deliveryCost,
+      deliveryMethod: deliveryMethod,
+      discountCodeId: discountCodeId,
     );
 
     final clientSecret = result['clientSecret']!;
@@ -322,10 +327,32 @@ class _CheckoutPageState extends State<CheckoutPage> {
           throw Exception(loc.productNoLongerAvailable(item.title));
         }
 
-        final stockValue = productDoc.data()?['stock'] ?? 0;
-        final int currentStock = stockValue is int
-            ? stockValue
-            : int.tryParse(stockValue.toString()) ?? 0;
+        final productData = productDoc.data();
+        if (productData?['isOutOfStock'] == true) {
+          throw Exception(loc.productNotEnoughStock(item.title));
+        }
+
+        final sizeEntries = productData?['sizeEntries'];
+        int? selectedSizeStock;
+        if (sizeEntries is List && sizeEntries.isNotEmpty) {
+          for (final entry in sizeEntries) {
+            if (entry is! Map) continue;
+            final name = entry['name']?.toString().trim() ?? '';
+            if (name != item.size.trim()) continue;
+            final value = entry['stock'] ?? 0;
+            selectedSizeStock = value is int
+                ? value
+                : int.tryParse(value.toString()) ?? 0;
+            break;
+          }
+        }
+
+        final stockValue = productData?['stock'] ?? 0;
+        final int currentStock =
+            selectedSizeStock ??
+            (stockValue is int
+                ? stockValue
+                : int.tryParse(stockValue.toString()) ?? 0);
 
         if (currentStock < item.quantity) {
           throw Exception(loc.productNotEnoughStock(item.title));
@@ -339,7 +366,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       final paymentIntentId = await _startStripeCheckout(
         cartItems: cartItems,
-        deliveryCost: deliveryCost,
+        deliveryMethod: deliveryMethod,
+        discountCodeId: finalDiscount > 0 ? _discountCodeId : null,
       );
 
       final List<Map<String, dynamic>> orderItems = cartItems.map((item) {
