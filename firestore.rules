@@ -231,6 +231,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /payment_intents/{paymentIntentId} {
+      // Order payment locks are written exclusively by Cloud Functions to
+      // prevent one Stripe charge from being replayed into multiple orders.
+      allow read, write: if false;
+    }
+
     match /disputes/{disputeId} {
       allow read: if isSignedIn() &&
         (resource.data.customerUid == request.auth.uid || isAdmin());
