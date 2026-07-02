@@ -1,10 +1,14 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_performance/firebase_performance.dart';
+import 'package:flutter/foundation.dart';
+import '../core/utils/image_sizing.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../core/services/analytics_service.dart';
+import '../core/services/performance_service.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
-import '../services/follow_service.dart';
 import '../widgets/boutique_logo_avatar.dart';
 import '../widgets/error_state_widget.dart';
 import '../widgets/follow_button.dart';
@@ -38,18 +42,44 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
   late final DocumentReference<Map<String, dynamic>> _boutiqueRef;
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _boutiqueStream;
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _productsStream;
-  late final Stream<int> _followerCountStream;
+
+  // storefront_open trace (findings 3.1 / 7): route build → grid first paint.
+  Trace? _openTrace;
+  bool _openTraceStopped = false;
 
   @override
   void initState() {
     super.initState();
+    AnalyticsService.instance.logScreenView('boutique_storefront');
+    _openTrace = PerformanceService.instance.traceStorefrontOpen();
+    _openTrace?.start();
     _boutiqueRef = FirebaseFirestore.instance
         .collection('boutiques')
         .doc(widget.boutiqueId);
     _boutiqueStream = _boutiqueRef.snapshots();
     _productsStream = _boutiqueRef.collection('products').snapshots();
-    // Use FollowService stream so count updates immediately when follow/unfollow
-    _followerCountStream = FollowService().followerCount(widget.boutiqueId);
+  }
+
+  /// Stops the storefront_open trace once the products grid has first painted,
+  /// attaching the boutique's SKU count as a metric.
+  void _markStorefrontPainted(int skuCount) {
+    if (_openTraceStopped) return;
+    _openTraceStopped = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _openTrace?.setMetric('sku_count', skuCount);
+      await _openTrace?.stop();
+      if (kDebugMode) debugPrint('storefront_open: sku_count=$skuCount');
+    });
+  }
+
+  @override
+  void dispose() {
+    // Close the trace if the page is dismissed before the grid ever painted.
+    if (!_openTraceStopped) {
+      _openTraceStopped = true;
+      _openTrace?.stop();
+    }
+    super.dispose();
   }
 
   Future<void> _onRefresh() async => setState(() {});
@@ -218,6 +248,8 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                         bannerPath.isNotEmpty
                             ? CachedNetworkImage(
                                 imageUrl: bannerPath,
+                                memCacheWidth: fullBleedCacheWidth(context),
+                                maxWidthDiskCache: maxImageDiskCacheWidth,
                                 height: 220,
                                 width: double.infinity,
                                 fit: BoxFit.cover,
@@ -299,22 +331,23 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                                 padding: const EdgeInsets.only(top: 4),
                                 child: FollowButton(
                                   boutiqueId: widget.boutiqueId,
+                                  boutiqueName: boutiqueName,
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 4),
 
-                          // ── Live follower count ──────────────────
-                          StreamBuilder<int>(
-                            stream: _followerCountStream,
-                            builder: (context, snapshot) {
-                              final count = snapshot.data ?? 0;
-                              return Text(
-                                l10n.followersCount(count),
-                                style: AppTextStyles.bodySmall,
-                              );
-                            },
+                          // Follower count read from the boutique doc that
+                          // _boutiqueStream already listens to — no second
+                          // live listener on the same doc (finding F1).
+                          Text(
+                            l10n.followersCount(
+                              (boutiqueData['followerCount'] as num?)
+                                      ?.toInt() ??
+                                  0,
+                            ),
+                            style: AppTextStyles.bodySmall,
                           ),
 
                           const SizedBox(height: 6),
@@ -349,6 +382,7 @@ class _BoutiqueStorefrontPageState extends State<BoutiqueStorefrontPage> {
                         }
 
                         final rawDocs = productsSnapshot.data?.docs ?? [];
+                        _markStorefrontPainted(rawDocs.length);
                         if (rawDocs.isEmpty) {
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 60),
@@ -464,6 +498,8 @@ class _StorefrontProductCard extends StatelessWidget {
                 child: displayImageUrl.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: displayImageUrl,
+                        memCacheWidth: gridTileCacheWidth,
+                        maxWidthDiskCache: maxImageDiskCacheWidth,
                         width: double.infinity,
                         fit: BoxFit.cover,
                         placeholder: (_, __) =>

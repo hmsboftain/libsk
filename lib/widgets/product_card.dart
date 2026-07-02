@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../core/utils/image_sizing.dart';
 import '../widgets/theme.dart';
 
 Widget buildProductCard({
@@ -30,6 +31,8 @@ Widget buildProductCard({
                 child: imageUrl.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: imageUrl,
+                        memCacheWidth: gridTileCacheWidth,
+                        maxWidthDiskCache: maxImageDiskCacheWidth,
                         width: 170,
                         height: 212,
                         fit: BoxFit.cover,

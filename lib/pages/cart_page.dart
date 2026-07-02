@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../widgets/error_state_widget.dart';
 import '../navigation/app_header.dart';
+import '../core/services/analytics_service.dart';
 import '../services/firestore_service.dart';
 import '../widgets/cart_item.dart';
 import '../widgets/theme.dart';
@@ -32,6 +33,7 @@ class _CartPageState extends State<CartPage> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.instance.logScreenView('cart');
     _cartStream = FirestoreService.getCartItemsStream();
   }
 
@@ -53,6 +55,7 @@ class _CartPageState extends State<CartPage> {
 
   Future<void> _deleteItem(CartItem item) async {
     await FirestoreService.deleteCartItem(item.id);
+    AnalyticsService.instance.logRemoveFromCart(item.productId);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -224,7 +227,17 @@ class _CartPageState extends State<CartPage> {
                               child: ElevatedButton.icon(
                                 onPressed: cartItems.isEmpty
                                     ? null
-                                    : _handleCheckout,
+                                    : () {
+                                        AnalyticsService.instance
+                                            .logBeginCheckout(
+                                              subtotal,
+                                              cartItems.fold<int>(
+                                                0,
+                                                (n, i) => n + i.quantity,
+                                              ),
+                                            );
+                                        _handleCheckout();
+                                      },
                                 icon: const Icon(
                                   Icons.shopping_bag_outlined,
                                   size: 28,

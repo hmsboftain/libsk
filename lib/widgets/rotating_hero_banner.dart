@@ -1,5 +1,7 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../core/utils/image_sizing.dart';
 import 'theme.dart';
 
 /// Drop-in replacement for the static banner on home_page.dart
@@ -102,12 +104,14 @@ class _RotatingHeroBannerState extends State<RotatingHeroBanner> {
                     fit: StackFit.expand,
                     children: [
                       if (imageUrl.isNotEmpty)
-                        Image.network(
-                          imageUrl,
+                        CachedNetworkImage(
+                          imageUrl: imageUrl,
                           width: double.infinity,
                           height: 300,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _emptyPlaceholder(),
+                          memCacheWidth: fullBleedCacheWidth(context),
+                          maxWidthDiskCache: maxImageDiskCacheWidth,
+                          errorWidget: (_, __, ___) => _emptyPlaceholder(),
                         )
                       else
                         _emptyPlaceholder(),

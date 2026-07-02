@@ -1,4 +1,6 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../core/utils/image_sizing.dart';
 import '../widgets/theme.dart';
 
 class BoutiqueLogoAvatar extends StatelessWidget {
@@ -29,12 +31,14 @@ class BoutiqueLogoAvatar extends StatelessWidget {
         padding: EdgeInsets.all(padding),
         child: ClipOval(
           child: imageUrl.isNotEmpty
-              ? Image.network(
-                  imageUrl,
+              ? CachedNetworkImage(
+                  imageUrl: imageUrl,
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
+                  memCacheWidth: logoCacheWidth,
+                  maxWidthDiskCache: maxImageDiskCacheWidth,
+                  errorWidget: (context, url, error) {
                     return Container(
                       color: AppColors.imagePlaceholder,
                       alignment: Alignment.center,

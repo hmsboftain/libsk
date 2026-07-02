@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../core/utils/image_sizing.dart';
 import '../widgets/theme.dart';
 import '../core/constants/countries.dart';
 import '../services/currency_service.dart';
@@ -96,6 +97,8 @@ class CartItemWidget extends StatelessWidget {
       child: imageUrl.isNotEmpty
           ? CachedNetworkImage(
               imageUrl: imageUrl,
+              memCacheWidth: gridTileCacheWidth,
+              maxWidthDiskCache: maxImageDiskCacheWidth,
               width: _imageWidth,
               height: _imageHeight,
               fit: BoxFit.cover,

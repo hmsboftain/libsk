@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/utils/image_sizing.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../widgets/error_state_widget.dart';
@@ -321,6 +322,8 @@ class _SavedProductCard extends StatelessWidget {
                   child: displayImageUrl.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: displayImageUrl,
+                          memCacheWidth: gridTileCacheWidth,
+                          maxWidthDiskCache: maxImageDiskCacheWidth,
                           fit: BoxFit.cover,
                           width: double.infinity,
                           height: double.infinity,

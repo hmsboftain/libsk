@@ -132,7 +132,7 @@ Widget _buildSectionTitle(String title) =>
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-class BoutiqueSalesDetailsPage extends StatelessWidget {
+class BoutiqueSalesDetailsPage extends StatefulWidget {
   final String boutiqueId;
   final String boutiqueName;
 
@@ -143,15 +143,30 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+  State<BoutiqueSalesDetailsPage> createState() =>
+      _BoutiqueSalesDetailsPageState();
+}
 
-    final ordersStream = FirebaseFirestore.instance
+class _BoutiqueSalesDetailsPageState extends State<BoutiqueSalesDetailsPage> {
+  // One-time read: a sales report doesn't need a live listener, and building
+  // the query in initState (rather than build) avoids re-subscribing and
+  // re-reading the whole orders collection on every rebuild (finding F5).
+  late final Future<QuerySnapshot<Map<String, dynamic>>> _ordersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _ordersFuture = FirebaseFirestore.instance
         .collection('boutiques')
-        .doc(boutiqueId)
+        .doc(widget.boutiqueId)
         .collection('orders')
         .orderBy('createdAt', descending: true)
-        .snapshots();
+        .get();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -163,8 +178,8 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: ordersStream,
+              child: FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                future: _ordersFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
@@ -206,7 +221,10 @@ class BoutiqueSalesDetailsPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(boutiqueName, style: AppTextStyles.displayMedium),
+                        Text(
+                          widget.boutiqueName,
+                          style: AppTextStyles.displayMedium,
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           l10n.boutiqueSalesOverview,

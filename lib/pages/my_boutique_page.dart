@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/utils/image_sizing.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../widgets/error_state_widget.dart';
@@ -59,7 +60,7 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
         return;
       }
 
-      final data = await FirestoreService.getOwnerBoutiqueData();
+      final data = await FirestoreService.getOwnerBoutiqueData(boutiqueId: id);
       if (!mounted) return;
       setState(() {
         _boutiqueId = id;
@@ -267,6 +268,8 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                   child: bannerUrl.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: bannerUrl,
+                          memCacheWidth: fullBleedCacheWidth(context),
+                          maxWidthDiskCache: maxImageDiskCacheWidth,
                           width: double.infinity,
                           fit: BoxFit.cover,
                           placeholder: (_, __) =>
@@ -292,6 +295,8 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
                       child: logoUrl.isNotEmpty
                           ? CachedNetworkImage(
                               imageUrl: logoUrl,
+                              memCacheWidth: logoCacheWidth,
+                              maxWidthDiskCache: maxImageDiskCacheWidth,
                               fit: BoxFit.cover,
                               placeholder: (_, __) => Center(
                                 child: Text(
@@ -546,6 +551,8 @@ class _ProductCard extends StatelessWidget {
             child: displayImageUrl.isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: displayImageUrl,
+                    memCacheWidth: gridTileCacheWidth,
+                    maxWidthDiskCache: maxImageDiskCacheWidth,
                     width: 72,
                     height: 90,
                     fit: BoxFit.cover,

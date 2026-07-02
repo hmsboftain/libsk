@@ -25,6 +25,15 @@ class CurrencyService extends ChangeNotifier {
   Map<String, double> get rates => _rates;
 
   Future<void> init() async {
+    await loadSavedCountry();
+    await fetchRates();
+  }
+
+  /// Resolves the selected country from local prefs only (or device locale on
+  /// first launch) — no network. Safe to await on the cold-start path
+  /// (finding 4.4); live FX rates load separately via [fetchRates], with the
+  /// hardcoded fallback rates active until they arrive.
+  Future<void> loadSavedCountry() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('country_code');
 
@@ -42,8 +51,6 @@ class CurrencyService extends ChangeNotifier {
       // Save it so we don't re-detect on next launch
       await prefs.setString('country_code', _selectedCountryCode);
     }
-
-    await fetchRates();
   }
 
   Future<void> fetchRates() async {

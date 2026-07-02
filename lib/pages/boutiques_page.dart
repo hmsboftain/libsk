@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/utils/image_sizing.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
@@ -245,6 +246,9 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                                       if (logoUrl.isNotEmpty)
                                         CachedNetworkImage(
                                           imageUrl: logoUrl,
+                                          memCacheWidth: gridTileCacheWidth,
+                                          maxWidthDiskCache:
+                                              maxImageDiskCacheWidth,
                                           width: double.infinity,
                                           height: 110,
                                           fit: BoxFit.cover,

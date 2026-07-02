@@ -1,11 +1,61 @@
 {
   "indexes": [
     {
+      "collectionGroup": "boutiques",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isVisibleOnHome", "order": "ASCENDING" },
+        { "fieldPath": "homeExpiresAt", "order": "ASCENDING" },
+        { "fieldPath": "homeOrder", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "boutiques",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isVisibleOnHome", "order": "ASCENDING" },
+        { "fieldPath": "homeOrder", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "discount_codes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "code", "order": "ASCENDING" },
+        { "fieldPath": "boutiqueId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "discount_codes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "code", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "disputes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orderId", "order": "ASCENDING" },
+        { "fieldPath": "customerUid", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "hero_banners",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "isActive", "order": "ASCENDING" },
         { "fieldPath": "order", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "products",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "boutiqueId", "order": "ASCENDING" },
+        { "fieldPath": "postedToFeed", "order": "ASCENDING" },
+        { "fieldPath": "feedPostedAt", "order": "DESCENDING" }
       ]
     },
     {
@@ -31,7 +81,96 @@
         { "fieldPath": "category", "arrayConfig": "CONTAINS" },
         { "fieldPath": "price", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "products",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "isFeaturedOnHome", "order": "ASCENDING" },
+        { "fieldPath": "featuredExpiresAt", "order": "ASCENDING" },
+        { "fieldPath": "featuredOrder", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "products",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "isFeaturedOnHome", "order": "ASCENDING" },
+        { "fieldPath": "featuredOrder", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "products",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "isFeedSponsored", "order": "ASCENDING" },
+        { "fieldPath": "feedSponsoredUntil", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "products",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "postedToFeed", "order": "ASCENDING" },
+        { "fieldPath": "boutiqueId", "order": "ASCENDING" },
+        { "fieldPath": "feedPostedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "products",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "postedToFeed", "order": "ASCENDING" },
+        { "fieldPath": "feedPostedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "products",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "postedToFeed", "order": "ASCENDING" },
+        { "fieldPath": "weeklyOrders", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "promo_slots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "boutiqueId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "products",
+      "fieldPath": "createdAt",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "collectionGroup": "products",
+      "fieldPath": "price",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "collectionGroup": "products",
+      "fieldPath": "title",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
 }

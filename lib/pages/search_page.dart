@@ -2,11 +2,15 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_performance/firebase_performance.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:libsk/l10n/app_localizations.dart';
 
 import '../config/algolia_config.dart';
+import '../core/services/analytics_service.dart';
+import '../core/utils/image_sizing.dart';
+import '../core/services/performance_service.dart';
 import '../navigation/app_header.dart';
 import '../widgets/product_badges.dart';
 import '../widgets/theme.dart';
@@ -56,6 +60,7 @@ class _SearchPageState extends State<SearchPage>
   @override
   void initState() {
     super.initState();
+    AnalyticsService.instance.logScreenView('search');
     _tabController = TabController(length: 2, vsync: this);
   }
 
@@ -94,6 +99,8 @@ class _SearchPageState extends State<SearchPage>
 
     setState(() => _isLoading = true);
 
+    final searchTrace = PerformanceService.instance.traceSearchQuery(query);
+    await searchTrace.start();
     try {
       final results = await Future.wait([
         _algoliaSearch('products', query),
@@ -106,9 +113,15 @@ class _SearchPageState extends State<SearchPage>
         _hasSearched = true;
         _isLoading = false;
       });
+      AnalyticsService.instance.logSearchQuery(
+        query,
+        _productResults.length + _boutiqueResults.length,
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+    } finally {
+      await searchTrace.stop();
     }
   }
 
@@ -118,15 +131,29 @@ class _SearchPageState extends State<SearchPage>
   ) async {
     final url =
         'https://${AlgoliaConfig.appId}-dsn.algolia.net/1/indexes/$index/query';
-    final response = await http.post(
-      Uri.parse(url),
-      headers: {
-        'X-Algolia-Application-Id': AlgoliaConfig.appId,
-        'X-Algolia-API-Key': AlgoliaConfig.searchKey,
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'query': query, 'hitsPerPage': 30}),
-    );
+    final body = jsonEncode({'query': query, 'hitsPerPage': 30});
+
+    final metric = PerformanceService.instance.httpMetric(url, HttpMethod.Post);
+    await metric.start();
+    metric.requestPayloadSize = body.length;
+
+    final http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'X-Algolia-Application-Id': AlgoliaConfig.appId,
+          'X-Algolia-API-Key': AlgoliaConfig.searchKey,
+          'Content-Type': 'application/json',
+        },
+        body: body,
+      );
+      metric
+        ..httpResponseCode = response.statusCode
+        ..responsePayloadSize = response.bodyBytes.length;
+    } finally {
+      await metric.stop();
+    }
     if (response.statusCode != 200) return [];
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     final hits = data['hits'] as List<dynamic>? ?? [];
@@ -378,6 +405,8 @@ class _SearchProductCard extends StatelessWidget {
                   child: displayImageUrl.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: displayImageUrl,
+                          memCacheWidth: gridTileCacheWidth,
+                          maxWidthDiskCache: maxImageDiskCacheWidth,
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) => const Center(
                             child: Icon(
@@ -468,6 +497,8 @@ class _SearchBoutiqueCard extends StatelessWidget {
               child: logoPath.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: logoPath,
+                      memCacheWidth: logoCacheWidth,
+                      maxWidthDiskCache: maxImageDiskCacheWidth,
                       fit: BoxFit.cover,
                       errorWidget: (_, __, ___) => Center(
                         child: Text(

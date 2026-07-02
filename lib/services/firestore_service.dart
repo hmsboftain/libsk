@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/services/analytics_service.dart';
 import '../models/admin_permissions.dart';
 
 class FirestoreService {
@@ -96,6 +97,14 @@ class FirestoreService {
     return doc.exists;
   }
 
+  /// One-time fetch of the current user's saved product ids (single get, not a
+  /// listener). Backs the shared SavedItemsController so the feed no longer
+  /// issues a per-card `isItemSaved` get (finding 4.2).
+  static Future<Set<String>> fetchSavedItemIds() async {
+    final snap = await _savedItemsRef.get();
+    return snap.docs.map((d) => d.id).toSet();
+  }
+
   // ── Saved Boutiques ────────────────────────────────────────────────────────
 
   static CollectionReference<Map<String, dynamic>> get _savedBoutiquesRef =>
@@ -122,11 +131,6 @@ class FirestoreService {
     return _savedBoutiquesRef
         .orderBy('createdAt', descending: true)
         .snapshots();
-  }
-
-  static Future<bool> isBoutiqueSaved(String boutiqueId) async {
-    final doc = await _savedBoutiquesRef.doc(boutiqueId).get();
-    return doc.exists;
   }
 
   // ── Saved Addresses ────────────────────────────────────────────────────────
@@ -281,6 +285,8 @@ class FirestoreService {
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
+
+    AnalyticsService.instance.logAddToCart(productId, title, boutiqueId, price);
   }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> getCartItemsStream() {
@@ -563,7 +569,7 @@ class FirestoreService {
     final boutiqueId = await getCurrentOwnerBoutiqueId();
     if (boutiqueId == null) throw Exception('No boutique found');
 
-    final boutiqueData = await getOwnerBoutiqueData();
+    final boutiqueData = await getOwnerBoutiqueData(boutiqueId: boutiqueId);
     final boutiqueName = boutiqueData?['name']?.toString() ?? '';
 
     final docRef = await _firestore.collection('promo_slots').add({
@@ -675,27 +681,39 @@ class FirestoreService {
     return ownerData['boutiqueId'] as String?;
   }
 
-  static Future<Map<String, dynamic>?> getOwnerBoutiqueData() async {
+  /// Fetches the current owner's boutique doc.
+  ///
+  /// Pass [boutiqueId] when it's already known (e.g. from a prior
+  /// [getCurrentOwnerData] / [getCurrentOwnerBoutiqueId] read) to skip the
+  /// redundant `boutique_owners` lookup (finding F2). Behaviour is otherwise
+  /// identical — it still throws when the owner or boutique can't be resolved.
+  static Future<Map<String, dynamic>?> getOwnerBoutiqueData({
+    String? boutiqueId,
+  }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception("User not logged in");
 
-    final ownerDoc = await _firestore
-        .collection('boutique_owners')
-        .doc(user.uid)
-        .get();
-    if (!ownerDoc.exists) throw Exception("Owner document not found");
+    String? resolvedId = boutiqueId;
+    if (resolvedId == null) {
+      final ownerDoc = await _firestore
+          .collection('boutique_owners')
+          .doc(user.uid)
+          .get();
+      if (!ownerDoc.exists) throw Exception("Owner document not found");
 
-    final ownerData = ownerDoc.data();
-    if (ownerData == null) throw Exception("Owner data is null");
+      final ownerData = ownerDoc.data();
+      if (ownerData == null) throw Exception("Owner data is null");
 
-    final boutiqueId = ownerData['boutiqueId'];
-    if (boutiqueId == null || boutiqueId.toString().isEmpty) {
+      resolvedId = ownerData['boutiqueId']?.toString();
+    }
+
+    if (resolvedId == null || resolvedId.isEmpty) {
       throw Exception("No boutiqueId assigned to this owner");
     }
 
     final boutiqueDoc = await _firestore
         .collection('boutiques')
-        .doc(boutiqueId)
+        .doc(resolvedId)
         .get();
     if (!boutiqueDoc.exists) throw Exception("Boutique document not found");
 
@@ -711,13 +729,6 @@ class FirestoreService {
         .collection('products')
         .orderBy('createdAt', descending: true)
         .snapshots();
-  }
-
-  static Future<Stream<QuerySnapshot<Map<String, dynamic>>>?>
-  getCurrentOwnerProductsStream() async {
-    final boutiqueId = await getCurrentOwnerBoutiqueId();
-    if (boutiqueId == null) return null;
-    return getOwnerProductsStream(boutiqueId);
   }
 
   static Future<void> addProductForCurrentOwner({
@@ -744,7 +755,7 @@ class FirestoreService {
       throw Exception('No boutique found for current owner');
     }
 
-    final boutiqueData = await getOwnerBoutiqueData();
+    final boutiqueData = await getOwnerBoutiqueData(boutiqueId: boutiqueId);
     final boutiqueName = boutiqueData?['name']?.toString() ?? 'Boutique';
 
     await _firestore
@@ -788,6 +799,7 @@ class FirestoreService {
     required String description,
     String? logoPath,
     String? bannerPath,
+    bool? showStockCount,
   }) async {
     final boutiqueRef = await getCurrentOwnerBoutiqueRef();
     if (boutiqueRef == null) {
@@ -800,6 +812,7 @@ class FirestoreService {
     };
     if (logoPath != null) updateData['logoPath'] = logoPath;
     if (bannerPath != null) updateData['bannerPath'] = bannerPath;
+    if (showStockCount != null) updateData['showStockCount'] = showStockCount;
 
     await boutiqueRef.update(updateData);
   }

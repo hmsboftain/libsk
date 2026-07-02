@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import '../core/utils/image_sizing.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
@@ -290,7 +291,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                         border: Border.all(color: AppColors.border, width: 0.5),
                       ),
                       child: Text(
-                        '${l10n.statusLabel} ${widget.order.status}',
+                        l10n.statusLabel(widget.order.status),
                         style: AppTextStyles.labelLarge,
                       ),
                     ),
@@ -451,6 +452,8 @@ class _OrderItemRow extends StatelessWidget {
               child: item.imageUrl.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: item.imageUrl,
+                      memCacheWidth: gridTileCacheWidth,
+                      maxWidthDiskCache: maxImageDiskCacheWidth,
                       fit: BoxFit.cover,
                       errorWidget: (_, __, ___) => Container(
                         color: AppColors.imagePlaceholder,
@@ -487,13 +490,13 @@ class _OrderItemRow extends StatelessWidget {
                 if (item.color.trim().isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
-                    '${l10n.colourLabel}: ${item.color}',
+                    l10n.colourLabel(item.color),
                     style: AppTextStyles.bodyMedium,
                   ),
                 ],
                 const SizedBox(height: 4),
                 Text(
-                  '${l10n.quantityLabel} ${item.quantity}',
+                  l10n.quantityLabel(item.quantity.toString()),
                   style: AppTextStyles.bodyMedium,
                 ),
               ],

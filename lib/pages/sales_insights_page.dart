@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/utils/image_sizing.dart';
 import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
@@ -65,8 +66,8 @@ class _SalesInsightsPageState extends State<SalesInsightsPage> {
         FirestoreService.getOwnerProductsStream(widget.boutiqueId).first,
       ]);
 
-      final orderSnap = results[0] as QuerySnapshot<Map<String, dynamic>>;
-      final productSnap = results[1] as QuerySnapshot<Map<String, dynamic>>;
+      final orderSnap = results[0];
+      final productSnap = results[1];
 
       // Revenue calculations
       final now = DateTime.now();
@@ -164,10 +165,7 @@ class _SalesInsightsPageState extends State<SalesInsightsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        behavior: HitTestBehavior.translucent,
-        child: SafeArea(
+      body: SafeArea(
         child: Column(
           children: [
             const AppHeader(showBackButton: true),
@@ -183,7 +181,6 @@ class _SalesInsightsPageState extends State<SalesInsightsPage> {
                       color: AppColors.deepAccent,
                       onRefresh: _loadInsights,
                       child: SingleChildScrollView(
-                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
                         child: Column(
@@ -264,7 +261,6 @@ class _SalesInsightsPageState extends State<SalesInsightsPage> {
             ),
           ],
         ),
-      ),
       ),
     );
   }
@@ -450,6 +446,8 @@ class _ProductRankCard extends StatelessWidget {
             child: imageUrl.isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: imageUrl,
+                    memCacheWidth: gridTileCacheWidth,
+                    maxWidthDiskCache: maxImageDiskCacheWidth,
                     fit: BoxFit.cover,
                     placeholder: (_, __) =>
                         Container(color: AppColors.imagePlaceholder),

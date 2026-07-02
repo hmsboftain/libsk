@@ -1,9 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/utils/image_sizing.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
+import '../widgets/error_state_widget.dart';
 import '../widgets/product_badges.dart';
 import '../widgets/theme.dart';
 import 'product_page.dart';
@@ -37,6 +39,11 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
   bool _loadingMore = false;
   bool _hasMore = true;
   DocumentSnapshot<Map<String, dynamic>>? _cursor;
+
+  // Non-null when the initial load failed (e.g. a missing Firestore index
+  // throwing failed-precondition). Kept distinct from "loaded but empty" so a
+  // broken query never silently masquerades as "no products in this category".
+  Object? _error;
 
   @override
   void initState() {
@@ -86,6 +93,7 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
       _docs.clear();
       _cursor = null;
       _hasMore = true;
+      _error = null;
     });
     try {
       final snap = await _baseQuery().get();
@@ -97,9 +105,14 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
         _loading = false;
       });
     } catch (e) {
+      // Record the failure so build() can show an error state instead of an
+      // empty one. A missing index surfaces here as failed-precondition.
       debugPrint('CATEGORY LOAD ERROR: $e');
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
     }
   }
 
@@ -175,6 +188,17 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                         color: AppColors.deepAccent,
                         strokeWidth: 1.5,
                       ),
+                    );
+                  }
+
+                  // Failed load (e.g. missing index) — show a retriable error,
+                  // never the "no products" empty state.
+                  if (_error != null) {
+                    return ErrorStateWidget.inline(
+                      title: l10n.somethingWentWrong,
+                      message: l10n.failedToLoadProducts,
+                      onRetry: _loadInitial,
+                      type: ErrorType.generic,
                     );
                   }
 
@@ -346,6 +370,8 @@ class _CategoryProductCard extends StatelessWidget {
                   child: displayImageUrl.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: displayImageUrl,
+                          memCacheWidth: gridTileCacheWidth,
+                          maxWidthDiskCache: maxImageDiskCacheWidth,
                           fit: BoxFit.cover,
                           width: double.infinity,
                           errorWidget: (_, __, ___) => const Center(

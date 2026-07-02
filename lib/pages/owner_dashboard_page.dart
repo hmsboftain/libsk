@@ -68,13 +68,10 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
     });
 
     try {
-      final results = await Future.wait([
-        FirestoreService.getCurrentOwnerData(),
-        FirestoreService.getCurrentOwnerBoutiqueId(),
-      ]);
-
-      final currentOwnerData = results[0] as Map<String, dynamic>?;
-      final id = results[1] as String?;
+      // Read the owner doc once; boutiqueId lives on it, so a second lookup is
+      // unnecessary (finding F2).
+      final currentOwnerData = await FirestoreService.getCurrentOwnerData();
+      final id = currentOwnerData?['boutiqueId'] as String?;
 
       if (id == null || id.isEmpty) {
         if (!mounted) return;
@@ -87,7 +84,8 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
         return;
       }
 
-      final currentBoutiqueData = await FirestoreService.getOwnerBoutiqueData();
+      final currentBoutiqueData =
+          await FirestoreService.getOwnerBoutiqueData(boutiqueId: id);
 
       if (!mounted) return;
       setState(() {

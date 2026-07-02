@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../core/services/performance_service.dart';
 import '../models/product.dart';
 import '../widgets/feed_card.dart' show FeedBadge;
 import 'follow_service.dart';
@@ -118,15 +119,24 @@ class FeedService {
     query = query.limit(pageSize);
     if (startAfter != null) query = query.startAfterDocument(startAfter);
 
-    final snap = await query.get();
-    final docs = snap.docs;
-    final entries = await _toEntries(docs, badge);
+    // Trace one feed page load (initial or load-more) for Firebase Performance.
+    final trace = PerformanceService.instance.traceFeedPageLoad();
+    await trace.start();
+    try {
+      final snap = await query.get();
+      trace.setMetric('feed_query_docs', snap.docs.length);
 
-    return FeedPage(
-      entries: entries,
-      lastDoc: docs.isNotEmpty ? docs.last : null,
-      hasMore: docs.length == pageSize,
-    );
+      final docs = snap.docs;
+      final entries = await _toEntries(docs, badge);
+
+      return FeedPage(
+        entries: entries,
+        lastDoc: docs.isNotEmpty ? docs.last : null,
+        hasMore: docs.length == pageSize,
+      );
+    } finally {
+      await trace.stop();
+    }
   }
 
   /// Trending products by weekly sales velocity. Dormant until `weeklyOrders`

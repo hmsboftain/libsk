@@ -2,9 +2,14 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import '../core/services/analytics_service.dart';
+import '../core/utils/image_sizing.dart';
+import '../core/services/performance_service.dart';
 import '../models/product.dart';
 import '../navigation/app_header.dart';
 import '../services/feed_service.dart';
+import '../services/follow_service.dart';
+import '../services/saved_items_controller.dart';
 import '../widgets/error_state_widget.dart';
 import '../widgets/feed_card.dart';
 import '../widgets/product_badges.dart';
@@ -26,6 +31,11 @@ class _HomePageState extends State<HomePage> {
   final _scrollController = ScrollController();
   final _feedService = FeedService();
 
+  // Feed-level shared state, loaded once (findings 4.1 / 4.2). Replaces the
+  // per-card follow listeners and saved-item gets.
+  late final FollowController _followController;
+  late final SavedItemsController _savedController;
+
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _boutiquesStream;
   late final Stream<QuerySnapshot<Map<String, dynamic>>>
   _featuredProductsStream;
@@ -37,9 +47,13 @@ class _HomePageState extends State<HomePage> {
   bool _feedHasMore = true;
   DocumentSnapshot<Map<String, dynamic>>? _feedCursor;
 
+  // Cold-start TTI (finding 4.4): stop the trace at the feed's first data frame.
+  bool _firstFeedFrameMarked = false;
+
   @override
   void initState() {
     super.initState();
+    AnalyticsService.instance.logScreenView('home');
 
     _boutiquesStream = _firestore
         .collection('boutiques')
@@ -58,6 +72,10 @@ class _HomePageState extends State<HomePage> {
         .snapshots();
 
     _scrollController.addListener(_onScroll);
+    // Load the shared follow / saved-item sets once (single get each), instead
+    // of every card opening its own listener / get.
+    _followController = FollowController()..load();
+    _savedController = SavedItemsController()..load();
     _loadInitialFeed();
   }
 
@@ -65,6 +83,8 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _followController.dispose();
+    _savedController.dispose();
     super.dispose();
   }
 
@@ -137,12 +157,23 @@ class _HomePageState extends State<HomePage> {
   // Featured streams are real-time; refresh just rebuilds the feed.
   Future<void> _onRefresh() async {
     _feedService.clearCache();
+    // Re-sync shared state in case follows / saves changed elsewhere.
+    _followController.load();
+    _savedController.load();
     await _loadInitialFeed();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+
+    // First time the feed has painted with data, close cold_start_tti.
+    if (!_firstFeedFrameMarked && !_feedLoading && _feed.isNotEmpty) {
+      _firstFeedFrameMarked = true;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => PerformanceService.instance.markFeedFirstFrame(),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -349,6 +380,9 @@ class _HomePageState extends State<HomePage> {
             product: entry.product,
             badge: entry.badge,
             boutiqueLogoUrl: entry.boutiqueLogoUrl,
+            feedPosition: index,
+            followController: _followController,
+            savedController: _savedController,
           ),
         );
       }, childCount: _feed.length + 1),
@@ -411,6 +445,8 @@ class _FeaturedProductCard extends StatelessWidget {
                   child: displayImageUrl.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: displayImageUrl,
+                          memCacheWidth: gridTileCacheWidth,
+                          maxWidthDiskCache: maxImageDiskCacheWidth,
                           fit: BoxFit.cover,
                           width: double.infinity,
                           placeholder: (_, __) =>
@@ -523,6 +559,8 @@ class _HomeBoutiqueCard extends StatelessWidget {
               child: logoUrl.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: logoUrl,
+                      memCacheWidth: logoCacheWidth,
+                      maxWidthDiskCache: maxImageDiskCacheWidth,
                       fit: BoxFit.cover,
                       placeholder: (_, __) =>
                           Container(color: AppColors.imagePlaceholder),

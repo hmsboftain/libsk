@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
@@ -9,6 +14,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_jailbreak_detection/flutter_jailbreak_detection.dart';
 import 'services/firestore_service.dart';
 import 'services/currency_service.dart';
+import 'core/services/performance_service.dart';
 import 'pages/splash_page.dart';
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
@@ -17,35 +23,105 @@ import 'widgets/theme.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  runZonedGuarded<Future<void>>(() async {
+    // Wall-clock origin for the cold-start TTI baseline (finding 4.4). Must be
+    // the very first thing so it spans the pre-runApp network block below.
+    // Only stores a DateTime — touches no Firebase service (the Performance
+    // handle is resolved lazily), so it is safe before Firebase.initializeApp().
+    PerformanceService.instance.markAppStart();
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    WidgetsFlutterBinding.ensureInitialized();
 
-  FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: true,
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-  );
+    // Bound the global image cache so a long feed scroll evicts old bitmaps
+    // instead of growing without limit (finding 2.1). memCacheWidth caps the
+    // decode size of each image; this caps how many decoded images are retained
+    // in total — observed climbing 31→65→99MB and still rising before this.
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // ~100 MB
 
-  await FirestoreService.prepareGuestCartId();
+    // Firebase MUST be initialised before any Firebase service (App Check,
+    // Crashlytics, Performance, Firestore, Messaging) is touched below.
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
-  // Initialise currency service — loads saved country and fetches live rates
-  await CurrencyService.instance.init();
+    // App Check — must run before any other Firebase service. Uses platform
+    // attestation in release (DeviceCheck on iOS, Play Integrity on Android)
+    // and the debug provider in debug builds so emulators/dev builds work.
+    await FirebaseAppCheck.instance.activate(
+      providerApple: kDebugMode
+          ? const AppleDebugProvider()
+          : const AppleDeviceCheckProvider(),
+      providerAndroid: kDebugMode
+          ? const AndroidDebugProvider()
+          : const AndroidPlayIntegrityProvider(),
+    );
 
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    // Crashlytics — only collect crash reports in release builds.
+    await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+      !kDebugMode,
+    );
 
+    // Route Flutter framework errors to Crashlytics.
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
+
+    // Route uncaught asynchronous (platform) errors to Crashlytics.
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+
+    await FirestoreService.prepareGuestCartId();
+
+    // Load the saved/detected country from local prefs only (no network) so the
+    // first frame renders the right currency. Live FX rates fetch in the
+    // background after runApp — finding 4.4. Fallback rates are active until
+    // they arrive, and CurrencyService is a ChangeNotifier so prices refresh.
+    await CurrencyService.instance.loadSavedCountry();
+
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+    // Begin the release-surviving cold_start_tti trace (stopped at the feed's
+    // first painted frame in HomePage).
+    await PerformanceService.instance.startColdStartTrace();
+
+    runApp(const LibskApp());
+
+    // Deferred off the cold-start critical path (finding 4.4): the FX HTTP
+    // round-trip and Stripe.applySettings no longer block the first feed frame.
+    // Neither is needed to render the feed; Stripe is only required at checkout.
+    unawaited(CurrencyService.instance.fetchRates());
+    unawaited(_initStripe());
+
+    Future.delayed(const Duration(seconds: 2), () async {
+      try {
+        await NotificationService.instance.initialize();
+      } catch (e) {
+        debugPrint('Notification initialization failed: $e');
+      }
+    });
+  }, (error, stack) {
+    // If an error is thrown before Firebase.initializeApp() completes, touching
+    // FirebaseCrashlytics.instance here would itself throw [core/no-app] and
+    // mask the real cause — so only report to Crashlytics once Firebase is up.
+    if (Firebase.apps.isNotEmpty) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    } else {
+      debugPrint('Startup error before Firebase init: $error\n$stack');
+    }
+  });
+}
+
+/// Stripe init, deferred off the cold-start path (finding 4.4). Only needed at
+/// checkout, so it must not block the first feed frame.
+Future<void> _initStripe() async {
   Stripe.publishableKey =
       'pk_test_51TOOjvCTdAUQnhiZ4ArRKUYtg2TIuKEc3j0LeMDk036JhqGoPlsVV6ZdO4resgC8XJg5C8fZBhkhMROon5Go9Flf00SX2GiCmu';
   await Stripe.instance.applySettings();
-
-  runApp(const LibskApp());
-
-  Future.delayed(const Duration(seconds: 2), () async {
-    try {
-      await NotificationService.instance.initialize();
-    } catch (e) {
-      debugPrint('Notification initialization failed: $e');
-    }
-  });
 }
 
 class LibskApp extends StatefulWidget {
