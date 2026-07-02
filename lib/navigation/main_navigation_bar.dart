@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:libsk/l10n/app_localizations.dart';
 import '../pages/home_page.dart';
 import '../pages/boutiques_page.dart';
-import '../pages/orders_page.dart';
 import '../pages/category_browse_page.dart';
+import '../pages/orders_page.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
+
+// Ink — warmer near-black used for active nav icons (vs pure-black primaryText).
+const Color _ink = Color(0xFF2C2925);
 
 class MainNavigationPage extends StatefulWidget {
   final Function(Locale) onLanguageChange;
@@ -45,6 +47,13 @@ class _MainNavigationPageState extends State<MainNavigationPage>
     }
   }
 
+  static const List<IconData> _icons = [
+    Icons.home_outlined,
+    Icons.checkroom_outlined,
+    Icons.grid_view_outlined,
+    Icons.receipt_long_outlined,
+  ];
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
@@ -57,59 +66,72 @@ class _MainNavigationPageState extends State<MainNavigationPage>
     return Scaffold(
       backgroundColor: AppColors.background,
       body: pages[currentPageIndex],
-      bottomNavigationBar: NavigationBar(
-        height: 70,
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
-        indicatorColor: AppColors.selectedSoft,
-        shadowColor: Colors.transparent,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-        selectedIndex: currentPageIndex,
-        onDestinationSelected: (int index) {
-          setState(() {
-            currentPageIndex = index;
-          });
-        },
-        destinations: [
-          NavigationDestination(
-            selectedIcon: const Icon(Icons.home, color: AppColors.primaryText),
-            icon: const Icon(Icons.home_outlined, color: AppColors.softAccent),
-            label: AppLocalizations.of(context)!.home,
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          // Outer row centres the content-sized pill horizontally without an
+          // unbounded-height Center wrapper.
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                // Floating pill hugging the icon cluster — hairline border,
+                // no shadow. Width follows the icons plus this padding.
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  // Fully rounded pill ends (radius = half the bar height).
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AppColors.border, width: 0.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(_icons.length, (index) {
+                    return _buildNavItem(index);
+                  }),
+                ),
+              ),
+            ],
           ),
-          NavigationDestination(
-            selectedIcon: const Icon(
-              Icons.checkroom,
-              color: AppColors.primaryText,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index) {
+    final bool isActive = currentPageIndex == index;
+    final Color color = isActive ? _ink : AppColors.deepAccent;
+
+    return SizedBox(
+      // Fixed tap-target width sets the spacing between the four icons; wider
+      // than the icon so they read as evenly spaced, not edge-to-edge.
+      width: 84,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => currentPageIndex = index),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(_icons[index], size: 28, color: color),
+            const SizedBox(height: 2),
+            // 5px Taupe dot under the active item; reserved space otherwise so
+            // the icons never shift vertically.
+            SizedBox(
+              height: 5,
+              width: 5,
+              child: isActive
+                  ? const DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.deepAccent,
+                        shape: BoxShape.circle,
+                      ),
+                    )
+                  : null,
             ),
-            icon: const Icon(
-              Icons.checkroom_outlined,
-              color: AppColors.softAccent,
-            ),
-            label: AppLocalizations.of(context)!.boutiques,
-          ),
-          NavigationDestination(
-            selectedIcon: const Icon(
-              Icons.grid_view,
-              color: AppColors.primaryText,
-            ),
-            icon: const Icon(
-              Icons.grid_view_outlined,
-              color: AppColors.softAccent,
-            ),
-            label: 'Browse',
-          ),
-          NavigationDestination(
-            selectedIcon: const Icon(
-              Icons.receipt_long,
-              color: AppColors.primaryText,
-            ),
-            icon: const Icon(
-              Icons.receipt_long_outlined,
-              color: AppColors.softAccent,
-            ),
-            label: AppLocalizations.of(context)!.orders,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

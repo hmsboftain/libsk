@@ -6,6 +6,8 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../widgets/error_state_widget.dart';
 import '../core/constants/countries.dart';
+import '../core/services/analytics_service.dart';
+import '../core/services/performance_service.dart';
 import '../navigation/app_header.dart';
 import '../services/currency_service.dart';
 import 'add_address_page.dart';
@@ -53,6 +55,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool _isValidatingCode = false;
   final _codeController = TextEditingController();
 
+  // ── Collapsible UI state ────────────────────────────────────────────────────
+  bool _showOrderSummary = false;
+  bool _showPromoInput = false;
+
   // ── Loading ────────────────────────────────────────────────────────────────
   bool isPlacingOrder = false;
 
@@ -62,6 +68,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.instance.logScreenView('checkout');
     _cartStream = FirestoreService.getCartItemsStream();
     _addressesStream = FirestoreService.getSavedAddressesStream();
 
@@ -303,6 +310,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     setState(() => isPlacingOrder = true);
 
+    final checkoutTrace = PerformanceService.instance.traceCheckoutFlow();
+    await checkoutTrace.start();
+
     try {
       int totalItems = 0;
       double checkedSubtotal = 0;
@@ -358,17 +368,30 @@ class _CheckoutPageState extends State<CheckoutPage> {
         return map;
       }).toList();
 
-      final orderNumber = await FirestoreService.createOrder(
-        items: orderItems,
-        itemCount: totalItems,
-        total: checkedTotal,
-        deliveryMethod: deliveryMethod,
-        paymentMethod: paymentMethod,
-        paymentIntentId: paymentIntentId,
-        discountCodeId: finalDiscount > 0 ? _discountCodeId : null,
-        discountAmount: finalDiscount > 0 ? finalDiscount : null,
-        // Pass null — the server already has the product's timeframe
-        estimatedDays: null,
+      final orderTrace = PerformanceService.instance.traceCreateOrder();
+      await orderTrace.start();
+      final String orderNumber;
+      try {
+        orderNumber = await FirestoreService.createOrder(
+          items: orderItems,
+          itemCount: totalItems,
+          total: checkedTotal,
+          deliveryMethod: deliveryMethod,
+          paymentMethod: paymentMethod,
+          paymentIntentId: paymentIntentId,
+          discountCodeId: finalDiscount > 0 ? _discountCodeId : null,
+          discountAmount: finalDiscount > 0 ? finalDiscount : null,
+          // Pass null — the server already has the product's timeframe
+          estimatedDays: null,
+        );
+      } finally {
+        await orderTrace.stop();
+      }
+
+      AnalyticsService.instance.logPurchase(
+        orderNumber,
+        checkedTotal,
+        cartItems.first.boutiqueId,
       );
 
       for (final item in cartItems) {
@@ -399,8 +422,102 @@ class _CheckoutPageState extends State<CheckoutPage> {
           : AppLocalizations.of(context)!.somethingWentWrong;
       messenger.showSnackBar(_brandedErrorSnackBar(raw));
     } finally {
+      await checkoutTrace.stop();
       if (mounted) setState(() => isPlacingOrder = false);
     }
+  }
+
+  // ── Pickers ──────────────────────────────────────────────────────────────
+
+  void _selectDeliveryMethod(bool isKuwait) {
+    final l10n = AppLocalizations.of(context)!;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      builder: (sheetContext) {
+        Widget option(String value, String label, double cost) {
+          return ListTile(
+            title: Text(
+              '$label · ${_fmt(cost)}',
+              style: AppTextStyles.bodyMedium,
+            ),
+            trailing: deliveryMethod == value
+                ? const Icon(Icons.check, color: AppColors.deepAccent, size: 18)
+                : null,
+            onTap: () {
+              setState(() {
+                deliveryMethod = value;
+                deliveryCost = cost;
+              });
+              Navigator.pop(sheetContext);
+            },
+          );
+        }
+
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 16, 22, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(l10n.deliveryMethod, style: AppTextStyles.labelLarge),
+                ),
+              ),
+              const Divider(color: AppColors.border, thickness: 0.5, height: 0.5),
+              option('Regular Delivery', l10n.regularDelivery, 3),
+              if (isKuwait)
+                option('Same Day Delivery', l10n.sameDayDelivery, 5),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _selectPaymentMethod() {
+    final l10n = AppLocalizations.of(context)!;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 16, 22, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(l10n.paymentMethod, style: AppTextStyles.labelLarge),
+                ),
+              ),
+              const Divider(color: AppColors.border, thickness: 0.5, height: 0.5),
+              ListTile(
+                leading: const Icon(
+                  Icons.credit_card,
+                  size: 20,
+                  color: AppColors.secondaryText,
+                ),
+                title: Text(l10n.card, style: AppTextStyles.bodyMedium),
+                trailing: paymentMethod == 'Card'
+                    ? const Icon(Icons.check, color: AppColors.deepAccent, size: 18)
+                    : null,
+                onTap: () {
+                  setState(() => paymentMethod = 'Card');
+                  Navigator.pop(sheetContext);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -416,25 +533,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
           onTap: () => FocusScope.of(context).unfocus(),
           behavior: HitTestBehavior.translucent,
           child: SafeArea(
-          child: Center(
-            child: Text(
-              AppLocalizations.of(context)!.pleaseLogInToContinueToCheckout,
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.secondaryText,
+            child: Center(
+              child: Text(
+                AppLocalizations.of(context)!.pleaseLogInToContinueToCheckout,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.secondaryText,
+                ),
               ),
             ),
           ),
         ),
-        ),
       );
     }
 
-    final fullName =
-        user.displayName != null && user.displayName!.trim().isNotEmpty
-        ? user.displayName!
-        : AppLocalizations.of(context)!.user;
-    final email = user.email ?? AppLocalizations.of(context)!.noEmail;
     final isKuwait = CurrencyService.instance.selectedCountryCode == 'KW';
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -442,657 +555,572 @@ class _CheckoutPageState extends State<CheckoutPage> {
         onTap: () => FocusScope.of(context).unfocus(),
         behavior: HitTestBehavior.translucent,
         child: SafeArea(
-        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: _cartStream,
-          builder: (context, cartSnapshot) {
-            if (cartSnapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.deepAccent,
-                  strokeWidth: 1.5,
-                ),
-              );
-            }
-            if (cartSnapshot.hasError) {
-              return ErrorStateWidget.inline(
-                title: AppLocalizations.of(context)!.couldNotLoadCart,
-                message: AppLocalizations.of(context)!.pullDownToRetry,
-                onRetry: () => setState(() {}),
-                type: ErrorType.network,
-              );
-            }
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: _cartStream,
+            builder: (context, cartSnapshot) {
+              if (cartSnapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.deepAccent,
+                    strokeWidth: 1.5,
+                  ),
+                );
+              }
+              if (cartSnapshot.hasError) {
+                return ErrorStateWidget.inline(
+                  title: l10n.couldNotLoadCart,
+                  message: l10n.pullDownToRetry,
+                  onRetry: () => setState(() {}),
+                  type: ErrorType.network,
+                );
+              }
 
-            final cartDocs = cartSnapshot.data?.docs ?? [];
-            final cartItems = cartDocs
-                .map((doc) => CartItem.fromFirestore(doc.id, doc.data()))
-                .toList();
+              final cartDocs = cartSnapshot.data?.docs ?? [];
+              final cartItems = cartDocs
+                  .map((doc) => CartItem.fromFirestore(doc.id, doc.data()))
+                  .toList();
 
-            // Auto-detect MTO — sets delivery method automatically
-            _autoDetectMto(cartItems);
+              // Auto-detect MTO — sets delivery method automatically
+              _autoDetectMto(cartItems);
 
-            double subtotal = 0;
-            for (final item in cartItems) {
-              subtotal += item.price * item.quantity;
-            }
-            final double total = subtotal + deliveryCost - _discountAmount;
+              double subtotal = 0;
+              int totalUnits = 0;
+              for (final item in cartItems) {
+                subtotal += item.price * item.quantity;
+                totalUnits += item.quantity;
+              }
+              final double total = subtotal + deliveryCost - _discountAmount;
 
-            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _addressesStream,
-              builder: (context, addressSnapshot) {
-                final addressDocs = addressSnapshot.data?.docs ?? [];
-                final hasAddress = addressDocs.isNotEmpty;
+              return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: _addressesStream,
+                builder: (context, addressSnapshot) {
+                  final addressDocs = addressSnapshot.data?.docs ?? [];
+                  final hasAddress = addressDocs.isNotEmpty;
 
-                return Column(
-                  children: [
-                    const AppHeader(showBackButton: true),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                        padding: const EdgeInsets.symmetric(horizontal: 22),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 10),
-                            Center(
-                              child: Text(
-                                AppLocalizations.of(context)!.checkout,
-                                style: AppTextStyles.headingLarge,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            const Divider(
-                              color: AppColors.border,
-                              thickness: 0.5,
-                            ),
-                            const SizedBox(height: 18),
-
-                            // ── Account details ──────────────────────
-                            Text(
-                              AppLocalizations.of(context)!.accountDetails,
-                              style: AppTextStyles.capsLabel.copyWith(
-                                color: AppColors.secondaryText,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 16,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.field,
-                                border: Border.all(
-                                  color: AppColors.border,
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    fullName,
-                                    style: AppTextStyles.bodyLarge.copyWith(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(email, style: AppTextStyles.bodySmall),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 28),
-
-                            // ── Delivery address ─────────────────────
-                            Text(
-                              AppLocalizations.of(context)!.deliveryAddress,
-                              style: AppTextStyles.capsLabel.copyWith(
-                                color: AppColors.secondaryText,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            if (addressSnapshot.connectionState ==
-                                ConnectionState.waiting)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 8),
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    color: AppColors.deepAccent,
-                                    strokeWidth: 1.5,
-                                  ),
-                                ),
-                              )
-                            else if (addressSnapshot.hasError)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 16),
+                  return Column(
+                    children: [
+                      const AppHeader(showBackButton: true),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 10),
+                              Center(
                                 child: Text(
-                                  '${AppLocalizations.of(context)!.couldNotLoadSavedAddresses}: ${addressSnapshot.error}',
-                                  style: AppTextStyles.bodySmall,
+                                  l10n.checkout,
+                                  style: AppTextStyles.headingLarge,
                                 ),
-                              )
-                            else
-                              Column(
-                                children: [
-                                  if (hasAddress) ...[
-                                    _addressInfo(addressDocs.first.data()),
-                                    const SizedBox(height: 16),
-                                  ],
-                                  _addressButton(hasAddress: hasAddress),
-                                ],
                               ),
-                            const SizedBox(height: 28),
+                              const SizedBox(height: 22),
 
-                            // ── Delivery method ──────────────────────
-                            Text(
-                              AppLocalizations.of(context)!.deliveryMethod,
-                              style: AppTextStyles.capsLabel.copyWith(
-                                color: AppColors.secondaryText,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
+                              // ── Delivery address ──────────────────────
+                              _sectionLabel(l10n.deliveryAddress),
+                              const SizedBox(height: 10),
+                              _addressRow(addressSnapshot, addressDocs, hasAddress),
+                              _sectionGap(),
 
-                            // If cart has MTO items — show banner, no dropdown
-                            if (_hasMtoItems) ...[
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 18,
-                                  vertical: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.field,
-                                  border: Border.all(
-                                    color: AppColors.border,
-                                    width: 0.5,
-                                  ),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 2),
-                                      child: Icon(
-                                        Icons.access_time_rounded,
-                                        size: 20,
-                                        color: AppColors.deepAccent,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            AppLocalizations.of(
-                                              context,
-                                            )!.madeToOrder,
-                                            style: AppTextStyles.labelLarge
-                                                .copyWith(
-                                                  color: AppColors.deepAccent,
-                                                ),
-                                          ),
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            _longestMtoTimeframe.isNotEmpty
-                                                ? _longestMtoTimeframe
-                                                : AppLocalizations.of(
-                                                    context,
-                                                  )!.madeToOrderSubtitle,
-                                            style: AppTextStyles.bodySmall
-                                                .copyWith(
-                                                  color:
-                                                      AppColors.secondaryText,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              // ── Delivery method ───────────────────────
+                              _sectionLabel(l10n.deliveryMethod),
+                              const SizedBox(height: 10),
+                              _deliveryRow(isKuwait),
+                              _sectionGap(),
+
+                              // ── Payment method ────────────────────────
+                              _sectionLabel(l10n.paymentMethod),
+                              const SizedBox(height: 10),
+                              _compactRow(
+                                value: l10n.card,
+                                onTap: _selectPaymentMethod,
                               ),
-                            ] else ...[
-                              // Normal dropdown for regular items
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.field,
-                                  border: Border.all(
-                                    color: AppColors.border,
-                                    width: 0.5,
-                                  ),
-                                ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    value: deliveryMethod,
-                                    isExpanded: true,
-                                    dropdownColor: AppColors.field,
-                                    items: [
-                                      DropdownMenuItem(
-                                        value: 'Regular Delivery',
-                                        child: Text(
-                                          AppLocalizations.of(
-                                            context,
-                                          )!.regularDelivery,
-                                        ),
-                                      ),
-                                      if (isKuwait)
-                                        DropdownMenuItem(
-                                          value: 'Same Day Delivery',
-                                          child: Text(
-                                            AppLocalizations.of(
-                                              context,
-                                            )!.sameDayDelivery,
-                                          ),
-                                        ),
-                                    ],
-                                    onChanged: (value) {
-                                      if (value != null) {
-                                        setState(() {
-                                          deliveryMethod = value;
-                                          deliveryCost =
-                                              value == 'Same Day Delivery'
-                                              ? 5
-                                              : 3;
-                                        });
-                                      }
-                                    },
-                                  ),
-                                ),
+                              _sectionGap(),
+
+                              // ── Order summary (collapsible) ───────────
+                              _orderSummarySection(
+                                cartItems,
+                                subtotal,
+                                total,
+                                totalUnits,
                               ),
+                              _sectionGap(),
+
+                              // ── Promo code ────────────────────────────
+                              _promoSection(subtotal, cartItems),
+                              const SizedBox(height: 24),
                             ],
-
-                            const SizedBox(height: 28),
-
-                            // ── Payment method ───────────────────────
-                            Text(
-                              AppLocalizations.of(context)!.paymentMethod,
-                              style: AppTextStyles.capsLabel.copyWith(
-                                color: AppColors.secondaryText,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.field,
-                                border: Border.all(
-                                  color: AppColors.border,
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: paymentMethod,
-                                  isExpanded: true,
-                                  dropdownColor: AppColors.field,
-                                  items: [
-                                    DropdownMenuItem(
-                                      value: 'Card',
-                                      child: Text(
-                                        AppLocalizations.of(context)!.card,
-                                      ),
-                                    ),
-                                  ],
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() => paymentMethod = value);
-                                    }
-                                  },
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 28),
-
-                            // ── Discount code ────────────────────────
-                            Text(
-                              'Discount Code',
-                              style: AppTextStyles.capsLabel.copyWith(
-                                color: AppColors.secondaryText,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: _codeController,
-                                    textCapitalization:
-                                        TextCapitalization.characters,
-                                    textInputAction: TextInputAction.done,
-                                    onEditingComplete: () =>
-                                        FocusScope.of(context).unfocus(),
-                                    enabled: _appliedCode == null,
-                                    decoration: InputDecoration(
-                                      hintText: 'Enter code',
-                                      filled: true,
-                                      fillColor: AppColors.field,
-                                      border: const OutlineInputBorder(
-                                        borderRadius: BorderRadius.zero,
-                                        borderSide: BorderSide(
-                                          color: AppColors.border,
-                                          width: 0.5,
-                                        ),
-                                      ),
-                                      enabledBorder: const OutlineInputBorder(
-                                        borderRadius: BorderRadius.zero,
-                                        borderSide: BorderSide(
-                                          color: AppColors.border,
-                                          width: 0.5,
-                                        ),
-                                      ),
-                                      focusedBorder: const OutlineInputBorder(
-                                        borderRadius: BorderRadius.zero,
-                                        borderSide: BorderSide(
-                                          color: AppColors.deepAccent,
-                                          width: 1,
-                                        ),
-                                      ),
-                                      suffixIcon: _appliedCode != null
-                                          ? IconButton(
-                                              icon: const Icon(
-                                                Icons.close,
-                                                size: 18,
-                                              ),
-                                              onPressed: _removeDiscountCode,
-                                            )
-                                          : null,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                SizedBox(
-                                  height: 56,
-                                  child: ElevatedButton(
-                                    onPressed:
-                                        (_isValidatingCode ||
-                                            _appliedCode != null)
-                                        ? null
-                                        : () => _applyDiscountCode(
-                                            subtotal,
-                                            cartItems,
-                                          ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.deepAccent,
-                                      foregroundColor: Colors.white,
-                                      disabledBackgroundColor:
-                                          AppColors.softAccent,
-                                      shape: const RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.zero,
-                                      ),
-                                    ),
-                                    child: _isValidatingCode
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 1.5,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : Text(
-                                            _appliedCode != null
-                                                ? 'Applied'
-                                                : 'Apply',
-                                            style: AppTextStyles.button,
-                                          ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (_appliedCode != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                '$_appliedCode — ${_fmt(_discountAmount)} off',
-                                style: AppTextStyles.labelSmall.copyWith(
-                                  color: AppColors.deepAccent,
-                                ),
-                              ),
-                              if (_discountBoutiqueName != null &&
-                                  cartItems
-                                          .map((i) => i.boutiqueId)
-                                          .toSet()
-                                          .length >
-                                      1) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  AppLocalizations.of(
-                                    context,
-                                  )!.appliedToBoutiqueItemsOnly(
-                                    _discountBoutiqueName!,
-                                  ),
-                                  style: AppTextStyles.labelSmall.copyWith(
-                                    color: AppColors.secondaryText,
-                                  ),
-                                ),
-                              ],
-                            ],
-
-                            const SizedBox(height: 40),
-                            const Divider(
-                              color: AppColors.border,
-                              thickness: 0.5,
-                            ),
-                            const SizedBox(height: 20),
-
-                            // ── Totals ───────────────────────────────
-                            _buildTotalRow(
-                              AppLocalizations.of(context)!.subtotal,
-                              _fmt(subtotal),
-                            ),
-                            const SizedBox(height: 8),
-                            _buildTotalRow(
-                              AppLocalizations.of(context)!.delivery,
-                              _hasMtoItems
-                                  ? AppLocalizations.of(context)!.madeToOrder
-                                  : _fmt(deliveryCost),
-                            ),
-                            if (_discountAmount > 0) ...[
-                              const SizedBox(height: 8),
-                              _buildTotalRow(
-                                'Discount',
-                                '- ${_fmt(_discountAmount)}',
-                              ),
-                            ],
-                            const SizedBox(height: 12),
-                            const Divider(
-                              color: AppColors.border,
-                              thickness: 0.5,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildTotalRow(
-                              AppLocalizations.of(context)!.total,
-                              _fmt(total),
-                              bold: true,
-                            ),
-                            const SizedBox(height: 30),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // ── Trust signals ────────────────────────────────
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.lock_outline,
-                          size: 14,
-                          color: AppColors.secondaryText,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          AppLocalizations.of(context)!.secureCheckout,
-                          style: AppTextStyles.labelSmall,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _paymentPill(
-                          icon: Icons.credit_card,
-                          label: AppLocalizations.of(context)!.card,
-                        ),
-                        const SizedBox(width: 8),
-                        _paymentPill(
-                          label: AppLocalizations.of(context)!.knet,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── Place order button ───────────────────────────
-                    SizedBox(
-                      width: double.infinity,
-                      height: 70,
-                      child: ElevatedButton.icon(
-                        onPressed: isPlacingOrder
-                            ? null
-                            : () => _placeOrder(
-                                cartItems: cartItems,
-                                total: total,
-                                hasAddress: hasAddress,
-                              ),
-                        icon: isPlacingOrder
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 1.5,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.shopping_bag_outlined, size: 28),
-                        label: Text(
-                          isPlacingOrder
-                              ? AppLocalizations.of(context)!.placingOrder
-                              : AppLocalizations.of(context)!.placeOrder,
-                          style: AppTextStyles.button,
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.deepAccent,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: AppColors.softAccent,
-                          disabledForegroundColor: Colors.white,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.zero,
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
+
+                      // ── Sticky pay bar ────────────────────────────────
+                      _stickyBar(cartItems, total, hasAddress),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
         ),
-      ),
       ),
     );
   }
 
-  // ── Widget helpers ─────────────────────────────────────────────────────────
+  // ── Section primitives ─────────────────────────────────────────────────────
 
-  Widget _addressButton({required bool hasAddress}) {
+  Widget _sectionLabel(String text) {
+    return Text(
+      text,
+      style: AppTextStyles.capsLabel.copyWith(color: AppColors.secondaryText),
+    );
+  }
+
+  // 0.5px hairline border between sections — the only divider style used.
+  Widget _sectionGap() {
+    return const Column(
+      children: [
+        SizedBox(height: 18),
+        Divider(color: AppColors.border, thickness: 0.5, height: 0.5),
+        SizedBox(height: 18),
+      ],
+    );
+  }
+
+  Widget _compactRow({
+    String? title,
+    required String value,
+    String? subtitle,
+    VoidCallback? onTap,
+  }) {
     return GestureDetector(
-      onTap: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const AddAddressPage()),
-        );
-        if (mounted) setState(() {});
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-        decoration: BoxDecoration(
-          color: AppColors.field,
-          border: Border.all(color: AppColors.border, width: 0.5),
-        ),
-        child: Row(
-          children: [
-            Text(
-              hasAddress
-                  ? AppLocalizations.of(context)!.changeDeliveryAddress
-                  : AppLocalizations.of(context)!.addDeliveryAddress,
-              style: AppTextStyles.bodyMedium,
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (title != null) ...[
+                  Text(
+                    title,
+                    style: AppTextStyles.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                ],
+                Text(
+                  value,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+                if (subtitle != null && subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ],
             ),
-            const Spacer(),
-            const Icon(Icons.add, color: AppColors.primaryText),
-          ],
-        ),
+          ),
+          if (onTap != null)
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.secondaryText,
+              size: 22,
+            ),
+        ],
       ),
     );
   }
 
-  Widget _addressInfo(Map<String, dynamic> address) {
+  // ── Delivery address row ────────────────────────────────────────────────────
+
+  Widget _addressRow(
+    AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> addressSnapshot,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> addressDocs,
+    bool hasAddress,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+
+    if (addressSnapshot.connectionState == ConnectionState.waiting) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Center(
+          child: CircularProgressIndicator(
+            color: AppColors.deepAccent,
+            strokeWidth: 1.5,
+          ),
+        ),
+      );
+    }
+    if (addressSnapshot.hasError) {
+      return Text(
+        l10n.couldNotLoadSavedAddresses,
+        style: AppTextStyles.bodySmall,
+      );
+    }
+
+    Future<void> openEditor() async {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const AddAddressPage()),
+      );
+      if (mounted) setState(() {});
+    }
+
+    if (!hasAddress) {
+      return _compactRow(
+        value: l10n.addDeliveryAddress,
+        onTap: openEditor,
+      );
+    }
+
+    final addr = addressDocs.first.data();
+    final name = '${addr["firstName"] ?? ''} ${addr["lastName"] ?? ''}'.trim();
+    final line = _addressLineSummary(addr);
+    final phone = addr['phone']?.toString() ?? '';
+
+    return _compactRow(
+      title: name.isNotEmpty ? name : l10n.deliveryAddress,
+      value: line,
+      subtitle: phone,
+      onTap: openEditor,
+    );
+  }
+
+  String _addressLineSummary(Map<String, dynamic> address) {
+    final l10n = AppLocalizations.of(context)!;
     final type = address['type']?.toString() ?? 'kuwait';
 
     if (type == 'international') {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${address["firstName"]} ${address["lastName"]}',
-            style: AppTextStyles.bodyLarge.copyWith(
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          if ((address['addressLine1']?.toString() ?? '').isNotEmpty)
-            Text(
-              address['addressLine1'].toString(),
-              style: AppTextStyles.bodyMedium,
-            ),
-          if ((address['addressLine2']?.toString() ?? '').isNotEmpty)
-            Text(
-              address['addressLine2'].toString(),
-              style: AppTextStyles.bodyMedium,
-            ),
-          Text(
-            [
-              address['city']?.toString() ?? '',
-              address['zipCode']?.toString() ?? '',
-            ].where((s) => s.isNotEmpty).join(', '),
-            style: AppTextStyles.bodyMedium,
-          ),
-          Text(
-            address['phone']?.toString() ?? '',
-            style: AppTextStyles.bodyMedium,
-          ),
-        ],
+      return [
+        address['addressLine1']?.toString() ?? '',
+        address['addressLine2']?.toString() ?? '',
+        address['city']?.toString() ?? '',
+        address['zipCode']?.toString() ?? '',
+      ].where((s) => s.isNotEmpty).join(', ');
+    }
+
+    return [
+      '${l10n.block} ${address["block"] ?? ''}'.trim(),
+      '${l10n.street} ${address["street"] ?? ''}'.trim(),
+      '${l10n.house} ${address["house"] ?? ''}'.trim(),
+      address['area']?.toString() ?? '',
+      address['governorate']?.toString() ?? '',
+    ].where((s) => s.trim().isNotEmpty).join(', ');
+  }
+
+  // ── Delivery method row ─────────────────────────────────────────────────────
+
+  Widget _deliveryRow(bool isKuwait) {
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_hasMtoItems) {
+      // Non-interactive — MTO forces a free, timeframe-based delivery.
+      return _compactRow(
+        title: l10n.madeToOrder,
+        value: _longestMtoTimeframe.isNotEmpty
+            ? _longestMtoTimeframe
+            : l10n.madeToOrderSubtitle,
       );
     }
+
+    final methodLabel = deliveryMethod == 'Same Day Delivery'
+        ? l10n.sameDayDelivery
+        : l10n.regularDelivery;
+
+    return _compactRow(
+      value: '$methodLabel · ${_fmt(deliveryCost)}',
+      // Only Kuwait has more than one option to choose from.
+      onTap: isKuwait ? () => _selectDeliveryMethod(isKuwait) : null,
+    );
+  }
+
+  // ── Order summary (collapsible) ─────────────────────────────────────────────
+
+  Widget _orderSummarySection(
+    List<CartItem> cartItems,
+    double subtotal,
+    double total,
+    int totalUnits,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '${address["firstName"]} ${address["lastName"]}',
-          style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w500),
+        _sectionLabel(l10n.orderSummary),
+        const SizedBox(height: 10),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () =>
+              setState(() => _showOrderSummary = !_showOrderSummary),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${l10n.itemCount(totalUnits)} · ${_fmt(total)}',
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Icon(
+                _showOrderSummary
+                    ? Icons.keyboard_arrow_up
+                    : Icons.keyboard_arrow_down,
+                color: AppColors.secondaryText,
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          '${AppLocalizations.of(context)!.block} ${address["block"]} '
-          '${AppLocalizations.of(context)!.street} ${address["street"]} '
-          '${AppLocalizations.of(context)!.house} ${address["house"]}',
-          style: AppTextStyles.bodyMedium,
+        if (_showOrderSummary) ...[
+          const SizedBox(height: 14),
+          ...cartItems.map(_lineItem),
+          const SizedBox(height: 6),
+          const Divider(color: AppColors.border, thickness: 0.5, height: 0.5),
+          const SizedBox(height: 12),
+          _buildTotalRow(l10n.subtotal, _fmt(subtotal)),
+          const SizedBox(height: 8),
+          _buildTotalRow(
+            l10n.delivery,
+            _hasMtoItems ? l10n.madeToOrder : _fmt(deliveryCost),
+          ),
+          if (_discountAmount > 0) ...[
+            const SizedBox(height: 8),
+            _buildTotalRow(l10n.discountLabel, '- ${_fmt(_discountAmount)}'),
+          ],
+          const SizedBox(height: 12),
+          _buildTotalRow(l10n.total, _fmt(total), bold: true),
+        ],
+      ],
+    );
+  }
+
+  Widget _lineItem(CartItem item) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              item.quantity > 1 ? '${item.title} ×${item.quantity}' : item.title,
+              style: AppTextStyles.bodyMedium,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            _fmt(item.price * item.quantity),
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.secondaryText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Promo code ──────────────────────────────────────────────────────────────
+
+  Widget _promoSection(double subtotal, List<CartItem> cartItems) {
+    final l10n = AppLocalizations.of(context)!;
+
+    // Applied state — show the code with a remove control.
+    if (_appliedCode != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '$_appliedCode — ${_fmt(_discountAmount)} off',
+                  style: AppTextStyles.labelLarge.copyWith(
+                    color: AppColors.deepAccent,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: _removeDiscountCode,
+                behavior: HitTestBehavior.opaque,
+                child: const Icon(
+                  Icons.close,
+                  size: 18,
+                  color: AppColors.secondaryText,
+                ),
+              ),
+            ],
+          ),
+          if (_discountBoutiqueName != null &&
+              cartItems.map((i) => i.boutiqueId).toSet().length > 1) ...[
+            const SizedBox(height: 4),
+            Text(
+              l10n.appliedToBoutiqueItemsOnly(_discountBoutiqueName!),
+              style: AppTextStyles.labelSmall.copyWith(
+                color: AppColors.secondaryText,
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    // Collapsed — render as a text link until tapped.
+    if (!_showPromoInput) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _showPromoInput = true),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.add, size: 16, color: AppColors.deepAccent),
+            const SizedBox(width: 6),
+            Text(
+              l10n.addPromoCode,
+              style: AppTextStyles.labelLarge.copyWith(
+                color: AppColors.deepAccent,
+              ),
+            ),
+          ],
         ),
-        Text(
-          '${address["area"]} ${address["governorate"]}',
-          style: AppTextStyles.bodyMedium,
+      );
+    }
+
+    // Revealed input.
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _codeController,
+            textCapitalization: TextCapitalization.characters,
+            textInputAction: TextInputAction.done,
+            autofocus: true,
+            onEditingComplete: () => FocusScope.of(context).unfocus(),
+            decoration: InputDecoration(
+              hintText: l10n.enterPromoCode,
+              filled: true,
+              fillColor: AppColors.field,
+              border: const OutlineInputBorder(
+                borderRadius: BorderRadius.zero,
+                borderSide: BorderSide(color: AppColors.border, width: 0.5),
+              ),
+              enabledBorder: const OutlineInputBorder(
+                borderRadius: BorderRadius.zero,
+                borderSide: BorderSide(color: AppColors.border, width: 0.5),
+              ),
+              focusedBorder: const OutlineInputBorder(
+                borderRadius: BorderRadius.zero,
+                borderSide: BorderSide(color: AppColors.deepAccent, width: 1),
+              ),
+            ),
+          ),
         ),
-        Text(
-          address['phone']?.toString() ?? '',
-          style: AppTextStyles.bodyMedium,
+        const SizedBox(width: 10),
+        SizedBox(
+          height: 56,
+          child: ElevatedButton(
+            onPressed: _isValidatingCode
+                ? null
+                : () => _applyDiscountCode(subtotal, cartItems),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.deepAccent,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: AppColors.softAccent,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.zero,
+              ),
+            ),
+            child: _isValidatingCode
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(l10n.apply, style: AppTextStyles.button),
+          ),
         ),
       ],
+    );
+  }
+
+  // ── Sticky pay bar ──────────────────────────────────────────────────────────
+
+  Widget _stickyBar(
+    List<CartItem> cartItems,
+    double total,
+    bool hasAddress,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 14, 22, 14),
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        border: Border(
+          top: BorderSide(color: AppColors.border, width: 0.5),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.lock_outline,
+                size: 13,
+                color: AppColors.secondaryText,
+              ),
+              const SizedBox(width: 6),
+              Text(l10n.secureCheckout, style: AppTextStyles.labelSmall),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton(
+              onPressed: isPlacingOrder
+                  ? null
+                  : () => _placeOrder(
+                      cartItems: cartItems,
+                      total: total,
+                      hasAddress: hasAddress,
+                    ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.deepAccent,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.softAccent,
+                disabledForegroundColor: Colors.white,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero,
+                ),
+              ),
+              child: isPlacingOrder
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(l10n.payAmount(_fmt(total)), style: AppTextStyles.button),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1113,32 +1141,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
               : AppTextStyles.bodyMedium,
         ),
       ],
-    );
-  }
-
-  Widget _paymentPill({IconData? icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.field,
-        border: Border.all(color: AppColors.border, width: 0.5),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 13, color: AppColors.secondaryText),
-            const SizedBox(width: 5),
-          ],
-          Text(
-            label,
-            style: AppTextStyles.labelSmall.copyWith(
-              letterSpacing: 0.5,
-              color: AppColors.secondaryText,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

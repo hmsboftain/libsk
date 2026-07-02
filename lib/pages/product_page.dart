@@ -1,12 +1,24 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/utils/image_sizing.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
-import '../navigation/app_header.dart';
+import '../core/constants/countries.dart';
+import '../services/currency_service.dart';
 import '../services/firestore_service.dart';
 import '../widgets/error_state_widget.dart';
-import '../widgets/product_badges.dart';
 import '../widgets/theme.dart';
+
+String _fmt(double kwd) {
+  final service = CurrencyService.instance;
+  final country = countryByCode(service.selectedCountryCode);
+  return service.format(kwd, country.currencySymbol, country.currency);
+}
+
+// Ink — the brand's near-black used for product-page chrome (back/heart
+// buttons, pagination dots). Defined locally; the design system's primaryText
+// is pure black, whereas these floating elements use the warmer Ink tone.
+const Color _ink = Color(0xFF2C2925);
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -93,6 +105,10 @@ class _ProductPageState extends State<ProductPage> {
   bool _liked = false;
   bool _isLoadingLike = true;
 
+  // Per-boutique setting: whether the live stock count is shown to customers.
+  // Defaults to true; overridden once the boutique settings doc is read.
+  bool _showStockCount = true;
+
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _productStream;
 
   @override
@@ -105,6 +121,22 @@ class _ProductPageState extends State<ProductPage> {
         .doc(widget.productId)
         .snapshots();
     _loadSavedStatus();
+    _loadBoutiqueSettings();
+  }
+
+  Future<void> _loadBoutiqueSettings() async {
+    try {
+      final doc = await _firestore
+          .collection('boutiques')
+          .doc(widget.boutiqueId)
+          .get();
+      final v = doc.data()?['showStockCount'];
+      if (mounted && v is bool && v != _showStockCount) {
+        setState(() => _showStockCount = v);
+      }
+    } catch (_) {
+      // Leave the default (visible) on error.
+    }
   }
 
   @override
@@ -141,11 +173,12 @@ class _ProductPageState extends State<ProductPage> {
 
   List<String> _parseColors(Map<String, dynamic> data) {
     final v = data['colors'];
-    if (v is List)
+    if (v is List) {
       return v
           .map((e) => e.toString().trim())
           .where((e) => e.isNotEmpty)
           .toList();
+    }
     return [];
   }
 
@@ -162,11 +195,12 @@ class _ProductPageState extends State<ProductPage> {
           .toList();
     }
     final sizes = data['sizes'];
-    if (sizes is List)
+    if (sizes is List) {
       return sizes
           .map((s) => s.toString().trim())
           .where((s) => s.isNotEmpty)
           .toList();
+    }
     return widget.sizes;
   }
 
@@ -182,30 +216,22 @@ class _ProductPageState extends State<ProductPage> {
     return v is int ? v : int.tryParse(v.toString()) ?? widget.stock;
   }
 
-  bool _isOutOfStock(Map<String, dynamic> data) => data['isOutOfStock'] == true;
-
-  /// Active sale price, only when set and genuinely below the regular price.
-  double? _salePrice(Map<String, dynamic> data) {
-    final price = _parsePrice(data);
-    final v = data['salePrice'];
-    final sale = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
-    return (sale != null && sale > 0 && sale < price) ? sale : null;
-  }
-
   List<String> _galleryImages(Map<String, dynamic> data) {
     final d = data['imageUrls'];
-    if (d is List && d.isNotEmpty)
+    if (d is List && d.isNotEmpty) {
       return d
           .map((e) => e.toString().trim())
           .where((e) => e.isNotEmpty)
           .toList();
+    }
     final u = data['imageUrl']?.toString().trim() ?? '';
     if (u.isNotEmpty) return [u];
-    if (widget.imageUrls.isNotEmpty)
+    if (widget.imageUrls.isNotEmpty) {
       return widget.imageUrls
           .map((e) => e.trim())
           .where((e) => e.isNotEmpty)
           .toList();
+    }
     if (widget.imageUrl.trim().isNotEmpty) return [widget.imageUrl];
     return [];
   }
@@ -223,6 +249,15 @@ class _ProductPageState extends State<ProductPage> {
   String _parseBoutiqueName(Map<String, dynamic> data) {
     final v = data['boutiqueName']?.toString().trim();
     return (v != null && v.isNotEmpty) ? v : widget.boutiqueName;
+  }
+
+  String _parseCategory(Map<String, dynamic> data) {
+    final v = data['category'];
+    if (v is List && v.isNotEmpty) {
+      return v.first.toString().trim();
+    }
+    if (v is String) return v.trim();
+    return '';
   }
 
   void _applyDefaultSelections(List<String> sizes, List<String> colors) {
@@ -299,6 +334,8 @@ class _ProductPageState extends State<ProductPage> {
                 maxScale: 4.0,
                 child: CachedNetworkImage(
                   imageUrl: url,
+                  memCacheWidth: fullBleedCacheWidth(context),
+                  maxWidthDiskCache: maxImageDiskCacheWidth,
                   fit: BoxFit.contain,
                   width: double.infinity,
                   placeholder: (_, __) => const Center(
@@ -459,117 +496,157 @@ class _ProductPageState extends State<ProductPage> {
 
   // ── Widget builders ───────────────────────────────────────────────────────
 
-  Widget _buildHeartButton(Map<String, dynamic> data) {
+  // Circular chrome button floating over the image (back / favourite).
+  Widget _buildCircleButton({
+    required Widget child,
+    required VoidCallback? onTap,
+  }) {
     return GestureDetector(
-      onTap: _isLoadingLike ? null : () => _toggleLike(data),
-      child: SizedBox(
-        width: 32,
-        height: 32,
-        child: Center(
-          child: _isLoadingLike
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: AppColors.deepAccent,
-                  ),
-                )
-              : Icon(
-                  _liked ? Icons.favorite : Icons.favorite_border,
-                  color: _liked ? AppColors.deepAccent : AppColors.primaryText,
-                  size: 22,
-                ),
+      onTap: onTap,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          // Ink at ~45% opacity.
+          color: _ink.withValues(alpha: 0.45),
         ),
+        child: Center(child: child),
       ),
     );
   }
 
+  Widget _buildHeartButton(Map<String, dynamic> data) {
+    return _buildCircleButton(
+      onTap: _isLoadingLike ? null : () => _toggleLike(data),
+      child: _isLoadingLike
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: Colors.white,
+              ),
+            )
+          : Icon(
+              _liked ? Icons.favorite : Icons.favorite_border,
+              color: Colors.white,
+              size: 18,
+            ),
+    );
+  }
+
+  // Full-bleed carousel taking ~58% of screen height, square top corners and
+  // rounded bottom corners, with floating back / favourite buttons and
+  // bottom-left pagination dots overlaid.
   Widget _buildImageGallery(Map<String, dynamic> data) {
     final images = _galleryImages(data);
-    final soldOut = _parseStock(data) <= 0 || _isOutOfStock(data);
-    return GestureDetector(
-      onDoubleTap: _isLoadingLike ? null : () => _toggleLike(data),
-      child: Stack(
-        children: [
-          AspectRatio(
-            aspectRatio: 4 / 5,
-            child: Opacity(
-              opacity: soldOut ? 0.5 : 1.0,
-              child: images.isEmpty
-                  ? Container(
-                      color: AppColors.imagePlaceholder,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.image_not_supported_outlined,
-                        size: 40,
-                        color: AppColors.secondaryText,
-                      ),
-                    )
-                  : PageView.builder(
-                      controller: _pageController,
-                      itemCount: images.length,
-                      onPageChanged: (index) =>
-                          setState(() => _selectedImageIndex = index),
-                      itemBuilder: (context, index) => CachedNetworkImage(
-                        imageUrl: images[index],
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) =>
-                            Container(color: AppColors.imagePlaceholder),
-                        errorWidget: (_, __, ___) => Container(
-                          color: AppColors.imagePlaceholder,
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.image_not_supported_outlined,
-                            size: 40,
-                            color: AppColors.secondaryText,
+    final topInset = MediaQuery.of(context).padding.top;
+    final height = MediaQuery.of(context).size.height * 0.58;
+
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: GestureDetector(
+        onDoubleTap: _isLoadingLike ? null : () => _toggleLike(data),
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+              child: SizedBox(
+                height: height,
+                width: double.infinity,
+                child: images.isEmpty
+                    ? Container(
+                        color: AppColors.imagePlaceholder,
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.image_not_supported_outlined,
+                          size: 40,
+                          color: AppColors.secondaryText,
+                        ),
+                      )
+                    : PageView.builder(
+                        controller: _pageController,
+                        itemCount: images.length,
+                        onPageChanged: (index) =>
+                            setState(() => _selectedImageIndex = index),
+                        itemBuilder: (context, index) => CachedNetworkImage(
+                          imageUrl: images[index],
+                          memCacheWidth: fullBleedCacheWidth(context),
+                          maxWidthDiskCache: maxImageDiskCacheWidth,
+                          width: double.infinity,
+                          height: height,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) =>
+                              Container(color: AppColors.imagePlaceholder),
+                          errorWidget: (_, __, ___) => Container(
+                            color: AppColors.imagePlaceholder,
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.image_not_supported_outlined,
+                              size: 40,
+                              color: AppColors.secondaryText,
+                            ),
                           ),
                         ),
                       ),
-                    ),
+              ),
             ),
-          ),
-          Positioned(top: 16, right: 16, child: _buildHeartButton(data)),
-        ],
+            Positioned(
+              top: topInset + 14,
+              left: 14,
+              child: _buildCircleButton(
+                onTap: () => Navigator.of(context).maybePop(),
+                child: const Icon(
+                  Icons.chevron_left,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+            ),
+            Positioned(
+              top: topInset + 14,
+              right: 14,
+              child: _buildHeartButton(data),
+            ),
+            if (images.length > 1)
+              Positioned(left: 14, bottom: 14, child: _buildImageDots(images)),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildImageDots(List<String> images) {
-    if (images.length <= 1) return const SizedBox(height: 24);
-    return Column(
-      children: [
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            images.length,
-            (index) => GestureDetector(
-              onTap: () {
-                _pageController.animateToPage(
-                  index,
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeInOut,
-                );
-                setState(() => _selectedImageIndex = index);
-              },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: _selectedImageIndex == index ? 18 : 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: _selectedImageIndex == index
-                      ? AppColors.deepAccent
-                      : Colors.transparent,
-                  border: Border.all(color: AppColors.border, width: 0.5),
-                ),
-              ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(images.length, (index) {
+        final isActive = _selectedImageIndex == index;
+        return GestureDetector(
+          onTap: () {
+            _pageController.animateToPage(
+              index,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+            );
+            setState(() => _selectedImageIndex = index);
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin: const EdgeInsets.only(right: 5),
+            width: isActive ? 18 : 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: isActive ? _ink : _ink.withValues(alpha: 0.40),
+              borderRadius: BorderRadius.circular(3),
             ),
           ),
-        ),
-        const SizedBox(height: 24),
-      ],
+        );
+      }),
     );
   }
 
@@ -631,11 +708,9 @@ class _ProductPageState extends State<ProductPage> {
     final images = _galleryImages(data);
     final stock = _parseStock(data);
     final price = _parsePrice(data);
-    final salePrice = _salePrice(data);
-    final soldOut = stock <= 0 || _isOutOfStock(data);
     final title = _parseTitle(data);
     final description = _parseDescription(data);
-    final boutiqueName = _parseBoutiqueName(data);
+    final category = _parseCategory(data);
     final hasSizes = sizes.isNotEmpty;
 
     final isMTO = data['madeToOrder'] == true;
@@ -643,51 +718,38 @@ class _ProductPageState extends State<ProductPage> {
     final guideUrl = data['sizeGuideUrl']?.toString().trim() ?? '';
 
     _scheduleDefaultSelections(sizes, colors);
-    if (_selectedImageIndex >= images.length && images.isNotEmpty)
+    if (_selectedImageIndex >= images.length && images.isNotEmpty) {
       _selectedImageIndex = 0;
+    }
 
     return SingleChildScrollView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppHeader(showBackButton: true),
-
-          // ── Gallery ──────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _buildImageGallery(data),
-          ),
-          _buildImageDots(images),
+          // ── Full-bleed gallery ───────────────────────────────────────
+          _buildImageGallery(data),
+          const SizedBox(height: 18),
 
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Title + boutique ─────────────────────────────────────
-                Text(title, style: AppTextStyles.headingMedium),
-                const SizedBox(height: 4),
-                Text(
-                  l10n.byBoutique(boutiqueName),
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-                const SizedBox(height: 18),
-
                 // ── Price + stock/MTO row ────────────────────────────────
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    ProductPriceText(
-                      price: price,
-                      salePrice: salePrice,
-                      saleBadgeLabel: l10n.saleBadge,
-                      style: AppTextStyles.headingSmall,
+                    Text(
+                      _fmt(price),
+                      style: const TextStyle(
+                        fontFamily: 'CormorantGaramond',
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: _ink,
+                      ),
                     ),
                     const Spacer(),
-                    if (!isMTO)
+                    if (!isMTO && _showStockCount)
                       Text(
                         stock > 0
                             ? l10n.inStockWithCount(stock.toString())
@@ -700,6 +762,34 @@ class _ProductPageState extends State<ProductPage> {
                       ),
                   ],
                 ),
+                const SizedBox(height: 6),
+
+                // ── Product name ─────────────────────────────────────────
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'CormorantGaramond',
+                    fontSize: 18,
+                    fontStyle: FontStyle.italic,
+                    color: _ink,
+                  ),
+                ),
+
+                // ── Category ─────────────────────────────────────────────
+                if (category.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    category.toUpperCase(),
+                    style: const TextStyle(
+                      fontFamily: 'DMSans',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      // 0.06em at 11px ≈ 0.66
+                      letterSpacing: 0.66,
+                      color: AppColors.deepAccent,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
 
                 // ── Made-to-order banner ─────────────────────────────────
@@ -762,65 +852,81 @@ class _ProductPageState extends State<ProductPage> {
                 ),
                 const SizedBox(height: 24),
 
-                // ── Size + colour selectors (hidden when sold out) ───────
-                if (!soldOut) ...[
-                  // ── SIZE header + size guide link ──────────────────────
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(l10n.sizeSection, style: AppTextStyles.labelLarge),
-                      if (guideUrl.isNotEmpty) ...[
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: () => _openSizeGuide(guideUrl),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.straighten_outlined,
-                                size: 14,
+                // ── SIZE header + size guide link ────────────────────────
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(l10n.sizeSection, style: AppTextStyles.labelLarge),
+                    if (guideUrl.isNotEmpty) ...[
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () => _openSizeGuide(guideUrl),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.straighten_outlined,
+                              size: 14,
+                              color: AppColors.secondaryText,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              l10n.sizeGuide,
+                              style: AppTextStyles.bodySmall.copyWith(
                                 color: AppColors.secondaryText,
+                                decoration: TextDecoration.underline,
+                                decorationColor: AppColors.secondaryText,
                               ),
-                              const SizedBox(width: 5),
-                              Text(
-                                l10n.sizeGuide,
-                                style: AppTextStyles.bodySmall.copyWith(
-                                  color: AppColors.secondaryText,
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: AppColors.secondaryText,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  if (hasSizes)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: sizes.map(_buildSizeChip).toList(),
-                    )
-                  else
-                    Text(l10n.noSizesAvailable, style: AppTextStyles.bodySmall),
-
-                  // ── Colours ──────────────────────────────────────────
-                  if (colors.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    Text(l10n.colours, style: AppTextStyles.labelLarge),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: colors.map(_buildColorChip).toList(),
-                    ),
                   ],
+                ),
+                const SizedBox(height: 12),
+
+                if (hasSizes)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: sizes.map(_buildSizeChip).toList(),
+                  )
+                else
+                  Text(l10n.noSizesAvailable, style: AppTextStyles.bodySmall),
+
+                // ── Colours ──────────────────────────────────────────────
+                if (colors.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(l10n.colours, style: AppTextStyles.labelLarge),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: colors.map(_buildColorChip).toList(),
+                  ),
                 ],
 
                 const SizedBox(height: 28),
+
+                // ── Add to cart ──────────────────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: () => _addProductToCart(data),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.deepAccent,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.zero,
+                      ),
+                    ),
+                    child: Text(l10n.addToCart, style: AppTextStyles.button),
+                  ),
+                ),
+                const SizedBox(height: 24),
 
                 // ── Product details accordion ────────────────────────────
                 _buildDropdownSection(
@@ -841,100 +947,42 @@ class _ProductPageState extends State<ProductPage> {
     );
   }
 
-  // ── Sticky add-to-cart footer ──────────────────────────────────────────
-  Widget _buildStickyAddToCart(Map<String, dynamic> data) {
-    final l10n = AppLocalizations.of(context)!;
-    final soldOut = _parseStock(data) <= 0 || _isOutOfStock(data);
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.background,
-        border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 12, 22, 12),
-          child: SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton(
-              onPressed: soldOut ? null : () => _addProductToCart(data),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.deepAccent,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.softAccent,
-                disabledForegroundColor: Colors.white,
-                elevation: 0,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.zero,
-                ),
-              ),
-              child: Text(
-                soldOut ? l10n.outOfStock : l10n.addToCart,
-                style: AppTextStyles.button,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: _productStream,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            !snapshot.hasData) {
-          return Scaffold(
-            backgroundColor: AppColors.background,
-            body: GestureDetector(
-              onTap: () => FocusScope.of(context).unfocus(),
-              behavior: HitTestBehavior.translucent,
-              child: SafeArea(
-                child: Center(
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: AppColors.deepAccent,
-                  ),
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      // top: false so the carousel runs flush to the screen edge; the floating
+      // back / favourite buttons inset themselves below the status bar.
+      body: SafeArea(
+        top: false,
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: _productStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  color: AppColors.deepAccent,
                 ),
-              ),
-            ),
-          );
-        }
-        if (snapshot.hasError) {
-          return Scaffold(
-            backgroundColor: AppColors.background,
-            body: GestureDetector(
-              onTap: () => FocusScope.of(context).unfocus(),
-              behavior: HitTestBehavior.translucent,
-              child: SafeArea(
-                child: ErrorStateWidget.inline(
-                  title: l10n.somethingWentWrong,
-                  message: l10n.somethingWentWrong,
-                  onRetry: () => setState(() {}),
-                  type: ErrorType.network,
-                ),
-              ),
-            ),
-          );
-        }
-        if (snapshot.hasData && !snapshot.data!.exists) {
-          return const NotFoundPage();
-        }
-        final data = _resolveProductData(snapshot.data);
-        return Scaffold(
-          backgroundColor: AppColors.background,
-          body: GestureDetector(
-            onTap: () => FocusScope.of(context).unfocus(),
-            behavior: HitTestBehavior.translucent,
-            child: SafeArea(child: _buildProductContent(data)),
-          ),
-          bottomNavigationBar: _buildStickyAddToCart(data),
-        );
-      },
+              );
+            }
+            if (snapshot.hasError) {
+              return ErrorStateWidget.inline(
+                title: l10n.somethingWentWrong,
+                message: l10n.somethingWentWrong,
+                onRetry: () => setState(() {}),
+                type: ErrorType.network,
+              );
+            }
+            if (snapshot.hasData && !snapshot.data!.exists) {
+              return const NotFoundPage();
+            }
+            return _buildProductContent(_resolveProductData(snapshot.data));
+          },
+        ),
+      ),
     );
   }
 }

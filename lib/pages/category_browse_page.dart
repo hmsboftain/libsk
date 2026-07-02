@@ -1,10 +1,21 @@
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
 import 'category_products_page.dart';
+
+// Localized display label for a category. Existing categories stay in English
+// (their Firestore keys), while the new launch categories carry translations.
+String _labelForCategory(String? key, String label, AppLocalizations l10n) {
+  switch (key) {
+    case 'Swimwear':
+      return l10n.categorySwimwear;
+    case 'Accessories':
+      return l10n.categoryAccessories;
+    default:
+      return label;
+  }
+}
 
 class CategoryBrowsePage extends StatelessWidget {
   const CategoryBrowsePage({super.key});
@@ -12,6 +23,7 @@ class CategoryBrowsePage extends StatelessWidget {
   static const List<Map<String, String?>> categories = [
     {'label': 'All', 'key': null},
     {'label': 'Abaya', 'key': 'Abaya'},
+    {'label': 'Accessories', 'key': 'Accessories'},
     {'label': 'Blazers', 'key': 'Blazers'},
     {'label': 'Blouses & Shirts', 'key': 'Blouses & Shirts'},
     {'label': 'Casual Wear', 'key': 'Casual Wear'},
@@ -25,6 +37,7 @@ class CategoryBrowsePage extends StatelessWidget {
     {'label': 'Pants', 'key': 'Pants'},
     {'label': 'Shoes', 'key': 'Shoes'},
     {'label': 'Skirts', 'key': 'Skirts'},
+    {'label': 'Swimwear', 'key': 'Swimwear'},
     {'label': 'Tops', 'key': 'Tops'},
   ];
 
@@ -79,16 +92,17 @@ class CategoryBrowsePage extends StatelessWidget {
                         itemCount: categories.length,
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: 1.4,
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                              childAspectRatio: 1.05,
                             ),
                         itemBuilder: (context, index) {
                           final cat = categories[index];
+                          final key = cat['key'];
                           return _CategoryTile(
-                            label: cat['label']!,
-                            categoryKey: cat['key'],
+                            label: _labelForCategory(key, cat['label']!, l10n),
+                            categoryKey: key,
                             allProductsLabel: l10n.allProducts,
                           );
                         },
@@ -108,7 +122,7 @@ class CategoryBrowsePage extends StatelessWidget {
   }
 }
 
-class _CategoryTile extends StatefulWidget {
+class _CategoryTile extends StatelessWidget {
   final String label;
   final String? categoryKey;
   final String allProductsLabel;
@@ -120,104 +134,13 @@ class _CategoryTile extends StatefulWidget {
   });
 
   @override
-  State<_CategoryTile> createState() => _CategoryTileState();
-}
-
-class _CategoryTileState extends State<_CategoryTile> {
-  // categoryKey -> thumbnail URL ('' = no thumbnail). Static so it survives
-  // page re-opens and is shared across tiles: one .get() per category per app
-  // session, replacing a per-tile real-time listener.
-  static final Map<String, String> _thumbCache = {};
-
-  String _bgImageUrl = '';
-
-  @override
-  void initState() {
-    super.initState();
-    final key = widget.categoryKey;
-    if (key != null) _loadThumb(key);
-  }
-
-  Future<void> _loadThumb(String key) async {
-    final cached = _thumbCache[key];
-    if (cached != null) {
-      _bgImageUrl = cached;
-      return; // already resolved this session — no read, no setState needed
-    }
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collectionGroup('products')
-          .where('category', arrayContains: key)
-          .limit(1)
-          .get();
-      var url = '';
-      if (snap.docs.isNotEmpty) {
-        final data = snap.docs.first.data();
-        final imageUrlsData = data['imageUrls'];
-        if (imageUrlsData is List && imageUrlsData.isNotEmpty) {
-          url = imageUrlsData.first.toString();
-        } else {
-          url = data['imageUrl']?.toString() ?? '';
-        }
-      }
-      _thumbCache[key] = url;
-      if (!mounted) return;
-      setState(() => _bgImageUrl = url);
-    } catch (_) {
-      // Leave the placeholder background on error.
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    // "All" tile — no Firestore query needed
-    if (widget.categoryKey == null) {
-      return GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CategoryProductsPage(
-                category: null,
-                displayLabel: widget.allProductsLabel,
-              ),
-            ),
-          );
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.deepAccent,
-            border: Border.all(color: AppColors.deepAccent, width: 0.5),
-          ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppColors.deepAccent, AppColors.softAccent],
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 12,
-                left: 12,
-                right: 12,
-                child: Text(
-                  'All',
-                  style: AppTextStyles.headingSmall.copyWith(
-                    color: Colors.white,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final isAll = categoryKey == null;
+    // "All" reads as the emphasized chip (filled Taupe); every other category
+    // is an outline chip with just its label centered.
+    final Color bg = isAll ? AppColors.deepAccent : Colors.transparent;
+    final Color borderColor = isAll ? AppColors.deepAccent : AppColors.border;
+    final Color contentColor = isAll ? Colors.white : AppColors.primaryText;
 
     return GestureDetector(
       onTap: () {
@@ -225,55 +148,29 @@ class _CategoryTileState extends State<_CategoryTile> {
           context,
           MaterialPageRoute(
             builder: (_) => CategoryProductsPage(
-              category: widget.categoryKey,
-              displayLabel: widget.label,
+              category: categoryKey,
+              displayLabel: isAll ? allProductsLabel : label,
             ),
           ),
         );
       },
       child: Container(
+        // Chip style: 0.5px border, no radius, ~12px / 10px padding.
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.imagePlaceholder,
-          border: Border.all(color: AppColors.border, width: 0.5),
+          color: bg,
+          border: Border.all(color: borderColor, width: 0.5),
         ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (_bgImageUrl.isNotEmpty)
-              CachedNetworkImage(
-                imageUrl: _bgImageUrl,
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => const SizedBox(),
-              ),
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black45],
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 12,
-              left: 12,
-              right: 12,
-              child: Text(
-                widget.label,
-                style: AppTextStyles.headingSmall.copyWith(
-                  color: Colors.white,
-                  fontStyle: FontStyle.italic,
-                  shadows: [
-                    const Shadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      offset: Offset(0, 1),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+        alignment: Alignment.center,
+        child: Text(
+          isAll ? allProductsLabel : label,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.labelSmall.copyWith(
+            color: contentColor,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ),
     );

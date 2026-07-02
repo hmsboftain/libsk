@@ -187,6 +187,10 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
   String? _currentLogoUrl;
   String? _currentBannerUrl;
 
+  // Per-boutique setting — whether the live stock count is shown on product
+  // pages. Defaults to true when the field is absent on older boutique docs.
+  bool _showStockCount = true;
+
   @override
   void initState() {
     super.initState();
@@ -198,6 +202,8 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
     );
     _currentLogoUrl = widget.boutiqueData['logoPath']?.toString();
     _currentBannerUrl = widget.boutiqueData['bannerPath']?.toString();
+    final stockSetting = widget.boutiqueData['showStockCount'];
+    if (stockSetting is bool) _showStockCount = stockSetting;
   }
 
   @override
@@ -310,6 +316,7 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
         description: descriptionController.text.trim(),
         logoPath: logoUrl,
         bannerPath: bannerUrl,
+        showStockCount: _showStockCount,
       );
 
       // Firestore write confirmed — safe to delete old Storage files
@@ -441,6 +448,41 @@ class _EditBoutiquePageState extends State<EditBoutiquePage> {
                               errorText: l10n.bannerCouldNotLoad,
                               height: 180,
                               isCircle: false,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      // ── Storefront settings ──────────────────────────
+                      _buildSectionCard(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.showStockCount,
+                                    style: AppTextStyles.labelLarge,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    l10n.showStockCountSubtitle,
+                                    style: AppTextStyles.bodySmall.copyWith(
+                                      color: AppColors.secondaryText,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Switch(
+                              value: _showStockCount,
+                              activeTrackColor: AppColors.deepAccent,
+                              onChanged: (v) =>
+                                  setState(() => _showStockCount = v),
                             ),
                           ],
                         ),

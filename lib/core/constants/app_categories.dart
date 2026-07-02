@@ -6,6 +6,7 @@ class AppCategories {
 
   static const List<String> all = [
     'Abaya',
+    'Accessories',
     'Blazers',
     'Blouses & Shirts',
     'Casual Wear',
@@ -19,6 +20,7 @@ class AppCategories {
     'Pants',
     'Shoes',
     'Skirts',
+    'Swimwear',
     'Tops',
   ];
 }
