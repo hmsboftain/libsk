@@ -608,6 +608,93 @@ exports.createOrder = onCall(async (request) => {
   return { orderNumber };
 });
 
+// ================= ORDER STATUS (boutique owner) =================
+
+// Boutique owners can't write the customer's users/{uid}/orders doc or the
+// global_orders doc (rules restrict both to admins), so their confirm/cancel
+// action runs here. We derive the caller's boutique from their APPROVED owner
+// record (never trust a client-sent boutiqueId), confirm the order lives under
+// that boutique, then update the boutique order + the customer's order + the
+// matching global_orders doc atomically with the Admin SDK. The status-change
+// triggers (notify/email) fire off the global_orders update as usual.
+const ORDER_STATUSES = ["Placed", "Confirmed", "On the Way", "Delivered", "Cancelled"];
+
+exports.updateOrderStatus = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "You must be logged in.");
+    }
+    const uid = request.auth.uid;
+
+    const rateOk = await checkRateLimit(`order_status_${uid}`, 300, 3600);
+    if (!rateOk) {
+      throw new HttpsError("resource-exhausted", "Too many requests. Please try again later.");
+    }
+
+    const data = request.data || {};
+    const boutiqueOrderId = data.boutiqueOrderId;
+    const newStatus = data.status;
+
+    if (typeof boutiqueOrderId !== "string" || !boutiqueOrderId || boutiqueOrderId.length > 200) {
+      throw new HttpsError("invalid-argument", "A valid boutiqueOrderId is required.");
+    }
+    if (!ORDER_STATUSES.includes(newStatus)) {
+      throw new HttpsError("invalid-argument", "Invalid order status.");
+    }
+
+    // Authoritative ownership — the boutique is taken from the caller's approved
+    // owner doc, so an owner can only ever touch their own boutique's orders.
+    const ownerDoc = await db.collection("boutique_owners").doc(uid).get();
+    if (!ownerDoc.exists || ownerDoc.data().isApproved !== true) {
+      throw new HttpsError("permission-denied", "You are not an approved boutique owner.");
+    }
+    const boutiqueId = ownerDoc.data().boutiqueId;
+    if (!boutiqueId) {
+      throw new HttpsError("failed-precondition", "No boutique is assigned to this account.");
+    }
+
+    const boutiqueOrderRef = db
+      .collection("boutiques").doc(boutiqueId)
+      .collection("orders").doc(boutiqueOrderId);
+    const boutiqueOrderSnap = await boutiqueOrderRef.get();
+    if (!boutiqueOrderSnap.exists) {
+      // Missing, or belongs to a different boutique — either way, not theirs.
+      throw new HttpsError("not-found", "Order not found for this boutique.");
+    }
+
+    const orderData = boutiqueOrderSnap.data();
+    const sourceUserOrderId = orderData.sourceUserOrderId || "";
+    const customerUid = orderData.customerUid || "";
+
+    const batch = db.batch();
+    batch.update(boutiqueOrderRef, { status: newStatus });
+
+    if (customerUid && sourceUserOrderId) {
+      batch.update(
+        db.collection("users").doc(customerUid)
+          .collection("orders").doc(sourceUserOrderId),
+        { status: newStatus },
+      );
+    }
+
+    if (sourceUserOrderId) {
+      const globalSnap = await db.collection("global_orders")
+        .where("sourceUserOrderId", "==", sourceUserOrderId)
+        .get();
+      for (const doc of globalSnap.docs) {
+        batch.update(doc.reference, { status: newStatus });
+      }
+    }
+
+    await batch.commit();
+    return { success: true, status: newStatus };
+  } catch (error) {
+    logger.error("Update order status error", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "Failed to update order status.");
+  }
+});
+
 // ================= DISCOUNT CODES =================
 
 exports.validateDiscountCode = onCall(async (request) => {

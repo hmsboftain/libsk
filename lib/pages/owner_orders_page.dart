@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import '../core/utils/image_sizing.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../widgets/error_state_widget.dart';
@@ -156,42 +158,18 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
   }) async {
     final l10n = AppLocalizations.of(context)!;
     try {
-      final globalQuery = sourceUserOrderId.isNotEmpty
-          ? await FirebaseFirestore.instance
-                .collection('global_orders')
-                .where('sourceUserOrderId', isEqualTo: sourceUserOrderId)
-                .get()
-          : null;
-
-      final batch = FirebaseFirestore.instance.batch();
-
-      batch.update(
-        FirebaseFirestore.instance
-            .collection('boutiques')
-            .doc(_boutiqueId)
-            .collection('orders')
-            .doc(boutiqueOrderId),
-        {'status': newStatus},
-      );
-
-      if (customerUid.isNotEmpty && sourceUserOrderId.isNotEmpty) {
-        batch.update(
-          FirebaseFirestore.instance
-              .collection('users')
-              .doc(customerUid)
-              .collection('orders')
-              .doc(sourceUserOrderId),
-          {'status': newStatus},
-        );
-      }
-
-      if (globalQuery != null) {
-        for (final doc in globalQuery.docs) {
-          batch.update(doc.reference, {'status': newStatus});
-        }
-      }
-
-      await batch.commit();
+      // The customer order + global_orders docs are admin-only to write, so the
+      // change goes through the updateOrderStatus Cloud Function, which verifies
+      // boutique ownership server-side and updates all three docs atomically.
+      // customerUid / sourceUserOrderId are resolved on the server from the
+      // boutique order, so only the boutique order id + new status are sent.
+      final callable = FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('updateOrderStatus');
+      await callable.call({
+        'boutiqueOrderId': boutiqueOrderId,
+        'status': newStatus,
+      });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -688,6 +666,8 @@ class _OrderItemRow extends StatelessWidget {
             child: imageUrl.isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: imageUrl,
+                    memCacheWidth: gridTileCacheWidth,
+                    maxWidthDiskCache: maxImageDiskCacheWidth,
                     width: 64,
                     height: 80,
                     fit: BoxFit.cover,
