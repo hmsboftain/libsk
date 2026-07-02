@@ -799,5 +799,20 @@
   "category": "الفئة",
   "letterSizes": "المقاسات الحرفية",
   "numericSizes": "المقاسات الرقمية",
-  "sizeColumnHeader": "المقاس"
+  "sizeColumnHeader": "المقاس",
+  "showStockCount": "إظهار عدد المخزون للعملاء",
+  "showStockCountSubtitle": "يرى العملاء عدد القطع المتبقية في صفحات المنتج.",
+  "categorySwimwear": "ملابس السباحة",
+  "categoryAccessories": "إكسسوارات",
+  "addPromoCode": "إضافة رمز ترويجي",
+  "promoCode": "رمز ترويجي",
+  "enterPromoCode": "أدخل الرمز",
+  "apply": "تطبيق",
+  "applied": "تم التطبيق",
+  "orderSummary": "ملخص الطلب",
+  "itemCount": "{count, plural, zero{لا عناصر} one{عنصر واحد} two{عنصران} few{{count} عناصر} many{{count} عنصرًا} other{{count} عنصر}}",
+  "@itemCount": { "placeholders": { "count": { "type": "int" } } },
+  "payAmount": "ادفع {amount}",
+  "@payAmount": { "placeholders": { "amount": { "type": "String" } } },
+  "discountLabel": "خصم"
 }

@@ -4570,6 +4570,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Size'**
   String get sizeColumnHeader;
+
+  /// No description provided for @showStockCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Show stock count to customers'**
+  String get showStockCount;
+
+  /// No description provided for @showStockCountSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Customers see how many units are left on product pages.'**
+  String get showStockCountSubtitle;
+
+  /// No description provided for @categorySwimwear.
+  ///
+  /// In en, this message translates to:
+  /// **'Swimwear'**
+  String get categorySwimwear;
+
+  /// No description provided for @categoryAccessories.
+  ///
+  /// In en, this message translates to:
+  /// **'Accessories'**
+  String get categoryAccessories;
+
+  /// No description provided for @addPromoCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Add promo code'**
+  String get addPromoCode;
+
+  /// No description provided for @promoCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Promo code'**
+  String get promoCode;
+
+  /// No description provided for @enterPromoCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter code'**
+  String get enterPromoCode;
+
+  /// No description provided for @apply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get apply;
+
+  /// No description provided for @applied.
+  ///
+  /// In en, this message translates to:
+  /// **'Applied'**
+  String get applied;
+
+  /// No description provided for @orderSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Order summary'**
+  String get orderSummary;
+
+  /// No description provided for @itemCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{1 item} other{{count} items}}'**
+  String itemCount(int count);
+
+  /// No description provided for @payAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Pay {amount}'**
+  String payAmount(String amount);
+
+  /// No description provided for @discountLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Discount'**
+  String get discountLabel;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

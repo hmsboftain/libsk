@@ -2357,4 +2357,57 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get sizeColumnHeader => 'المقاس';
+
+  @override
+  String get showStockCount => 'إظهار عدد المخزون للعملاء';
+
+  @override
+  String get showStockCountSubtitle => 'يرى العملاء عدد القطع المتبقية في صفحات المنتج.';
+
+  @override
+  String get categorySwimwear => 'ملابس السباحة';
+
+  @override
+  String get categoryAccessories => 'إكسسوارات';
+
+  @override
+  String get addPromoCode => 'إضافة رمز ترويجي';
+
+  @override
+  String get promoCode => 'رمز ترويجي';
+
+  @override
+  String get enterPromoCode => 'أدخل الرمز';
+
+  @override
+  String get apply => 'تطبيق';
+
+  @override
+  String get applied => 'تم التطبيق';
+
+  @override
+  String get orderSummary => 'ملخص الطلب';
+
+  @override
+  String itemCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count عنصر',
+      many: '$count عنصرًا',
+      few: '$count عناصر',
+      two: 'عنصران',
+      one: 'عنصر واحد',
+      zero: 'لا عناصر',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String payAmount(String amount) {
+    return 'ادفع $amount';
+  }
+
+  @override
+  String get discountLabel => 'خصم';
 }

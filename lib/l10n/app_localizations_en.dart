@@ -2357,4 +2357,53 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sizeColumnHeader => 'Size';
+
+  @override
+  String get showStockCount => 'Show stock count to customers';
+
+  @override
+  String get showStockCountSubtitle => 'Customers see how many units are left on product pages.';
+
+  @override
+  String get categorySwimwear => 'Swimwear';
+
+  @override
+  String get categoryAccessories => 'Accessories';
+
+  @override
+  String get addPromoCode => 'Add promo code';
+
+  @override
+  String get promoCode => 'Promo code';
+
+  @override
+  String get enterPromoCode => 'Enter code';
+
+  @override
+  String get apply => 'Apply';
+
+  @override
+  String get applied => 'Applied';
+
+  @override
+  String get orderSummary => 'Order summary';
+
+  @override
+  String itemCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String payAmount(String amount) {
+    return 'Pay $amount';
+  }
+
+  @override
+  String get discountLabel => 'Discount';
 }

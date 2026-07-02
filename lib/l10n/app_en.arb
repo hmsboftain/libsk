@@ -796,5 +796,20 @@
   "category": "Category",
   "letterSizes": "Letter Sizes",
   "numericSizes": "Numeric Sizes",
-  "sizeColumnHeader": "Size"
+  "sizeColumnHeader": "Size",
+  "showStockCount": "Show stock count to customers",
+  "showStockCountSubtitle": "Customers see how many units are left on product pages.",
+  "categorySwimwear": "Swimwear",
+  "categoryAccessories": "Accessories",
+  "addPromoCode": "Add promo code",
+  "promoCode": "Promo code",
+  "enterPromoCode": "Enter code",
+  "apply": "Apply",
+  "applied": "Applied",
+  "orderSummary": "Order summary",
+  "itemCount": "{count, plural, one{1 item} other{{count} items}}",
+  "@itemCount": { "placeholders": { "count": { "type": "int" } } },
+  "payAmount": "Pay {amount}",
+  "@payAmount": { "placeholders": { "amount": { "type": "String" } } },
+  "discountLabel": "Discount"
 }
