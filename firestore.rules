@@ -231,6 +231,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /payment_intents/{paymentIntentId} {
+      // Replay locks for Stripe intents are written only by Cloud Functions.
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /disputes/{disputeId} {
       allow read: if isSignedIn() &&
         (resource.data.customerUid == request.auth.uid || isAdmin());
