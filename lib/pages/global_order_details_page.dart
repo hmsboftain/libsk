@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
 import '../widgets/theme.dart';
 import '../core/constants/countries.dart';
 import '../services/currency_service.dart';
+import '../services/firestore_service.dart';
 
 String _fmt(double kwd) {
   final service = CurrencyService.instance;
@@ -35,6 +37,9 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
     'On the Way',
     'Delivered',
     'Cancelled',
+    // Bookkeeping only: the money is refunded by hand in the Payzah merchant
+    // dashboard first, then a superadmin records it here (see _updateStatus).
+    'Refunded',
   ];
 
   @override
@@ -44,6 +49,9 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
   }
 
   Future<void> _updateStatus(String newStatus) async {
+    if (newStatus == 'Refunded') {
+      return _markRefunded();
+    }
     setState(() => _isUpdating = true);
 
     try {
@@ -109,6 +117,72 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
     }
   }
 
+  /// Confirmation + audit for the manual refund flow: the refund itself is
+  /// issued in the Payzah merchant dashboard; this only records the outcome
+  /// (order status "Refunded" + who/when) via markOrderRefundedAsAdmin.
+  Future<void> _markRefunded() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.background,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.zero,
+          side: BorderSide(color: AppColors.border, width: 0.5),
+        ),
+        title: Text(l10n.markAsRefunded, style: AppTextStyles.headingSmall),
+        content: Text(
+          l10n.refundManualNote,
+          style: AppTextStyles.bodyMedium.copyWith(height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              l10n.cancel,
+              style: AppTextStyles.labelLarge.copyWith(
+                color: AppColors.secondaryText,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.deepAccent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.zero,
+              ),
+            ),
+            child: Text(l10n.markAsRefunded, style: AppTextStyles.button),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isUpdating = true);
+    try {
+      await FirestoreService.markOrderRefundedAsAdmin(widget.orderId);
+      if (!mounted) return;
+      setState(() => _currentStatus = 'Refunded');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.orderMarkedRefunded),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update status')),
+      );
+    } finally {
+      if (mounted) setState(() => _isUpdating = false);
+    }
+  }
+
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'placed':
@@ -121,6 +195,8 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
         return AppColors.primaryText;
       case 'cancelled':
         return AppColors.deepAccent;
+      case 'refunded':
+        return AppColors.primaryText;
       default:
         return AppColors.secondaryText;
     }
@@ -138,6 +214,8 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
         return AppColors.selectedSoft;
       case 'cancelled':
         return AppColors.disabledField;
+      case 'refunded':
+        return AppColors.field;
       default:
         return AppColors.field;
     }
@@ -202,6 +280,7 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
     final size = _buildTextValue(item['size'], 'No size');
     final imageUrl = _buildTextValue(item['imageUrl'], '');
     final boutiqueId = _buildTextValue(item['boutiqueId'], 'Unknown Boutique');
+    final specialRequest = item['specialRequest']?.toString().trim() ?? '';
 
     final quantityValue = item['quantity'] ?? 0;
     final priceValue = item['price'] ?? 0;
@@ -289,6 +368,20 @@ class _GlobalOrderDetailsPageState extends State<GlobalOrderDetailsPage> {
                   'Boutique ID: $boutiqueId',
                   style: AppTextStyles.bodySmall,
                 ),
+                if (specialRequest.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Special Request:',
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.deepAccent,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    specialRequest,
+                    style: AppTextStyles.bodySmall.copyWith(height: 1.35),
+                  ),
+                ],
               ],
             ),
           ),

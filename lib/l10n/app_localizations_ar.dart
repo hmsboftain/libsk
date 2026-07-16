@@ -585,6 +585,14 @@ class AppLocalizationsAr extends AppLocalizations {
   String get yourPaymentWasSuccessful => 'تمت عملية الدفع بنجاح';
 
   @override
+  String orderFromBoutique(String boutiqueName) {
+    return 'طلبك من $boutiqueName';
+  }
+
+  @override
+  String get paidSecurelyViaPayzah => 'تم الدفع بأمان عبر Payzah';
+
+  @override
   String get thankYou => 'شكرًا لك';
 
   @override
@@ -599,7 +607,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get yourCartIsEmpty => 'سلتك فارغة';
 
   @override
-  String get cartEmptySubtitle => 'اكتشف قطعاً من متاجر الكويت وابدأ التسوق.';
+  String get cartEmptySubtitle => 'سلتك فارغة. أضف قطعاً من أحد المتاجر للبدء.';
 
   @override
   String get browseBoutiques => 'تصفح المتاجر';
@@ -1839,22 +1847,22 @@ class AppLocalizationsAr extends AppLocalizations {
   String get homepageBanner => 'بانر الصفحة الرئيسية';
 
   @override
-  String get promoHomepageBannerPricing => 'من 50 د.ك/أسبوع';
+  String get promoHomepageBannerPricing => 'من 35 د.ك/أسبوع';
 
   @override
   String get featuredBoutiques => 'بوتيكات مميزة';
 
   @override
-  String get promoFeaturedBoutiquesPricing => 'من 30 د.ك/أسبوع';
+  String get promoFeaturedBoutiquesPricing => 'من 20 د.ك/أسبوع';
 
   @override
-  String get promoFeaturedProductsPricing => 'من 20 د.ك/أسبوع';
+  String get promoFeaturedProductsPricing => 'من 15 د.ك/أسبوع';
 
   @override
   String get searchPlacement => 'ظهور في البحث';
 
   @override
-  String get promoSearchPlacementPricing => 'من 15 د.ك/أسبوع';
+  String get promoSearchPlacementPricing => 'من 12 د.ك/أسبوع';
 
   @override
   String get unknownOwner => 'مالك غير معروف';
@@ -2008,16 +2016,25 @@ class AppLocalizationsAr extends AppLocalizations {
   String get resolveNoRefund => 'حل — بدون استرداد';
 
   @override
-  String get resolveWithRefund => 'حل + استرداد';
+  String get resolveWithRefund => 'حل — تم إصدار الاسترداد';
 
   @override
   String get noPaymentIntentFound => 'لم يُعثر على معرّف دفع لهذا الطلب';
 
   @override
-  String get disputeResolvedWithRefund => 'تم حل النزاع وإصدار الاسترداد بنجاح';
+  String get disputeResolvedWithRefund => 'تم حل النزاع ووضع علامة مسترد على الطلب';
 
   @override
   String get failedToProcessRefund => 'تعذّر معالجة الاسترداد';
+
+  @override
+  String get markAsRefunded => 'تحديد كمسترد';
+
+  @override
+  String get refundManualNote => 'تُنفَّذ عمليات الاسترداد يدوياً من لوحة تاجر Payzah. هذا الإجراء يضع علامة \"مسترد\" على الطلب ويسجّل حساب المشرف فقط — ولا يُحوِّل أي أموال.';
+
+  @override
+  String get orderMarkedRefunded => 'تم وضع علامة مسترد على الطلب';
 
   @override
   String get disputeResolved => 'تم حل النزاع بنجاح';
@@ -2234,6 +2251,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get knet => 'كي نت';
 
   @override
+  String get applePay => 'Apple Pay';
+
+  @override
   String get markAsOutOfStock => 'وضع علامة نفاد المخزون';
 
   @override
@@ -2410,4 +2430,392 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get discountLabel => 'خصم';
+
+  @override
+  String get paymentPreparingTitle => 'جارٍ تجهيز عملية الدفع';
+
+  @override
+  String get paymentPreparingBody => 'لحظات ونجهّز كل شيء.';
+
+  @override
+  String get paymentRedirectingTitle => 'جارٍ تحويلك إلى الدفع الآمن';
+
+  @override
+  String get paymentRedirectingBody => 'سيتم تحويلك لإتمام عملية الدفع.';
+
+  @override
+  String get paymentVerifyingTitle => 'جارٍ تأكيد عملية الدفع';
+
+  @override
+  String get paymentVerifyingBody => 'قد يستغرق هذا بضع لحظات. يرجى إبقاء التطبيق مفتوحًا.';
+
+  @override
+  String get paymentConfirmedTitle => 'تم تأكيد الدفع';
+
+  @override
+  String get paymentConfirmedBody => 'شكرًا لك — تم تقديم طلبك.';
+
+  @override
+  String get paymentFailedTitle => 'لم تكتمل عملية الدفع';
+
+  @override
+  String get paymentFailedBody => 'تعذّر إتمام عملية الدفع ولم يتم خصم أي مبلغ منك. يرجى المحاولة مرة أخرى.';
+
+  @override
+  String get paymentUnderReviewTitle => 'الدفع قيد المراجعة';
+
+  @override
+  String get paymentUnderReviewBody => 'لم نتمكن من تأكيد نتيجة عملية الدفع بعد. يرجى عدم الدفع مرة أخرى — يقوم فريقنا بالتحقق منها وسيتم تحديث طلبك قريباً.';
+
+  @override
+  String get specialRequest => 'طلب خاص';
+
+  @override
+  String get specialRequestHint => 'مثال: اجعله أطول أو أقصر قليلاً (اختياري)';
+
+  @override
+  String get addedToCartTitle => 'تمت الإضافة إلى السلة';
+
+  @override
+  String get goToCart => 'الذهاب إلى السلة';
+
+  @override
+  String get continueShopping => 'متابعة التسوق';
+
+  @override
+  String get tryAgain => 'حاول مرة أخرى';
+
+  @override
+  String get paymentNotCompletedTitle => 'لم تُكمل عملية الدفع';
+
+  @override
+  String get paymentNotCompletedBody => 'لم يتم خصم أي مبلغ. يمكنك المحاولة مرة أخرى لإتمام الدفع، أو العودة إلى سلة التسوق.';
+
+  @override
+  String get returnToCart => 'العودة إلى السلة';
+
+  @override
+  String get continueAction => 'متابعة';
+
+  @override
+  String get promoPaymentBookedBody => 'تم حجز إعلانك وسيظهر الأسبوع القادم.';
+
+  @override
+  String get promoPaymentNotCompletedBody => 'لم يتم خصم أي مبلغ. يمكنك المحاولة مرة أخرى لإتمام الدفع، أو العودة إلى لوحة التحكم.';
+
+  @override
+  String get promoReturnToDashboard => 'العودة إلى لوحة التحكم';
+
+  @override
+  String get bookPromotion => 'احجز إعلاناً';
+
+  @override
+  String get bookPromotionSubtitle => 'روّج لمتجرك في الصفحة الرئيسية';
+
+  @override
+  String get promoBookingInterimNote => 'يحجز خانة \"متجر مميّز\" للأسبوع القادم (الأحد–السبت). اختر طريقة الدفع للمتابعة.';
+
+  @override
+  String get bookAndPay => 'احجز وادفع';
+
+  @override
+  String promoPerWeek(String price) {
+    return '$price د.ك / أسبوع';
+  }
+
+  @override
+  String get promoStartDay => 'يوم البدء';
+
+  @override
+  String get promoDays => 'الأيام';
+
+  @override
+  String promoSelectedTotal(String price) {
+    return 'الإجمالي: $price د.ك';
+  }
+
+  @override
+  String get promoTabBook => 'حجز';
+
+  @override
+  String get promoTabMyBookings => 'حجوزاتي';
+
+  @override
+  String get promoUpcomingWeek => 'الأسبوع القادم';
+
+  @override
+  String promoRateLine(String daily, String weekly) {
+    return '$daily/يوم · $weekly الأسبوع كامل';
+  }
+
+  @override
+  String promoFeedRateLine(String one, String two) {
+    return '$one لمنشور · $two لمنشورين';
+  }
+
+  @override
+  String get promoNeedsApproval => 'بانتظار الموافقة';
+
+  @override
+  String get promoByCategoryNote => 'التوفر يُعرض حسب الفئة';
+
+  @override
+  String get promoFeedWeekNote => 'أسبوع كامل · 1–2 منشور · بدون تحديد أيام';
+
+  @override
+  String get promoSoldOutWeek => 'محجوز بالكامل الأسبوع القادم';
+
+  @override
+  String get promoPickYourDays => 'اختر أيامك';
+
+  @override
+  String get promoPickCategoryFirst => 'اختر فئة ومنتجات لعرض توفر الأيام.';
+
+  @override
+  String get promoLegendPicked => 'مختار';
+
+  @override
+  String get promoLegendOpen => 'متاح';
+
+  @override
+  String get promoLegendFull => 'ممتلئ';
+
+  @override
+  String get promoTotalLabel => 'الإجمالي';
+
+  @override
+  String promoPriceKwd(String price) {
+    return '$price د.ك';
+  }
+
+  @override
+  String promoFullWeekNudge(String price, String saving) {
+    return 'احجز الأسبوع كامل بـ $price د.ك — أقل بـ $saving د.ك من هذه الأيام.';
+  }
+
+  @override
+  String get promoExtendFullWeek => 'مدّد لأسبوع كامل';
+
+  @override
+  String get promoProductToFeature => 'المنتج المميّز';
+
+  @override
+  String get promoChooseProduct => 'اختر منتجًا';
+
+  @override
+  String get promoChoosePosts => 'اختر 1–2 منشور';
+
+  @override
+  String get promoChooseCategory => 'اختر فئة';
+
+  @override
+  String get promoCategory => 'الفئة';
+
+  @override
+  String get promoPinProducts => 'منتجات للتثبيت (1–2)';
+
+  @override
+  String get promoPostsToSponsor => 'منشورات للترويج';
+
+  @override
+  String get promoBannerImage => 'صورة البانر';
+
+  @override
+  String get promoUploadBanner => 'ارفع صورة البانر';
+
+  @override
+  String get promoBannerReviewNote => 'تتم مراجعة تصاميم البانر من قبل فريقنا قبل نشرها.';
+
+  @override
+  String get promoChange => 'تغيير';
+
+  @override
+  String get promoChangeSelection => 'تغيير الاختيار';
+
+  @override
+  String get promoSearchProducts => 'ابحث في منتجاتك';
+
+  @override
+  String get promoNoProducts => 'لم تُضِف أي منتجات بعد.';
+
+  @override
+  String get promoSelectProduct => 'اختيار المنتج';
+
+  @override
+  String promoSelectCount(int count) {
+    return 'اختيار $count';
+  }
+
+  @override
+  String promoBookAndPayAmount(String price) {
+    return 'احجز وادفع · $price د.ك';
+  }
+
+  @override
+  String promoUseCredit(String amount) {
+    return 'استخدم رصيد العروض · $amount د.ك متاح';
+  }
+
+  @override
+  String get promoCreditApplied => 'رصيد العروض';
+
+  @override
+  String get promoRemainingToPay => 'للدفع';
+
+  @override
+  String get promoConfirmBooking => 'تأكيد الحجز';
+
+  @override
+  String get promoCreditBookedTitle => 'تم تأكيد الحجز';
+
+  @override
+  String promoCreditBookedBody(String amount) {
+    return 'تم استخدام $amount د.ك من رصيد العروض — لا يوجد مبلغ مستحق. تم حجز إعلانك وسيظهر الأسبوع القادم.';
+  }
+
+  @override
+  String get promoCreditAdmin => 'أرصدة العروض';
+
+  @override
+  String get promoCreditAdminSubtitle => 'رصيد الشركاء المؤسسين والتعديلات اليدوية.';
+
+  @override
+  String get promoCreditLaunchRecharge => 'شحن الإطلاق';
+
+  @override
+  String get promoCreditLaunchRechargeDesc => 'يمنح رصيد الأسبوع الأول لكل متجر لم يُشحن بعد، ويجدول منحة الأسبوع الثاني بعد ٧ أيام. يمكن تشغيله مجددًا بأمان — تُتخطى المتاجر المشحونة مسبقًا.';
+
+  @override
+  String promoCreditPendingCount(String count) {
+    return '$count قيد الانتظار';
+  }
+
+  @override
+  String get promoCreditRunRecharge => 'تشغيل الشحن';
+
+  @override
+  String promoCreditRechargeConfirm(String count) {
+    return 'منح رصيد الأسبوع الأول لعدد $count متجر الآن؟ سيتم أيضًا جدولة منحة الأسبوع الثاني.';
+  }
+
+  @override
+  String promoCreditRechargeResult(String recharged, String skipped) {
+    return 'تم شحن $recharged، وتم تخطي $skipped.';
+  }
+
+  @override
+  String get promoCreditNoPending => 'لا توجد متاجر بانتظار رصيد التأسيس.';
+
+  @override
+  String get promoCreditSearchBoutiques => 'ابحث عن المتاجر';
+
+  @override
+  String get promoCreditFoundingBadge => 'مؤسس';
+
+  @override
+  String get promoCreditPendingBadge => 'قيد الانتظار';
+
+  @override
+  String get promoCreditAdjustTitle => 'تعديل رصيد العروض';
+
+  @override
+  String get promoCreditAmountHint => 'المبلغ بالدينار (بالسالب للخصم)';
+
+  @override
+  String get promoCreditReasonHint => 'السبب (مثال: رصيد إضافي)';
+
+  @override
+  String get promoCreditExpiryHint => 'ينتهي خلال (أيام) (٠ = بلا انتهاء)';
+
+  @override
+  String get promoCreditApply => 'تطبيق';
+
+  @override
+  String promoCreditAdjustResult(String applied, String balance) {
+    return 'تم تطبيق $applied د.ك. الرصيد الجديد $balance د.ك.';
+  }
+
+  @override
+  String get promoCreditAmountRequired => 'أدخل مبلغًا غير صفري.';
+
+  @override
+  String get foundingPartnerLabel => 'شريك مؤسس';
+
+  @override
+  String get foundingPartnerHint => 'يمنح رصيد عروض مجاني عند الإطلاق (الأسبوع الأول ثم الثاني). يُصرف الرصيد عبر شحن الإطلاق وليس الآن.';
+
+  @override
+  String get promoNoBookings => 'لم تحجز أي ترويج بعد.';
+
+  @override
+  String get promoGroupCurrent => 'نشطة وقادمة';
+
+  @override
+  String get promoGroupPast => 'سابقة';
+
+  @override
+  String get promoStatusActive => 'نشط';
+
+  @override
+  String get promoStatusPendingReview => 'قيد المراجعة';
+
+  @override
+  String get promoStatusAwaitingPayment => 'بانتظار الدفع';
+
+  @override
+  String get promoStatusRejected => 'مرفوض';
+
+  @override
+  String get promoStatusCancelled => 'ملغى';
+
+  @override
+  String get promoStatusExpired => 'منتهٍ';
+
+  @override
+  String get promoPlacementHomeBanner => 'بانر الرئيسية';
+
+  @override
+  String get promoPlacementFeaturedProduct => 'منتج مميّز';
+
+  @override
+  String get promoPlacementFeaturedBoutique => 'بوتيك مميّز';
+
+  @override
+  String get promoPlacementTopOfCategory => 'أعلى الفئة';
+
+  @override
+  String get promoPlacementFeedSponsored => 'ترويج في الموجز';
+
+  @override
+  String get promoBannerApprovals => 'موافقات البانر';
+
+  @override
+  String get promoBannerApprovalsSubtitle => 'راجع تصاميم بانر الرئيسية المدفوعة.';
+
+  @override
+  String get promoNoPendingBanners => 'لا توجد بانرات بانتظار المراجعة.';
+
+  @override
+  String get promoApprove => 'موافقة';
+
+  @override
+  String get promoReject => 'رفض';
+
+  @override
+  String get promoRejectReasonHint => 'السبب (اختياري)';
+
+  @override
+  String get promoBannerApproved => 'تمت الموافقة على البانر.';
+
+  @override
+  String get promoBannerRejected => 'تم رفض البانر.';
+
+  @override
+  String get promoRemove => 'إزالة';
+
+  @override
+  String get promoImageTooLarge => 'يجب أن تكون الصورة أقل من 5 ميغابايت. اختر ملفًا أصغر.';
+
+  @override
+  String get promoImageWrongType => 'هذا الملف ليس صورة. اختر JPG أو PNG أو WebP.';
 }

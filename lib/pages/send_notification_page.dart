@@ -48,6 +48,9 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
   }
 
   Future<void> _sendNotification() async {
+    // Re-entrancy guard: drop a rapid second tap before the disabled state
+    // rebuilds, so the notification can't be sent twice.
+    if (_isLoading) return;
     final l10n = AppLocalizations.of(context)!;
     final title = _titleController.text.trim();
     final body = _bodyController.text.trim();

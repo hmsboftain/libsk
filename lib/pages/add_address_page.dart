@@ -86,6 +86,9 @@ class _AddAddressPageState extends State<AddAddressPage> {
   }
 
   Future<void> _saveAddress() async {
+    // Re-entrancy guard: drop a rapid second tap before the disabled state
+    // rebuilds, so the address can't be saved twice.
+    if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);

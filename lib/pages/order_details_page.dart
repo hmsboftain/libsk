@@ -208,6 +208,9 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     required String category,
     required String description,
   }) async {
+    // Re-entrancy guard: drop a rapid second tap on the dialog's submit before
+    // it dismisses, so the dispute can't be filed twice.
+    if (_isSubmittingDispute) return;
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isSubmittingDispute = true);
 
@@ -499,6 +502,23 @@ class _OrderItemRow extends StatelessWidget {
                   l10n.quantityLabel(item.quantity.toString()),
                   style: AppTextStyles.bodyMedium,
                 ),
+                if (item.specialRequest.trim().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.specialRequest,
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.deepAccent,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    item.specialRequest,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.secondaryText,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

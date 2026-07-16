@@ -9,9 +9,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:libsk/l10n/app_localizations.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_jailbreak_detection/flutter_jailbreak_detection.dart';
+import 'services/deep_link_service.dart';
 import 'services/firestore_service.dart';
 import 'services/currency_service.dart';
 import 'core/services/performance_service.dart';
@@ -91,11 +91,14 @@ Future<void> main() async {
 
     runApp(const LibskApp());
 
+    // Catches libsk://payment-result deep links from the payzahRedirect Cloud
+    // Function (including the link that launched the app, replayed by
+    // app_links) and rebroadcasts them to the payment UI.
+    DeepLinkService.instance.init();
+
     // Deferred off the cold-start critical path (finding 4.4): the FX HTTP
-    // round-trip and Stripe.applySettings no longer block the first feed frame.
-    // Neither is needed to render the feed; Stripe is only required at checkout.
+    // round-trip is not needed to render the feed.
     unawaited(CurrencyService.instance.fetchRates());
-    unawaited(_initStripe());
 
     Future.delayed(const Duration(seconds: 2), () async {
       try {
@@ -114,14 +117,6 @@ Future<void> main() async {
       debugPrint('Startup error before Firebase init: $error\n$stack');
     }
   });
-}
-
-/// Stripe init, deferred off the cold-start path (finding 4.4). Only needed at
-/// checkout, so it must not block the first feed frame.
-Future<void> _initStripe() async {
-  Stripe.publishableKey =
-      'pk_test_51TOOjvCTdAUQnhiZ4ArRKUYtg2TIuKEc3j0LeMDk036JhqGoPlsVV6ZdO4resgC8XJg5C8fZBhkhMROon5Go9Flf00SX2GiCmu';
-  await Stripe.instance.applySettings();
 }
 
 class LibskApp extends StatefulWidget {

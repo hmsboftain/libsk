@@ -6,8 +6,10 @@ import 'package:libsk/l10n/app_localizations.dart';
 import '../core/constants/countries.dart';
 import '../services/currency_service.dart';
 import '../services/firestore_service.dart';
+import '../widgets/added_to_cart_sheet.dart';
 import '../widgets/error_state_widget.dart';
 import '../widgets/theme.dart';
+import 'cart_page.dart';
 
 String _fmt(double kwd) {
   final service = CurrencyService.instance;
@@ -97,6 +99,7 @@ class ProductPage extends StatefulWidget {
 class _ProductPageState extends State<ProductPage> {
   final _pageController = PageController();
   final _firestore = FirebaseFirestore.instance;
+  final _specialRequestController = TextEditingController();
 
   int _selectedImageIndex = 0;
   String _selectedSize = '';
@@ -104,6 +107,10 @@ class _ProductPageState extends State<ProductPage> {
   bool _showProductDetails = false;
   bool _liked = false;
   bool _isLoadingLike = true;
+
+  // Debounce guard for Add to Cart — blocks a rapid second tap from adding the
+  // same item twice while the first add is still in flight.
+  bool _isAddingToCart = false;
 
   // Per-boutique setting: whether the live stock count is shown to customers.
   // Defaults to true; overridden once the boutique settings doc is read.
@@ -142,6 +149,7 @@ class _ProductPageState extends State<ProductPage> {
   @override
   void dispose() {
     _pageController.dispose();
+    _specialRequestController.dispose();
     super.dispose();
   }
 
@@ -420,6 +428,10 @@ class _ProductPageState extends State<ProductPage> {
   }
 
   Future<void> _addProductToCart(Map<String, dynamic> data) async {
+    // Re-entrancy guard: a second tap that lands before the disabled button has
+    // rebuilt is dropped here, so the item can't be added twice.
+    if (_isAddingToCart) return;
+
     final l10n = AppLocalizations.of(context)!;
     final images = _galleryImages(data);
     final stock = _parseStock(data);
@@ -454,6 +466,8 @@ class _ProductPageState extends State<ProductPage> {
       return;
     }
 
+    setState(() => _isAddingToCart = true);
+    var added = false;
     try {
       await FirestoreService.addToCart(
         productId: widget.productId,
@@ -464,32 +478,42 @@ class _ProductPageState extends State<ProductPage> {
         size: _selectedSize,
         color: colors.isNotEmpty ? _selectedColor : '',
         price: _parsePrice(data),
+        specialRequest: _specialRequestController.text,
       );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.itemAddedToCart),
-          duration: const Duration(seconds: 1),
-        ),
-      );
+      added = true;
     } catch (e) {
-      if (!mounted) return;
-      final detail = e is Exception
-          ? e.toString().replaceFirst('Exception: ', '')
-          : null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.primaryText,
-          content: Text(
-            (detail == null || detail.isEmpty)
-                ? l10n.somethingWentWrong
-                : detail,
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.background,
+      if (mounted) {
+        final detail = e is Exception
+            ? e.toString().replaceFirst('Exception: ', '')
+            : null;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.primaryText,
+            content: Text(
+              (detail == null || detail.isEmpty)
+                  ? l10n.somethingWentWrong
+                  : detail,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.background,
+              ),
             ),
+            duration: const Duration(seconds: 2),
           ),
-          duration: const Duration(seconds: 2),
-        ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isAddingToCart = false);
+    }
+
+    if (!added || !mounted) return;
+    // Note is consumed — clear it so it can't silently carry to a later add.
+    _specialRequestController.clear();
+
+    final goToCart = await AddedToCartSheet.show(context);
+    if (goToCart == true && mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const CartPage()),
       );
     }
   }
@@ -723,6 +747,9 @@ class _ProductPageState extends State<ProductPage> {
     }
 
     return SingleChildScrollView(
+      // Dragging/scrolling dismisses the keyboard, so the customer can scroll
+      // away from the Special Request field without it staying stuck open.
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -907,6 +934,40 @@ class _ProductPageState extends State<ProductPage> {
                   ),
                 ],
 
+                // ── Special request (optional, per item) ──────────────────
+                const SizedBox(height: 20),
+                Text(l10n.specialRequest, style: AppTextStyles.labelLarge),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _specialRequestController,
+                  minLines: 2,
+                  maxLines: 4,
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
+                  style: AppTextStyles.bodyMedium,
+                  decoration: InputDecoration(
+                    hintText: l10n.specialRequestHint,
+                    hintStyle: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.secondaryText,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.field,
+                    contentPadding: const EdgeInsets.all(14),
+                    border: const OutlineInputBorder(
+                      borderRadius: BorderRadius.zero,
+                      borderSide: BorderSide(color: AppColors.border, width: 0.5),
+                    ),
+                    enabledBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.zero,
+                      borderSide: BorderSide(color: AppColors.border, width: 0.5),
+                    ),
+                    focusedBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.zero,
+                      borderSide: BorderSide(color: AppColors.deepAccent, width: 1),
+                    ),
+                  ),
+                ),
+
                 const SizedBox(height: 28),
 
                 // ── Add to cart ──────────────────────────────────────────
@@ -914,16 +975,29 @@ class _ProductPageState extends State<ProductPage> {
                   width: double.infinity,
                   height: 54,
                   child: ElevatedButton(
-                    onPressed: () => _addProductToCart(data),
+                    onPressed: _isAddingToCart
+                        ? null
+                        : () => _addProductToCart(data),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.deepAccent,
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: AppColors.softAccent,
+                      disabledForegroundColor: Colors.white,
                       elevation: 0,
                       shape: const RoundedRectangleBorder(
                         borderRadius: BorderRadius.zero,
                       ),
                     ),
-                    child: Text(l10n.addToCart, style: AppTextStyles.button),
+                    child: _isAddingToCart
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(l10n.addToCart, style: AppTextStyles.button),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -954,7 +1028,12 @@ class _ProductPageState extends State<ProductPage> {
       backgroundColor: AppColors.background,
       // top: false so the carousel runs flush to the screen edge; the floating
       // back / favourite buttons inset themselves below the status bar.
-      body: SafeArea(
+      // Tap anywhere off a field (e.g. the Special Request box) to drop the
+      // keyboard; child gestures still win, so chips/gallery keep working.
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
         top: false,
         child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: _productStream,
@@ -981,6 +1060,7 @@ class _ProductPageState extends State<ProductPage> {
             }
             return _buildProductContent(_resolveProductData(snapshot.data));
           },
+        ),
         ),
       ),
     );

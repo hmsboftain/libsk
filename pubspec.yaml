@@ -28,7 +28,11 @@ dependencies:
     sdk: flutter
   intl: ^0.20.2
   cloud_functions: ^6.1.0
-  flutter_stripe: ^10.1.1
+  app_links: ^6.4.0
+  webview_flutter: ^4.10.0
+  # Direct dependency for Android-only WebView config (third-party cookies
+  # for 3-D Secure iframes) — see PayzahWebViewPage.
+  webview_flutter_android: ^4.13.0
   google_sign_in: ^6.2.1
   shared_preferences: ^2.3.3
   http: ^1.6.0

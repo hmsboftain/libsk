@@ -32,6 +32,15 @@
 				<string>com.googleusercontent.apps.836617178098-9k32tnbq495n87mj42fjsg9c99p54jfg</string>
 			</array>
 		</dict>
+		<!-- Payzah payment redirect: libsk://payment-result?... -->
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>libsk</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>

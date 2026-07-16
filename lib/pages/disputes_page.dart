@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../widgets/error_state_widget.dart';
 import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
 import '../services/currency_service.dart';
+import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
 
 String _fmt(double kwd) {
@@ -121,8 +121,7 @@ class _DisputesPageState extends State<DisputesPage> {
   Future<void> _updateDisputeStatus({
     required String disputeId,
     required String newStatus,
-    required String paymentIntentId,
-    required double orderTotal,
+    required String orderId,
   }) async {
     final l10n = AppLocalizations.of(context)!;
 
@@ -136,9 +135,25 @@ class _DisputesPageState extends State<DisputesPage> {
             side: BorderSide(color: AppColors.border, width: 0.5),
           ),
           title: Text(l10n.resolveDispute, style: AppTextStyles.headingSmall),
-          content: Text(
-            l10n.resolveDisputeQuestion,
-            style: AppTextStyles.bodyMedium,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.resolveDisputeQuestion,
+                style: AppTextStyles.bodyMedium,
+              ),
+              const SizedBox(height: 10),
+              // Refunds are manual (Payzah dashboard) — make sure the admin
+              // knows this button only records the outcome.
+              Text(
+                l10n.refundManualNote,
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.secondaryText,
+                  height: 1.4,
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -183,18 +198,13 @@ class _DisputesPageState extends State<DisputesPage> {
       if (confirm == null) return;
 
       if (confirm == 'resolve_with_refund') {
-        if (paymentIntentId.isEmpty) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.noPaymentIntentFound)),
-          );
-          return;
-        }
-
         try {
-          final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
-              .httpsCallable('processRefund');
-          await callable.call({'paymentIntentId': paymentIntentId});
+          // Manual refund process: the money was refunded by hand in the
+          // Payzah merchant dashboard — this records the outcome on the
+          // order (status + who/when audit) and the dispute. No gateway call.
+          if (orderId.isNotEmpty) {
+            await FirestoreService.markOrderRefundedAsAdmin(orderId);
+          }
 
           await FirebaseFirestore.instance
               .collection('disputes')
@@ -212,7 +222,7 @@ class _DisputesPageState extends State<DisputesPage> {
         } catch (e) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.failedToProcessRefund)),
+            SnackBar(content: Text(l10n.failedToUpdateDispute)),
           );
         }
         return;
@@ -415,8 +425,7 @@ class _DisputeCard extends StatelessWidget {
   final Future<void> Function({
     required String disputeId,
     required String newStatus,
-    required String paymentIntentId,
-    required double orderTotal,
+    required String orderId,
   }) onStatusUpdate;
 
   const _DisputeCard({required this.doc, required this.onStatusUpdate});
@@ -433,7 +442,7 @@ class _DisputeCard extends StatelessWidget {
     final category = data['category']?.toString() ?? '-';
     final description = data['description']?.toString() ?? '';
     final status = data['status']?.toString() ?? 'Open';
-    final paymentIntentId = data['paymentIntentId']?.toString() ?? '';
+    final orderId = data['orderId']?.toString() ?? '';
     final refundIssued = data['refundIssued'] == true;
 
     final orderTotalValue = data['orderTotal'] ?? 0;
@@ -586,8 +595,7 @@ class _DisputeCard extends StatelessWidget {
                   onTap: () => onStatusUpdate(
                     disputeId: disputeId,
                     newStatus: s,
-                    paymentIntentId: paymentIntentId,
-                    orderTotal: orderTotal,
+                    orderId: orderId,
                   ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(

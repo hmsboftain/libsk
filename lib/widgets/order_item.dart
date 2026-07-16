@@ -69,6 +69,7 @@ class OrderItem {
         color: itemMap['color']?.toString() ?? '',
         price: price,
         quantity: quantity,
+        specialRequest: itemMap['specialRequest']?.toString() ?? '',
       );
     }).toList();
 

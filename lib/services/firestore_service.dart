@@ -8,6 +8,35 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/services/analytics_service.dart';
 import '../models/admin_permissions.dart';
+import '../models/promo_availability.dart';
+
+/// Result of `createPromoBooking` — enough to drive the Payzah payment, or to
+/// know it was fully covered by promo credit and no payment is needed.
+class PromoBookingResult {
+  final String bookingId;
+
+  /// Null when [creditOnly] — a fully-credit-funded booking has no payment
+  /// attempt and skips the Payzah page entirely.
+  final String? paymentAttemptId;
+  final double priceKwd;
+
+  /// Credit applied to this booking and the remainder charged via Payzah (KWD).
+  final double amountFromCredit;
+  final double amountToCharge;
+
+  /// True when credit covered the whole price: the booking is already active (or
+  /// awaiting banner review) and there is nothing to pay.
+  final bool creditOnly;
+
+  const PromoBookingResult({
+    required this.bookingId,
+    required this.paymentAttemptId,
+    required this.priceKwd,
+    required this.amountFromCredit,
+    required this.amountToCharge,
+    required this.creditOnly,
+  });
+}
 
 class FirestoreService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -204,11 +233,69 @@ class FirestoreService {
 
   // ── Cart ───────────────────────────────────────────────────────────────────
 
-  static CollectionReference<Map<String, dynamic>> get _cartItemsRef {
+  // Cart is stored per boutique: users/{owner}/carts/{boutiqueId} holds a
+  // summary doc (name, logo, itemCount) and an items/{itemId} subcollection.
+  static CollectionReference<Map<String, dynamic>> get _cartsRef {
     return _firestore
         .collection('users')
         .doc(_cartOwnerId)
-        .collection('cart_items');
+        .collection('carts');
+  }
+
+  static CollectionReference<Map<String, dynamic>> _cartItemsRef(
+    String boutiqueId,
+  ) {
+    return _cartsRef.doc(boutiqueId).collection('items');
+  }
+
+  /// Streams the user's per-boutique cart summary docs (one per boutique),
+  /// most recently updated first. Drives the cart switcher.
+  static Stream<QuerySnapshot<Map<String, dynamic>>> getCartsStream() {
+    return _cartsRef.orderBy('updatedAt', descending: true).snapshots();
+  }
+
+  /// Total line-item count across all of the user's boutique carts, for the
+  /// header badge. Sums the maintained `itemCount` on each summary doc so no
+  /// collection-group query (and matching index/rule) is required.
+  static Stream<int> getCartItemCountStream() {
+    return _cartsRef.snapshots().map(
+      (snap) => snap.docs.fold<int>(
+        0,
+        (total, d) => total + ((d.data()['itemCount'] as num?)?.toInt() ?? 0),
+      ),
+    );
+  }
+
+  /// Creates the per-boutique cart summary doc if it doesn't exist yet, pulling
+  /// the boutique name/logo so the switcher can render without reading items.
+  static Future<void> _ensureCartSummary({
+    required DocumentReference<Map<String, dynamic>> cartDocRef,
+    required String boutiqueId,
+    Map<String, dynamic>? productData,
+  }) async {
+    final existing = await cartDocRef.get();
+    if (existing.exists) return;
+
+    String boutiqueName = (productData?['boutiqueName'] ?? '').toString();
+    String boutiqueLogoUrl = '';
+    try {
+      final bDoc =
+          await _firestore.collection('boutiques').doc(boutiqueId).get();
+      final b = bDoc.data();
+      if (b != null) {
+        if (boutiqueName.isEmpty) boutiqueName = (b['name'] ?? '').toString();
+        boutiqueLogoUrl = (b['logoPath'] ?? '').toString();
+      }
+    } catch (_) {}
+
+    await cartDocRef.set({
+      'boutiqueId': boutiqueId,
+      'boutiqueName': boutiqueName,
+      'boutiqueLogoUrl': boutiqueLogoUrl,
+      'itemCount': 0,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   static Future<void> addToCart({
@@ -220,6 +307,7 @@ class FirestoreService {
     required String size,
     String color = '',
     required double price,
+    String specialRequest = '',
   }) async {
     final productRef = _firestore
         .collection('boutiques')
@@ -243,16 +331,15 @@ class FirestoreService {
       throw Exception('$title is out of stock');
     }
 
-    final cartRef = _firestore
-        .collection('users')
-        .doc(_cartOwnerId)
-        .collection('cart_items');
+    final cartDocRef = _cartsRef.doc(boutiqueId);
+    final itemsRef = cartDocRef.collection('items');
 
     final normalizedColor = color.trim();
+    final normalizedRequest = specialRequest.trim();
     final docId = normalizedColor.isEmpty
         ? '${productId}_$size'
         : '${productId}_${size}_$normalizedColor';
-    final docRef = cartRef.doc(docId);
+    final docRef = itemsRef.doc(docId);
     final doc = await docRef.get();
 
     if (doc.exists) {
@@ -267,9 +354,23 @@ class FirestoreService {
 
       await docRef.update({
         'quantity': currentQuantity + 1,
+        // Same product+size+colour is one cart line; a fresh note replaces the
+        // stored one, an empty note leaves the existing note untouched.
+        if (normalizedRequest.isNotEmpty) 'specialRequest': normalizedRequest,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      // Bump the cart to the top of the switcher.
+      await cartDocRef.set({
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     } else {
+      // Ensure the boutique cart summary exists before its first item.
+      await _ensureCartSummary(
+        cartDocRef: cartDocRef,
+        boutiqueId: boutiqueId,
+        productData: productData,
+      );
+
       await docRef.set({
         'productId': productId,
         'boutiqueId': boutiqueId,
@@ -278,36 +379,48 @@ class FirestoreService {
         'description': description,
         'size': size,
         if (normalizedColor.isNotEmpty) 'color': normalizedColor,
+        if (normalizedRequest.isNotEmpty) 'specialRequest': normalizedRequest,
         'price': price,
         'quantity': 1,
         // Store madeToOrder flag so checkout can detect it
         if (productData?['madeToOrder'] == true) 'madeToOrder': true,
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // New line item — maintain the count used by the header badge.
+      await cartDocRef.set({
+        'itemCount': FieldValue.increment(1),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     }
 
     AnalyticsService.instance.logAddToCart(productId, title, boutiqueId, price);
   }
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>> getCartItemsStream() {
-    return _cartItemsRef.orderBy('createdAt', descending: true).snapshots();
+  static Stream<QuerySnapshot<Map<String, dynamic>>> getCartItemsStream(
+    String boutiqueId,
+  ) {
+    return _cartItemsRef(boutiqueId)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
   }
 
   static Future<void> updateCartItemQuantity({
+    required String boutiqueId,
     required String docId,
     required int quantity,
   }) async {
     if (quantity <= 0) {
-      await _cartItemsRef.doc(docId).delete();
+      await _removeCartItem(boutiqueId, docId);
       return;
     }
 
-    final cartItemDoc = await _cartItemsRef.doc(docId).get();
+    final itemsRef = _cartItemsRef(boutiqueId);
+    final cartItemDoc = await itemsRef.doc(docId).get();
     if (!cartItemDoc.exists) throw Exception('Cart item not found');
 
     final cartItemData = cartItemDoc.data();
     final productId = cartItemData?['productId']?.toString() ?? '';
-    final boutiqueId = cartItemData?['boutiqueId']?.toString() ?? '';
     final title = cartItemData?['title']?.toString() ?? 'Product';
 
     final productDoc = await _firestore
@@ -330,14 +443,48 @@ class FirestoreService {
       throw Exception('Only $currentStock left in stock');
     }
 
-    await _cartItemsRef.doc(docId).update({
+    await itemsRef.doc(docId).update({
       'quantity': quantity,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    await _cartsRef.doc(boutiqueId).set({
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
-  static Future<void> deleteCartItem(String docId) async {
-    await _cartItemsRef.doc(docId).delete();
+  static Future<void> deleteCartItem({
+    required String boutiqueId,
+    required String docId,
+  }) async {
+    await _removeCartItem(boutiqueId, docId);
+  }
+
+  /// Deletes a line item and keeps the summary in sync: decrements the
+  /// maintained count, and deletes the whole boutique cart once its last item
+  /// is gone, so the switcher never shows an empty cart.
+  static Future<void> _removeCartItem(String boutiqueId, String docId) async {
+    final cartDocRef = _cartsRef.doc(boutiqueId);
+    await cartDocRef.collection('items').doc(docId).delete();
+
+    final remaining = await cartDocRef.collection('items').limit(1).get();
+    if (remaining.docs.isEmpty) {
+      await cartDocRef.delete();
+    } else {
+      await cartDocRef.set({
+        'itemCount': FieldValue.increment(-1),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+  }
+
+  /// Empties a boutique's cart entirely (used after a successful checkout).
+  static Future<void> clearBoutiqueCart(String boutiqueId) async {
+    final cartDocRef = _cartsRef.doc(boutiqueId);
+    final items = await cartDocRef.collection('items').get();
+    for (final doc in items.docs) {
+      await doc.reference.delete();
+    }
+    await cartDocRef.delete();
   }
 
   static Future<void> mergeGuestCartToUser() async {
@@ -349,85 +496,106 @@ class FirestoreService {
     final guestId = _guestCartId;
     if (guestId == null || guestId.isEmpty) return;
 
-    final guestCartRef = _firestore
-        .collection('users')
-        .doc(guestId)
-        .collection('cart_items');
+    final guestCartsRef =
+        _firestore.collection('users').doc(guestId).collection('carts');
+    final userCartsRef =
+        _firestore.collection('users').doc(user.uid).collection('carts');
 
-    final guestItems = await guestCartRef.get();
-    if (guestItems.docs.isEmpty) return;
+    final guestCarts = await guestCartsRef.get();
+    if (guestCarts.docs.isEmpty) return;
 
-    final userCartRef = _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('cart_items');
+    for (final guestCart in guestCarts.docs) {
+      final boutiqueId = guestCart.id;
+      final guestMeta = guestCart.data();
+      final guestItemsRef = guestCartsRef.doc(boutiqueId).collection('items');
+      final userItemsRef = userCartsRef.doc(boutiqueId).collection('items');
 
-    for (final doc in guestItems.docs) {
-      final data = doc.data();
-      final productId = data['productId']?.toString() ?? '';
-      final boutiqueId = data['boutiqueId']?.toString() ?? '';
+      final guestItems = await guestItemsRef.get();
 
-      if (productId.isEmpty || boutiqueId.isEmpty) {
-        await guestCartRef.doc(doc.id).delete();
-        continue;
+      for (final doc in guestItems.docs) {
+        final data = doc.data();
+        final productId = data['productId']?.toString() ?? '';
+        final itemBoutiqueId = data['boutiqueId']?.toString() ?? '';
+
+        if (productId.isEmpty || itemBoutiqueId.isEmpty) {
+          await guestItemsRef.doc(doc.id).delete();
+          continue;
+        }
+
+        final productDoc = await _firestore
+            .collection('boutiques')
+            .doc(itemBoutiqueId)
+            .collection('products')
+            .doc(productId)
+            .get();
+
+        if (!productDoc.exists) {
+          await guestItemsRef.doc(doc.id).delete();
+          continue;
+        }
+
+        final stockValue = productDoc.data()?['stock'] ?? 0;
+        final int currentStock = stockValue is int
+            ? stockValue
+            : int.tryParse(stockValue.toString()) ?? 0;
+
+        if (currentStock <= 0) {
+          await guestItemsRef.doc(doc.id).delete();
+          continue;
+        }
+
+        final existingDoc = await userItemsRef.doc(doc.id).get();
+        final guestQuantityValue = data['quantity'] ?? 1;
+        final int guestQuantity = guestQuantityValue is int
+            ? guestQuantityValue
+            : int.tryParse(guestQuantityValue.toString()) ?? 1;
+
+        if (existingDoc.exists) {
+          final currentQuantityValue = existingDoc.data()?['quantity'] ?? 1;
+          final int currentQuantity = currentQuantityValue is int
+              ? currentQuantityValue
+              : int.tryParse(currentQuantityValue.toString()) ?? 1;
+
+          final mergedQuantity = currentQuantity + guestQuantity;
+          final safeQuantity =
+              mergedQuantity > currentStock ? currentStock : mergedQuantity;
+
+          await userItemsRef.doc(doc.id).update({
+            'quantity': safeQuantity,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        } else {
+          final safeQuantity =
+              guestQuantity > currentStock ? currentStock : guestQuantity;
+
+          await userItemsRef.doc(doc.id).set({
+            ...data,
+            'quantity': safeQuantity,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+
+        await guestItemsRef.doc(doc.id).delete();
       }
 
-      final productDoc = await _firestore
-          .collection('boutiques')
-          .doc(boutiqueId)
-          .collection('products')
-          .doc(productId)
-          .get();
-
-      if (!productDoc.exists) {
-        await guestCartRef.doc(doc.id).delete();
-        continue;
-      }
-
-      final stockValue = productDoc.data()?['stock'] ?? 0;
-      final int currentStock = stockValue is int
-          ? stockValue
-          : int.tryParse(stockValue.toString()) ?? 0;
-
-      if (currentStock <= 0) {
-        await guestCartRef.doc(doc.id).delete();
-        continue;
-      }
-
-      final existingDoc = await userCartRef.doc(doc.id).get();
-      final guestQuantityValue = data['quantity'] ?? 1;
-      final int guestQuantity = guestQuantityValue is int
-          ? guestQuantityValue
-          : int.tryParse(guestQuantityValue.toString()) ?? 1;
-
-      if (existingDoc.exists) {
-        final currentQuantityValue = existingDoc.data()?['quantity'] ?? 1;
-        final int currentQuantity = currentQuantityValue is int
-            ? currentQuantityValue
-            : int.tryParse(currentQuantityValue.toString()) ?? 1;
-
-        final mergedQuantity = currentQuantity + guestQuantity;
-        final safeQuantity = mergedQuantity > currentStock
-            ? currentStock
-            : mergedQuantity;
-
-        await userCartRef.doc(doc.id).update({
-          'quantity': safeQuantity,
+      // Rebuild the user's summary doc for this boutique from the merged
+      // items, then drop the guest cart.
+      final mergedItems = await userItemsRef.get();
+      if (mergedItems.docs.isNotEmpty) {
+        final userCartDocRef = userCartsRef.doc(boutiqueId);
+        final existingSummary = await userCartDocRef.get();
+        await userCartDocRef.set({
+          'boutiqueId': boutiqueId,
+          'boutiqueName': guestMeta['boutiqueName'] ?? '',
+          'boutiqueLogoUrl': guestMeta['boutiqueLogoUrl'] ?? '',
+          'itemCount': mergedItems.docs.length,
+          if (!existingSummary.exists)
+            'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
-        });
-      } else {
-        final safeQuantity = guestQuantity > currentStock
-            ? currentStock
-            : guestQuantity;
-
-        await userCartRef.doc(doc.id).set({
-          ...data,
-          'quantity': safeQuantity,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        }, SetOptions(merge: true));
       }
 
-      await guestCartRef.doc(doc.id).delete();
+      await guestCartsRef.doc(boutiqueId).delete();
     }
   }
 
@@ -436,19 +604,20 @@ class FirestoreService {
   static CollectionReference<Map<String, dynamic>> get _ordersRef =>
       _firestore.collection('users').doc(_uid).collection('orders');
 
-  /// Creates an order via the Cloud Function.
+  /// Creates an order via the Cloud Function (Payzah redirect flow: the order
+  /// starts as "Pending Payment" and the returned [CreateOrderResult.paymentAttemptId]
+  /// is handed to `initializePayzahPayment`).
   ///
   /// [discountCodeId] and [discountAmount] are optional — only pass them when
   /// a discount code has been validated on the checkout page.
   ///
   /// [estimatedDays] is only relevant when [deliveryMethod] == "Made to Order".
-  static Future<String> createOrder({
+  static Future<CreateOrderResult> createOrder({
     required List<Map<String, dynamic>> items,
     required int itemCount,
     required double total,
     String? deliveryMethod,
     String? paymentMethod,
-    String? paymentIntentId,
     // ── Discount code (feature #8) ──────────────────────────
     String? discountCodeId,
     double? discountAmount,
@@ -464,7 +633,7 @@ class FirestoreService {
       'items': items,
       'deliveryMethod': deliveryMethod ?? '',
       'paymentMethod': paymentMethod ?? '',
-      'paymentIntentId': paymentIntentId ?? '',
+      'paymentProvider': 'payzah',
       if (discountCodeId != null && discountCodeId.isNotEmpty) ...{
         'discountCodeId': discountCodeId,
         'discountAmount': discountAmount ?? 0,
@@ -476,12 +645,74 @@ class FirestoreService {
     final result = await callable.call(payload);
     final data = Map<String, dynamic>.from(result.data as Map);
     final orderNumber = data['orderNumber']?.toString();
+    final orderId = data['orderId']?.toString();
+    final paymentAttemptId = data['paymentAttemptId']?.toString();
 
     if (orderNumber == null || orderNumber.isEmpty) {
       throw Exception('Order number missing from server response');
     }
+    if (paymentAttemptId == null || paymentAttemptId.isEmpty) {
+      throw Exception('Payment attempt id missing from server response');
+    }
 
-    return orderNumber;
+    return CreateOrderResult(
+      orderNumber: orderNumber,
+      orderId: orderId ?? '',
+      paymentAttemptId: paymentAttemptId,
+    );
+  }
+
+  /// Superadmin bookkeeping for the manual refund process: money is refunded
+  /// by hand in the Payzah merchant dashboard first, then this records the
+  /// outcome — "Refunded" on all three order copies, with who marked it and
+  /// when stamped on the global order. No gateway API call is involved.
+  /// Firestore rules restrict these order writes to admins.
+  static Future<void> markOrderRefundedAsAdmin(String globalOrderId) async {
+    final adminUser = _auth.currentUser;
+    if (adminUser == null) throw Exception("User not logged in");
+
+    final globalRef = _firestore.collection('global_orders').doc(globalOrderId);
+    final snap = await globalRef.get();
+    if (!snap.exists) throw Exception('Order not found');
+    final data = snap.data()!;
+
+    await globalRef.update({
+      'status': 'Refunded',
+      'refundedBy': adminUser.uid,
+      'refundedByEmail': adminUser.email ?? '',
+      'refundedAt': FieldValue.serverTimestamp(),
+    });
+
+    final customerUid = data['customerUid']?.toString() ?? '';
+    final sourceUserOrderId = data['sourceUserOrderId']?.toString() ?? '';
+    if (customerUid.isNotEmpty && sourceUserOrderId.isNotEmpty) {
+      await _firestore
+          .collection('users')
+          .doc(customerUid)
+          .collection('orders')
+          .doc(sourceUserOrderId)
+          .update({'status': 'Refunded'});
+    }
+
+    final items = data['items'];
+    if (items is List && sourceUserOrderId.isNotEmpty) {
+      final boutiqueIds = <String>{};
+      for (final item in items) {
+        final id = (item is Map ? item['boutiqueId'] : null)?.toString() ?? '';
+        if (id.isNotEmpty) boutiqueIds.add(id);
+      }
+      for (final boutiqueId in boutiqueIds) {
+        final boutiqueOrders = await _firestore
+            .collection('boutiques')
+            .doc(boutiqueId)
+            .collection('orders')
+            .where('sourceUserOrderId', isEqualTo: sourceUserOrderId)
+            .get();
+        for (final doc in boutiqueOrders.docs) {
+          await doc.reference.update({'status': 'Refunded'});
+        }
+      }
+    }
   }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> getOrdersStream() {
@@ -607,6 +838,151 @@ class FirestoreService {
       throw Exception('Payment URL missing from server response');
     }
     return paymentUrl;
+  }
+
+  /// Books a weekly promo placement via the `createPromoBooking` Cloud Function.
+  ///
+  /// The server derives the boutique, verifies targets, enforces availability
+  /// and computes the price — the client sends only the placement, its targets
+  /// and a payment method (never a price). Returns the ids needed to drive the
+  /// Payzah payment: pass [PromoBookingResult.paymentAttemptId] to the promo
+  /// payment page, which runs the same Payzah flow as customer checkout.
+  /// Day-based placements (all but feed) require [startDay] (0=Sun…6=Sat) and
+  /// [numDays] (1–7). Targets are one unit: [productId] for featured_product;
+  /// [category] + [productIds] (1–2) for top_of_category; [targetProductIds]
+  /// (1–2 posts) for feed; [bannerImageUrl] for home_banner.
+  static Future<PromoBookingResult> createPromoBooking({
+    required String placementType,
+    required String paymentMethod,
+    int? startDay,
+    int? numDays,
+    String? productId,
+    List<String>? targetProductIds,
+    String? category,
+    List<String>? productIds,
+    String? bannerImageUrl,
+    bool useCredit = false,
+  }) async {
+    final callable = _functions.httpsCallable('createPromoBooking');
+    final result = await callable.call({
+      'placementType': placementType,
+      'paymentMethod': paymentMethod,
+      'useCredit': useCredit,
+      if (startDay != null) 'startDay': startDay,
+      if (numDays != null) 'numDays': numDays,
+      if (productId != null) 'productId': productId,
+      if (targetProductIds != null) 'targetProductIds': targetProductIds,
+      if (category != null) 'category': category,
+      if (productIds != null) 'productIds': productIds,
+      if (bannerImageUrl != null) 'bannerImageUrl': bannerImageUrl,
+    });
+    final data = Map<String, dynamic>.from(result.data as Map);
+    final attemptId = data['paymentAttemptId']?.toString();
+    return PromoBookingResult(
+      bookingId: data['bookingId']?.toString() ?? '',
+      paymentAttemptId: (attemptId == null || attemptId.isEmpty) ? null : attemptId,
+      priceKwd: (data['priceKwd'] as num?)?.toDouble() ?? 0,
+      amountFromCredit: (data['amountFromCredit'] as num?)?.toDouble() ?? 0,
+      amountToCharge: (data['amountToCharge'] as num?)?.toDouble() ?? 0,
+      creditOnly: data['creditOnly'] == true,
+    );
+  }
+
+  /// Live availability + the server-computed price tables for the upcoming
+  /// bookable week (next Sun–Sat, Asia/Kuwait). Approved-owner gated server-side.
+  /// The returned [PromoAvailability] is the ONLY source of prices the dashboard
+  /// displays — see the class docs on price integrity.
+  static Future<PromoAvailability> getPromoAvailability() async {
+    final callable = _functions.httpsCallable('getPromoAvailability');
+    final result = await callable.call();
+    return PromoAvailability.fromMap(
+      Map<String, dynamic>.from(result.data as Map),
+    );
+  }
+
+  /// The current owner's promo bookings (new `promo_bookings` collection, not
+  /// the legacy `promo_slots`). Equality-only query on the auto-indexed
+  /// `boutiqueId`; the dashboard sorts/groups client-side, so no composite index
+  /// is required. Returns null when the caller has no boutique.
+  static Future<Stream<QuerySnapshot<Map<String, dynamic>>>?>
+  getMyPromoBookingsStream() async {
+    final boutiqueId = await getCurrentOwnerBoutiqueId();
+    if (boutiqueId == null) return null;
+    return _firestore
+        .collection('promo_bookings')
+        .where('boutiqueId', isEqualTo: boutiqueId)
+        .snapshots();
+  }
+
+  /// Home-banner bookings awaiting super-admin review. Only banners ever reach
+  /// `paid_pending_review`, so an equality query on the auto-indexed `status`
+  /// returns exactly the review queue with no composite index.
+  static Stream<QuerySnapshot<Map<String, dynamic>>>
+  getPendingPromoBannersStream() {
+    return _firestore
+        .collection('promo_bookings')
+        .where('status', isEqualTo: 'paid_pending_review')
+        .snapshots();
+  }
+
+  /// Super-admin: approve a pending banner creative. The scheduled activator
+  /// publishes the hero banner when its day-window opens.
+  static Future<void> approvePromoBanner(String bookingId) async {
+    final callable = _functions.httpsCallable('approvePromoBanner');
+    await callable.call({'bookingId': bookingId});
+  }
+
+  /// Super-admin: reject a pending banner creative (payment refunded manually;
+  /// any promo credit spent on it is refunded automatically server-side).
+  static Future<void> rejectPromoBanner(String bookingId, {String? reason}) async {
+    final callable = _functions.httpsCallable('rejectPromoBanner');
+    await callable.call({
+      'bookingId': bookingId,
+      if (reason != null && reason.isNotEmpty) 'reason': reason,
+    });
+  }
+
+  // ── Founding-partner promo credit (super admin) ────────────────────────────
+
+  /// Super-admin: the ONE-TIME launch action. Grants Week-1 founding credit to
+  /// every boutique still flagged `promoCreditPending` and schedules their Week-2
+  /// grant 7 days out. Idempotent server-side — already-recharged boutiques are
+  /// skipped, so a re-run is safe. Returns how many were recharged vs skipped.
+  static Future<({int recharged, int skipped})>
+  rechargeFoundingPartnerCredits() async {
+    final callable = _functions.httpsCallable('rechargeFoundingPartnerCredits');
+    final result = await callable.call();
+    final data = Map<String, dynamic>.from(result.data as Map);
+    return (
+      recharged: (data['recharged'] as num?)?.toInt() ?? 0,
+      skipped: (data['skipped'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// Super-admin: manual promo-credit adjustment — goodwill top-up, a boutique
+  /// joining mid-cohort, or a dispute clawback. A positive [amount] grants credit
+  /// (expiring after [expiresInDays]; pass 0 for never); a negative one claws it
+  /// back FIFO, clamped to the live balance. Returns what was actually applied
+  /// (a clawback larger than the balance removes only what's there) and the new
+  /// balance, both in KWD.
+  static Future<({double applied, double newBalance})> adjustPromoCredit({
+    required String boutiqueId,
+    required double amount,
+    required String reason,
+    int? expiresInDays,
+  }) async {
+    final callable = _functions.httpsCallable('adjustPromoCredit');
+    final result = await callable.call({
+      'boutiqueId': boutiqueId,
+      'amount': amount,
+      'reason': reason,
+      if (expiresInDays != null) 'expiresInDays': expiresInDays,
+    });
+    final data = Map<String, dynamic>.from(result.data as Map);
+    return (
+      applied: (data['applied'] as num?)?.toDouble() ?? 0,
+      newBalance: (data['newBalance'] as num?)?.toDouble() ?? 0,
+    );
   }
 
   /// Called by the admin to manually activate a promo slot after payment is
@@ -1028,4 +1404,19 @@ class FirestoreService {
     }
     await batch.commit();
   }
+}
+
+/// Result of the createOrder Cloud Function. [paymentAttemptId] identifies
+/// the payment_attempts doc the Payzah flow initializes against and the
+/// checkout UI listens to for the verified outcome.
+class CreateOrderResult {
+  final String orderNumber;
+  final String orderId;
+  final String paymentAttemptId;
+
+  CreateOrderResult({
+    required this.orderNumber,
+    required this.orderId,
+    required this.paymentAttemptId,
+  });
 }

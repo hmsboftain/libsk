@@ -1223,6 +1223,18 @@ abstract class AppLocalizations {
   /// **'Your payment was successful'**
   String get yourPaymentWasSuccessful;
 
+  /// No description provided for @orderFromBoutique.
+  ///
+  /// In en, this message translates to:
+  /// **'Your order from {boutiqueName}'**
+  String orderFromBoutique(String boutiqueName);
+
+  /// No description provided for @paidSecurelyViaPayzah.
+  ///
+  /// In en, this message translates to:
+  /// **'Paid securely via Payzah'**
+  String get paidSecurelyViaPayzah;
+
   /// No description provided for @thankYou.
   ///
   /// In en, this message translates to:
@@ -1250,7 +1262,7 @@ abstract class AppLocalizations {
   /// No description provided for @cartEmptySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Discover pieces from Kuwait\'s boutiques and start your bag.'**
+  /// **'Your cart is empty. Add items from a boutique to get started.'**
   String get cartEmptySubtitle;
 
   /// No description provided for @browseBoutiques.
@@ -3638,7 +3650,7 @@ abstract class AppLocalizations {
   /// No description provided for @promoHomepageBannerPricing.
   ///
   /// In en, this message translates to:
-  /// **'From 50 KWD/week'**
+  /// **'From 35 KWD/week'**
   String get promoHomepageBannerPricing;
 
   /// No description provided for @featuredBoutiques.
@@ -3650,13 +3662,13 @@ abstract class AppLocalizations {
   /// No description provided for @promoFeaturedBoutiquesPricing.
   ///
   /// In en, this message translates to:
-  /// **'From 30 KWD/week'**
+  /// **'From 20 KWD/week'**
   String get promoFeaturedBoutiquesPricing;
 
   /// No description provided for @promoFeaturedProductsPricing.
   ///
   /// In en, this message translates to:
-  /// **'From 20 KWD/week'**
+  /// **'From 15 KWD/week'**
   String get promoFeaturedProductsPricing;
 
   /// No description provided for @searchPlacement.
@@ -3668,7 +3680,7 @@ abstract class AppLocalizations {
   /// No description provided for @promoSearchPlacementPricing.
   ///
   /// In en, this message translates to:
-  /// **'From 15 KWD/week'**
+  /// **'From 12 KWD/week'**
   String get promoSearchPlacementPricing;
 
   /// No description provided for @unknownOwner.
@@ -3956,7 +3968,7 @@ abstract class AppLocalizations {
   /// No description provided for @resolveWithRefund.
   ///
   /// In en, this message translates to:
-  /// **'Resolve + Refund'**
+  /// **'Resolve — Refund Issued'**
   String get resolveWithRefund;
 
   /// No description provided for @noPaymentIntentFound.
@@ -3968,7 +3980,7 @@ abstract class AppLocalizations {
   /// No description provided for @disputeResolvedWithRefund.
   ///
   /// In en, this message translates to:
-  /// **'Dispute resolved and refund issued successfully'**
+  /// **'Dispute resolved and order marked as Refunded'**
   String get disputeResolvedWithRefund;
 
   /// No description provided for @failedToProcessRefund.
@@ -3976,6 +3988,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to process refund'**
   String get failedToProcessRefund;
+
+  /// No description provided for @markAsRefunded.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as Refunded'**
+  String get markAsRefunded;
+
+  /// No description provided for @refundManualNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Refunds are issued manually from the Payzah merchant dashboard. This action only marks the order as Refunded and records your admin account — it does not move any money.'**
+  String get refundManualNote;
+
+  /// No description provided for @orderMarkedRefunded.
+  ///
+  /// In en, this message translates to:
+  /// **'Order marked as Refunded'**
+  String get orderMarkedRefunded;
 
   /// No description provided for @disputeResolved.
   ///
@@ -4361,6 +4391,12 @@ abstract class AppLocalizations {
   /// **'KNET'**
   String get knet;
 
+  /// No description provided for @applePay.
+  ///
+  /// In en, this message translates to:
+  /// **'Apple Pay'**
+  String get applePay;
+
   /// No description provided for @markAsOutOfStock.
   ///
   /// In en, this message translates to:
@@ -4648,6 +4684,726 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Discount'**
   String get discountLabel;
+
+  /// No description provided for @paymentPreparingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing your payment'**
+  String get paymentPreparingTitle;
+
+  /// No description provided for @paymentPreparingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Just a moment while we set things up.'**
+  String get paymentPreparingBody;
+
+  /// No description provided for @paymentRedirectingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Taking you to secure payment'**
+  String get paymentRedirectingTitle;
+
+  /// No description provided for @paymentRedirectingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ll be redirected to complete your payment.'**
+  String get paymentRedirectingBody;
+
+  /// No description provided for @paymentVerifyingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirming your payment'**
+  String get paymentVerifyingTitle;
+
+  /// No description provided for @paymentVerifyingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This may take a few moments. Please keep the app open.'**
+  String get paymentVerifyingBody;
+
+  /// No description provided for @paymentConfirmedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment confirmed'**
+  String get paymentConfirmedTitle;
+
+  /// No description provided for @paymentConfirmedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Thank you — your order has been placed.'**
+  String get paymentConfirmedBody;
+
+  /// No description provided for @paymentFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment unsuccessful'**
+  String get paymentFailedTitle;
+
+  /// No description provided for @paymentFailedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your payment could not be completed and you have not been charged. Please try again.'**
+  String get paymentFailedBody;
+
+  /// No description provided for @paymentUnderReviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment under review'**
+  String get paymentUnderReviewTitle;
+
+  /// No description provided for @paymentUnderReviewBody.
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn\'t confirm the outcome of your payment yet. Please don\'t pay again — our team is verifying it and your order will be updated shortly.'**
+  String get paymentUnderReviewBody;
+
+  /// No description provided for @specialRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Special Request'**
+  String get specialRequest;
+
+  /// No description provided for @specialRequestHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. make it a little longer or shorter (optional)'**
+  String get specialRequestHint;
+
+  /// No description provided for @addedToCartTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to cart'**
+  String get addedToCartTitle;
+
+  /// No description provided for @goToCart.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Cart'**
+  String get goToCart;
+
+  /// No description provided for @continueShopping.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue Shopping'**
+  String get continueShopping;
+
+  /// No description provided for @tryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try Again'**
+  String get tryAgain;
+
+  /// No description provided for @paymentNotCompletedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment not completed'**
+  String get paymentNotCompletedTitle;
+
+  /// No description provided for @paymentNotCompletedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You haven\'t been charged. You can try again to finish paying, or return to your cart.'**
+  String get paymentNotCompletedBody;
+
+  /// No description provided for @returnToCart.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to cart'**
+  String get returnToCart;
+
+  /// No description provided for @continueAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get continueAction;
+
+  /// No description provided for @promoPaymentBookedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your promotion is booked and goes live next week.'**
+  String get promoPaymentBookedBody;
+
+  /// No description provided for @promoPaymentNotCompletedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You haven\'t been charged. You can try again to finish paying, or go back to your dashboard.'**
+  String get promoPaymentNotCompletedBody;
+
+  /// No description provided for @promoReturnToDashboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to dashboard'**
+  String get promoReturnToDashboard;
+
+  /// No description provided for @bookPromotion.
+  ///
+  /// In en, this message translates to:
+  /// **'Book a Promotion'**
+  String get bookPromotion;
+
+  /// No description provided for @bookPromotionSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Promote your boutique on the home page'**
+  String get bookPromotionSubtitle;
+
+  /// No description provided for @promoBookingInterimNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Books a Featured Boutique slot for the upcoming week (Sun–Sat). Choose a payment method to continue.'**
+  String get promoBookingInterimNote;
+
+  /// No description provided for @bookAndPay.
+  ///
+  /// In en, this message translates to:
+  /// **'Book & Pay'**
+  String get bookAndPay;
+
+  /// No description provided for @promoPerWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'{price} KWD / week'**
+  String promoPerWeek(String price);
+
+  /// No description provided for @promoStartDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Start day'**
+  String get promoStartDay;
+
+  /// No description provided for @promoDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Days'**
+  String get promoDays;
+
+  /// No description provided for @promoSelectedTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Total: {price} KWD'**
+  String promoSelectedTotal(String price);
+
+  /// No description provided for @promoTabBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Book'**
+  String get promoTabBook;
+
+  /// No description provided for @promoTabMyBookings.
+  ///
+  /// In en, this message translates to:
+  /// **'My bookings'**
+  String get promoTabMyBookings;
+
+  /// No description provided for @promoUpcomingWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming week'**
+  String get promoUpcomingWeek;
+
+  /// No description provided for @promoRateLine.
+  ///
+  /// In en, this message translates to:
+  /// **'{daily}/day · {weekly} full week'**
+  String promoRateLine(String daily, String weekly);
+
+  /// No description provided for @promoFeedRateLine.
+  ///
+  /// In en, this message translates to:
+  /// **'{one} for 1 post · {two} for 2'**
+  String promoFeedRateLine(String one, String two);
+
+  /// No description provided for @promoNeedsApproval.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs approval'**
+  String get promoNeedsApproval;
+
+  /// No description provided for @promoByCategoryNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Availability shown per category'**
+  String get promoByCategoryNote;
+
+  /// No description provided for @promoFeedWeekNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Whole week · 1–2 posts · no dates'**
+  String get promoFeedWeekNote;
+
+  /// No description provided for @promoSoldOutWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'Fully booked next week'**
+  String get promoSoldOutWeek;
+
+  /// No description provided for @promoPickYourDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick your days'**
+  String get promoPickYourDays;
+
+  /// No description provided for @promoPickCategoryFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a category and products to see day availability.'**
+  String get promoPickCategoryFirst;
+
+  /// No description provided for @promoLegendPicked.
+  ///
+  /// In en, this message translates to:
+  /// **'Picked'**
+  String get promoLegendPicked;
+
+  /// No description provided for @promoLegendOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get promoLegendOpen;
+
+  /// No description provided for @promoLegendFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Full'**
+  String get promoLegendFull;
+
+  /// No description provided for @promoTotalLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Total'**
+  String get promoTotalLabel;
+
+  /// No description provided for @promoPriceKwd.
+  ///
+  /// In en, this message translates to:
+  /// **'{price} KWD'**
+  String promoPriceKwd(String price);
+
+  /// No description provided for @promoFullWeekNudge.
+  ///
+  /// In en, this message translates to:
+  /// **'Book the full week for {price} KWD — {saving} KWD less than these days.'**
+  String promoFullWeekNudge(String price, String saving);
+
+  /// No description provided for @promoExtendFullWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'Extend to full week'**
+  String get promoExtendFullWeek;
+
+  /// No description provided for @promoProductToFeature.
+  ///
+  /// In en, this message translates to:
+  /// **'Product to feature'**
+  String get promoProductToFeature;
+
+  /// No description provided for @promoChooseProduct.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a product'**
+  String get promoChooseProduct;
+
+  /// No description provided for @promoChoosePosts.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose 1–2 posts'**
+  String get promoChoosePosts;
+
+  /// No description provided for @promoChooseCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a category'**
+  String get promoChooseCategory;
+
+  /// No description provided for @promoCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Category'**
+  String get promoCategory;
+
+  /// No description provided for @promoPinProducts.
+  ///
+  /// In en, this message translates to:
+  /// **'Products to pin (1–2)'**
+  String get promoPinProducts;
+
+  /// No description provided for @promoPostsToSponsor.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts to sponsor'**
+  String get promoPostsToSponsor;
+
+  /// No description provided for @promoBannerImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Banner image'**
+  String get promoBannerImage;
+
+  /// No description provided for @promoUploadBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload banner image'**
+  String get promoUploadBanner;
+
+  /// No description provided for @promoBannerReviewNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Banner creatives are reviewed by our team before they go live.'**
+  String get promoBannerReviewNote;
+
+  /// No description provided for @promoChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get promoChange;
+
+  /// No description provided for @promoChangeSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Change selection'**
+  String get promoChangeSelection;
+
+  /// No description provided for @promoSearchProducts.
+  ///
+  /// In en, this message translates to:
+  /// **'Search your products'**
+  String get promoSearchProducts;
+
+  /// No description provided for @promoNoProducts.
+  ///
+  /// In en, this message translates to:
+  /// **'You haven\'t added any products yet.'**
+  String get promoNoProducts;
+
+  /// No description provided for @promoSelectProduct.
+  ///
+  /// In en, this message translates to:
+  /// **'Select product'**
+  String get promoSelectProduct;
+
+  /// No description provided for @promoSelectCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Select {count}'**
+  String promoSelectCount(int count);
+
+  /// No description provided for @promoBookAndPayAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Book & pay · {price} KWD'**
+  String promoBookAndPayAmount(String price);
+
+  /// No description provided for @promoUseCredit.
+  ///
+  /// In en, this message translates to:
+  /// **'Use promo credit · {amount} KWD available'**
+  String promoUseCredit(String amount);
+
+  /// No description provided for @promoCreditApplied.
+  ///
+  /// In en, this message translates to:
+  /// **'Promo credit'**
+  String get promoCreditApplied;
+
+  /// No description provided for @promoRemainingToPay.
+  ///
+  /// In en, this message translates to:
+  /// **'To pay'**
+  String get promoRemainingToPay;
+
+  /// No description provided for @promoConfirmBooking.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm booking'**
+  String get promoConfirmBooking;
+
+  /// No description provided for @promoCreditBookedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Booking confirmed'**
+  String get promoCreditBookedTitle;
+
+  /// No description provided for @promoCreditBookedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} KWD of promo credit was used — nothing to pay. Your promotion is booked and goes live next week.'**
+  String promoCreditBookedBody(String amount);
+
+  /// No description provided for @promoCreditAdmin.
+  ///
+  /// In en, this message translates to:
+  /// **'Promo Credits'**
+  String get promoCreditAdmin;
+
+  /// No description provided for @promoCreditAdminSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Founding partner credit and manual adjustments.'**
+  String get promoCreditAdminSubtitle;
+
+  /// No description provided for @promoCreditLaunchRecharge.
+  ///
+  /// In en, this message translates to:
+  /// **'Launch recharge'**
+  String get promoCreditLaunchRecharge;
+
+  /// No description provided for @promoCreditLaunchRechargeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Grants Week-1 founding credit to every boutique still pending, and schedules their Week-2 grant 7 days later. Safe to re-run — already-recharged boutiques are skipped.'**
+  String get promoCreditLaunchRechargeDesc;
+
+  /// No description provided for @promoCreditPendingCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} pending'**
+  String promoCreditPendingCount(String count);
+
+  /// No description provided for @promoCreditRunRecharge.
+  ///
+  /// In en, this message translates to:
+  /// **'Run recharge'**
+  String get promoCreditRunRecharge;
+
+  /// No description provided for @promoCreditRechargeConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Grant Week-1 promo credit to {count} boutique(s) now? This also schedules their Week-2 grant.'**
+  String promoCreditRechargeConfirm(String count);
+
+  /// No description provided for @promoCreditRechargeResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Recharged {recharged}, skipped {skipped}.'**
+  String promoCreditRechargeResult(String recharged, String skipped);
+
+  /// No description provided for @promoCreditNoPending.
+  ///
+  /// In en, this message translates to:
+  /// **'No boutiques are pending founding credit.'**
+  String get promoCreditNoPending;
+
+  /// No description provided for @promoCreditSearchBoutiques.
+  ///
+  /// In en, this message translates to:
+  /// **'Search boutiques'**
+  String get promoCreditSearchBoutiques;
+
+  /// No description provided for @promoCreditFoundingBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Founding'**
+  String get promoCreditFoundingBadge;
+
+  /// No description provided for @promoCreditPendingBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get promoCreditPendingBadge;
+
+  /// No description provided for @promoCreditAdjustTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust promo credit'**
+  String get promoCreditAdjustTitle;
+
+  /// No description provided for @promoCreditAmountHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount in KWD (negative to remove)'**
+  String get promoCreditAmountHint;
+
+  /// No description provided for @promoCreditReasonHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Reason (e.g. goodwill top-up)'**
+  String get promoCreditReasonHint;
+
+  /// No description provided for @promoCreditExpiryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Expires in days (0 = never)'**
+  String get promoCreditExpiryHint;
+
+  /// No description provided for @promoCreditApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get promoCreditApply;
+
+  /// No description provided for @promoCreditAdjustResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Applied {applied} KWD. New balance {balance} KWD.'**
+  String promoCreditAdjustResult(String applied, String balance);
+
+  /// No description provided for @promoCreditAmountRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a non-zero amount.'**
+  String get promoCreditAmountRequired;
+
+  /// No description provided for @foundingPartnerLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Founding partner'**
+  String get foundingPartnerLabel;
+
+  /// No description provided for @foundingPartnerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Grants free promo credit at launch (Week 1, then Week 2). Credit is issued by the launch recharge, not now.'**
+  String get foundingPartnerHint;
+
+  /// No description provided for @promoNoBookings.
+  ///
+  /// In en, this message translates to:
+  /// **'You haven\'t booked any promotions yet.'**
+  String get promoNoBookings;
+
+  /// No description provided for @promoGroupCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Active & upcoming'**
+  String get promoGroupCurrent;
+
+  /// No description provided for @promoGroupPast.
+  ///
+  /// In en, this message translates to:
+  /// **'Past'**
+  String get promoGroupPast;
+
+  /// No description provided for @promoStatusActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get promoStatusActive;
+
+  /// No description provided for @promoStatusPendingReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending review'**
+  String get promoStatusPendingReview;
+
+  /// No description provided for @promoStatusAwaitingPayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting payment'**
+  String get promoStatusAwaitingPayment;
+
+  /// No description provided for @promoStatusRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Rejected'**
+  String get promoStatusRejected;
+
+  /// No description provided for @promoStatusCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled'**
+  String get promoStatusCancelled;
+
+  /// No description provided for @promoStatusExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'Expired'**
+  String get promoStatusExpired;
+
+  /// No description provided for @promoPlacementHomeBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Home banner'**
+  String get promoPlacementHomeBanner;
+
+  /// No description provided for @promoPlacementFeaturedProduct.
+  ///
+  /// In en, this message translates to:
+  /// **'Featured product'**
+  String get promoPlacementFeaturedProduct;
+
+  /// No description provided for @promoPlacementFeaturedBoutique.
+  ///
+  /// In en, this message translates to:
+  /// **'Featured boutique'**
+  String get promoPlacementFeaturedBoutique;
+
+  /// No description provided for @promoPlacementTopOfCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Top of category'**
+  String get promoPlacementTopOfCategory;
+
+  /// No description provided for @promoPlacementFeedSponsored.
+  ///
+  /// In en, this message translates to:
+  /// **'Feed sponsored'**
+  String get promoPlacementFeedSponsored;
+
+  /// No description provided for @promoBannerApprovals.
+  ///
+  /// In en, this message translates to:
+  /// **'Banner approvals'**
+  String get promoBannerApprovals;
+
+  /// No description provided for @promoBannerApprovalsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review paid home-banner creatives.'**
+  String get promoBannerApprovalsSubtitle;
+
+  /// No description provided for @promoNoPendingBanners.
+  ///
+  /// In en, this message translates to:
+  /// **'No banners awaiting review.'**
+  String get promoNoPendingBanners;
+
+  /// No description provided for @promoApprove.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve'**
+  String get promoApprove;
+
+  /// No description provided for @promoReject.
+  ///
+  /// In en, this message translates to:
+  /// **'Reject'**
+  String get promoReject;
+
+  /// No description provided for @promoRejectReasonHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Reason (optional)'**
+  String get promoRejectReasonHint;
+
+  /// No description provided for @promoBannerApproved.
+  ///
+  /// In en, this message translates to:
+  /// **'Banner approved.'**
+  String get promoBannerApproved;
+
+  /// No description provided for @promoBannerRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Banner rejected.'**
+  String get promoBannerRejected;
+
+  /// No description provided for @promoRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get promoRemove;
+
+  /// No description provided for @promoImageTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'Image must be under 5 MB. Please choose a smaller file.'**
+  String get promoImageTooLarge;
+
+  /// No description provided for @promoImageWrongType.
+  ///
+  /// In en, this message translates to:
+  /// **'That file isn\'t an image. Choose a JPG, PNG, or WebP.'**
+  String get promoImageWrongType;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

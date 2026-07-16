@@ -1,7 +1,8 @@
+import 'dart:io' show Platform;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../widgets/error_state_widget.dart';
@@ -11,7 +12,7 @@ import '../core/services/performance_service.dart';
 import '../navigation/app_header.dart';
 import '../services/currency_service.dart';
 import 'add_address_page.dart';
-import 'order_confirmation_page.dart';
+import 'payzah_payment_page.dart';
 import '../widgets/cart_item.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
@@ -31,7 +32,15 @@ SnackBar _brandedErrorSnackBar(String message) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 class CheckoutPage extends StatefulWidget {
-  const CheckoutPage({super.key});
+  /// Each checkout is scoped to a single boutique's cart.
+  final String boutiqueId;
+  final String boutiqueName;
+
+  const CheckoutPage({
+    super.key,
+    required this.boutiqueId,
+    this.boutiqueName = '',
+  });
 
   @override
   State<CheckoutPage> createState() => _CheckoutPageState();
@@ -69,12 +78,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
   void initState() {
     super.initState();
     AnalyticsService.instance.logScreenView('checkout');
-    _cartStream = FirestoreService.getCartItemsStream();
+    _cartStream = FirestoreService.getCartItemsStream(widget.boutiqueId);
     _addressesStream = FirestoreService.getSavedAddressesStream();
 
     final isKuwait = CurrencyService.instance.selectedCountryCode == 'KW';
     deliveryMethod = isKuwait ? 'Same Day Delivery' : 'Regular Delivery';
     deliveryCost = isKuwait ? 5 : 3;
+    // KNET is the default rail for Kuwait customers; cards elsewhere.
+    paymentMethod = isKuwait ? 'KNET' : 'Card';
   }
 
   @override
@@ -220,79 +231,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
     });
   }
 
-  // ── Payment ────────────────────────────────────────────────────────────────
-
-  Future<Map<String, String>> _createPaymentIntent({
-    required List<CartItem> cartItems,
-    required double deliveryCost,
-  }) async {
-    final l10n = AppLocalizations.of(context)!;
-
-    final items = cartItems
-        .map(
-          (item) => {
-            'productId': item.productId,
-            'boutiqueId': item.boutiqueId,
-            'title': item.title,
-            'price': item.price,
-            'quantity': item.quantity,
-          },
-        )
-        .toList();
-
-    final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
-    final callable = functions.httpsCallable('createPaymentIntent');
-
-    final result = await callable.call({
-      'items': items,
-      'deliveryCost': deliveryCost,
-      'currency': 'usd',
-    });
-
-    final data = Map<String, dynamic>.from(result.data as Map);
-    final clientSecret = data['clientSecret']?.toString();
-    final paymentIntentId = data['paymentIntentId']?.toString();
-
-    if (clientSecret == null || clientSecret.isEmpty) {
-      throw Exception(l10n.paymentSetupFailed);
-    }
-
-    return {
-      'clientSecret': clientSecret,
-      'paymentIntentId': paymentIntentId ?? '',
-    };
-  }
-
-  Future<String> _startStripeCheckout({
-    required List<CartItem> cartItems,
-    required double deliveryCost,
-  }) async {
-    final result = await _createPaymentIntent(
-      cartItems: cartItems,
-      deliveryCost: deliveryCost,
-    );
-
-    final clientSecret = result['clientSecret']!;
-    final paymentIntentId = result['paymentIntentId']!;
-
-    await Stripe.instance.initPaymentSheet(
-      paymentSheetParameters: SetupPaymentSheetParameters(
-        paymentIntentClientSecret: clientSecret,
-        merchantDisplayName: 'LIBSK',
-      ),
-    );
-
-    await Stripe.instance.presentPaymentSheet();
-    return paymentIntentId;
-  }
-
   // ── Place order ────────────────────────────────────────────────────────────
+  //
+  // Payzah direct flow: the order is created FIRST (server-verified prices,
+  // status "Pending Payment"), then PayzahPaymentPage initializes the payment
+  // and hands off to KNET / card. The cart is cleared and the purchase logged
+  // only after the payment is verified CAPTURED server-side.
 
   Future<void> _placeOrder({
     required List<CartItem> cartItems,
     required double total,
     required bool hasAddress,
   }) async {
+    // Re-entrancy guard: a rapid second tap that lands before the button's
+    // disabled state has rebuilt is dropped here, so createOrder can't fire
+    // twice and mint a duplicate order/charge.
+    if (isPlacingOrder) return;
+
     final loc = AppLocalizations.of(context)!;
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
@@ -347,11 +302,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
           : _discountAmount;
       final checkedTotal = checkedSubtotal + deliveryCost - finalDiscount;
 
-      final paymentIntentId = await _startStripeCheckout(
-        cartItems: cartItems,
-        deliveryCost: deliveryCost,
-      );
-
       final List<Map<String, dynamic>> orderItems = cartItems.map((item) {
         final map = <String, dynamic>{
           'productId': item.productId,
@@ -365,20 +315,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
         };
         final color = item.color.trim();
         if (color.isNotEmpty) map['color'] = color;
+        final request = item.specialRequest.trim();
+        if (request.isNotEmpty) map['specialRequest'] = request;
         return map;
       }).toList();
 
       final orderTrace = PerformanceService.instance.traceCreateOrder();
       await orderTrace.start();
-      final String orderNumber;
+      final CreateOrderResult order;
       try {
-        orderNumber = await FirestoreService.createOrder(
+        order = await FirestoreService.createOrder(
           items: orderItems,
           itemCount: totalItems,
           total: checkedTotal,
           deliveryMethod: deliveryMethod,
           paymentMethod: paymentMethod,
-          paymentIntentId: paymentIntentId,
           discountCodeId: finalDiscount > 0 ? _discountCodeId : null,
           discountAmount: finalDiscount > 0 ? finalDiscount : null,
           // Pass null — the server already has the product's timeframe
@@ -388,28 +339,19 @@ class _CheckoutPageState extends State<CheckoutPage> {
         await orderTrace.stop();
       }
 
-      AnalyticsService.instance.logPurchase(
-        orderNumber,
-        checkedTotal,
-        cartItems.first.boutiqueId,
-      );
-
-      for (final item in cartItems) {
-        await FirestoreService.deleteCartItem(item.id);
-      }
-
       if (!mounted) return;
+      final isArabic = Localizations.localeOf(context).languageCode == 'ar';
       navigator.push(
         MaterialPageRoute(
-          builder: (context) => OrderConfirmationPage(orderNumber: orderNumber),
-        ),
-      );
-    } on StripeException catch (e) {
-      if (!mounted) return;
-      messenger.showSnackBar(
-        _brandedErrorSnackBar(
-          e.error.localizedMessage ??
-              AppLocalizations.of(context)!.paymentCancelled,
+          builder: (context) => PayzahPaymentPage(
+            attemptId: order.paymentAttemptId,
+            orderNumber: order.orderNumber,
+            boutiqueId: widget.boutiqueId,
+            boutiqueName: widget.boutiqueName,
+            total: checkedTotal,
+            isArabic: isArabic,
+            paymentMethod: paymentMethod,
+          ),
         ),
       );
     } catch (e) {
@@ -499,6 +441,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
               const Divider(color: AppColors.border, thickness: 0.5, height: 0.5),
               ListTile(
                 leading: const Icon(
+                  Icons.account_balance,
+                  size: 20,
+                  color: AppColors.secondaryText,
+                ),
+                title: Text(l10n.knet, style: AppTextStyles.bodyMedium),
+                trailing: paymentMethod == 'KNET'
+                    ? const Icon(Icons.check, color: AppColors.deepAccent, size: 18)
+                    : null,
+                onTap: () {
+                  setState(() => paymentMethod = 'KNET');
+                  Navigator.pop(sheetContext);
+                },
+              ),
+              ListTile(
+                leading: const Icon(
                   Icons.credit_card,
                   size: 20,
                   color: AppColors.secondaryText,
@@ -512,6 +469,25 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   Navigator.pop(sheetContext);
                 },
               ),
+              // Apple Pay goes through Payzah's Transit page, which needs
+              // SFSafariViewController — iOS only by definition.
+              if (Platform.isIOS)
+                ListTile(
+                  leading: const Icon(
+                    Icons.apple,
+                    size: 20,
+                    color: AppColors.secondaryText,
+                  ),
+                  title: Text(l10n.applePay, style: AppTextStyles.bodyMedium),
+                  trailing: paymentMethod == 'Apple Pay'
+                      ? const Icon(Icons.check,
+                          color: AppColors.deepAccent, size: 18)
+                      : null,
+                  onTap: () {
+                    setState(() => paymentMethod = 'Apple Pay');
+                    Navigator.pop(sheetContext);
+                  },
+                ),
               const SizedBox(height: 8),
             ],
           ),
@@ -633,7 +609,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               _sectionLabel(l10n.paymentMethod),
                               const SizedBox(height: 10),
                               _compactRow(
-                                value: l10n.card,
+                                value: paymentMethod == 'KNET'
+                                    ? l10n.knet
+                                    : paymentMethod == 'Apple Pay'
+                                        ? l10n.applePay
+                                        : l10n.card,
                                 onTap: _selectPaymentMethod,
                               ),
                               _sectionGap(),

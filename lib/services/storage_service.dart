@@ -10,10 +10,45 @@ import 'package:path_provider/path_provider.dart';
 /// [FirebaseStorage.instance] directly; routing every upload through this
 /// service keeps folder naming, timestamp-based naming, compression, and
 /// error handling consistent across the app.
+/// Why an image failed a `StorageService` check — lets the caller show a
+/// specific, localized message instead of a generic upload error.
+enum StorageImageError { tooLarge, wrongType }
+
+/// Thrown by [StorageService.uploadImage] when `enforceSizeLimit` is set and the
+/// COMPRESSED image still exceeds [StorageService.maxImageBytes] — i.e. it would
+/// be rejected by `storage.rules`. Callers catch this to show a clear message.
+class StorageImageException implements Exception {
+  final StorageImageError error;
+  const StorageImageException(this.error);
+  @override
+  String toString() => 'StorageImageException($error)';
+}
+
 class StorageService {
   StorageService._();
 
   static final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  /// Upload size ceiling, mirroring `storage.rules`
+  /// (`request.resource.size < 5 * 1024 * 1024`). Kept in sync by hand — if the
+  /// rule changes, change this too.
+  static const int maxImageBytes = 5 * 1024 * 1024;
+
+  /// Extensions accepted as images. `storage.rules` checks the uploaded
+  /// contentType against `image/.*`; this is the client-side analogue.
+  static const Set<String> _imageExtensions = {
+    'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp',
+  };
+
+  /// Cheap TYPE check on the source [file] (by extension), safe to run before
+  /// compression. Returns [StorageImageError.wrongType] for a non-image, else
+  /// null. The SIZE limit is not checked here — raw phone photos routinely
+  /// exceed 5 MB yet compress well under it, so size is validated on the
+  /// compressed bytes inside [uploadImage] (`enforceSizeLimit: true`).
+  static StorageImageError? imageTypeError(File file) {
+    final ext = p.extension(file.path).toLowerCase().replaceFirst('.', '');
+    return _imageExtensions.contains(ext) ? null : StorageImageError.wrongType;
+  }
 
   /// Longest-edge target and JPEG quality for uploaded images. Product cards
   /// and feed images render well under ~1080px, so shipping anything larger
@@ -52,8 +87,20 @@ class StorageService {
   /// Uploads [file] into [folder] using a millisecond-timestamp filename.
   /// The image is compressed to a web-sized JPEG first. Returns the public
   /// download URL.
-  static Future<String> uploadImage(File file, String folder) async {
+  ///
+  /// With [enforceSizeLimit], the size is validated on the COMPRESSED bytes —
+  /// the exact thing `storage.rules` measures — right before the upload, and a
+  /// still-too-large image throws [StorageImageException] instead of hitting the
+  /// gateway and failing with a generic error.
+  static Future<String> uploadImage(
+    File file,
+    String folder, {
+    bool enforceSizeLimit = false,
+  }) async {
     final compressed = await _compress(file);
+    if (enforceSizeLimit && await compressed.length() >= maxImageBytes) {
+      throw const StorageImageException(StorageImageError.tooLarge);
+    }
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
     final ref = _storage.ref().child(folder).child(fileName);
     await ref.putFile(compressed, SettableMetadata(contentType: 'image/jpeg'));

@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../core/utils/image_sizing.dart';
 import '../widgets/theme.dart';
 import '../core/constants/countries.dart';
@@ -24,6 +25,11 @@ class CartItem {
   final int quantity;
   final bool madeToOrder;
 
+  /// Optional free-text note the customer left for this line item (e.g. a small
+  /// modification request). Empty when none was given. Set per line item, so
+  /// each cart line carries its own note.
+  final String specialRequest;
+
   CartItem({
     required this.id,
     required this.productId,
@@ -36,6 +42,7 @@ class CartItem {
     required this.price,
     required this.quantity,
     this.madeToOrder = false,
+    this.specialRequest = '',
   });
 
   factory CartItem.fromFirestore(String id, Map<String, dynamic> data) {
@@ -51,6 +58,7 @@ class CartItem {
       price: (data['price'] ?? 0).toDouble(),
       quantity: data['quantity'] ?? 1,
       madeToOrder: data['madeToOrder'] == true,
+      specialRequest: data['specialRequest']?.toString() ?? '',
     );
   }
 }
@@ -67,6 +75,11 @@ class CartItemWidget extends StatelessWidget {
   final double price;
   final int quantity;
   final bool madeToOrder;
+
+  /// Optional note the customer left for this line, shown read-only so they can
+  /// review it before checkout. Empty hides the block.
+  final String specialRequest;
+
   final VoidCallback onIncrease;
   final VoidCallback onDecrease;
   final VoidCallback onDelete;
@@ -81,6 +94,7 @@ class CartItemWidget extends StatelessWidget {
     required this.price,
     required this.quantity,
     this.madeToOrder = false,
+    this.specialRequest = '',
     required this.onIncrease,
     required this.onDecrease,
     required this.onDelete,
@@ -207,6 +221,23 @@ class CartItemWidget extends StatelessWidget {
                   ),
                   const SizedBox(height: 18),
                   Text(_fmt(price), style: AppTextStyles.headingSmall),
+                  if (specialRequest.trim().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      AppLocalizations.of(context)!.specialRequest,
+                      style: AppTextStyles.labelSmall.copyWith(
+                        color: AppColors.deepAccent,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      specialRequest,
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.secondaryText,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

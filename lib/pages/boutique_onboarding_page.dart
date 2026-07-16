@@ -18,6 +18,11 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
   // Step tracking
   int _step = 1; // 1 = find user, 2 = boutique details
 
+  /// Marks the boutique as a founding partner. NO credit is granted here — the
+  /// launch date isn't known when partners sign on, so this only flags the
+  /// boutique as pending; the one-time launch recharge issues the actual credit.
+  bool _foundingPartner = false;
+
   // Found user
   String? _foundUid;
   String? _foundName;
@@ -120,6 +125,13 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
             'description': boutiqueDescController.text.trim(),
             'ownerUid': _foundUid,
             'isActive': true,
+            // Flag only — promoCreditBalance is server-only (blocked at create by
+            // firestore.rules); the launch recharge Cloud Function grants the
+            // actual Week-1 credit and clears promoCreditPending.
+            if (_foundingPartner) ...{
+              'foundingPartner': true,
+              'promoCreditPending': true,
+            },
             'createdAt': FieldValue.serverTimestamp(),
           });
 
@@ -499,6 +511,49 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
                                     onEditingComplete: () =>
                                         FocusScope.of(context).unfocus(),
                                     decoration: _inputDec(''),
+                                  ),
+                                  const SizedBox(height: 18),
+                                  InkWell(
+                                    onTap: () => setState(() =>
+                                        _foundingPartner = !_foundingPartner),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(
+                                          _foundingPartner
+                                              ? Icons.check_box
+                                              : Icons.check_box_outline_blank,
+                                          size: 22,
+                                          color: _foundingPartner
+                                              ? AppColors.deepAccent
+                                              : AppColors.secondaryText,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                l10n.foundingPartnerLabel,
+                                                style:
+                                                    AppTextStyles.bodyMedium,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                l10n.foundingPartnerHint,
+                                                style: AppTextStyles.labelSmall
+                                                    .copyWith(
+                                                  color:
+                                                      AppColors.secondaryText,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),

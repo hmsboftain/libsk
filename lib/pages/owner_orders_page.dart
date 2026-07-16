@@ -640,6 +640,7 @@ class _OrderItemRow extends StatelessWidget {
     final title = item['title']?.toString() ?? l10n.untitledProduct;
     final size = item['size']?.toString() ?? '-';
     final quantity = item['quantity']?.toString() ?? '1';
+    final specialRequest = item['specialRequest']?.toString().trim() ?? '';
     final priceValue = item['price'] ?? 0;
 
     final double price = priceValue is num
@@ -707,6 +708,20 @@ class _OrderItemRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(_fmt(price), style: AppTextStyles.labelLarge),
+                if (specialRequest.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.specialRequest,
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.deepAccent,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    specialRequest,
+                    style: AppTextStyles.bodySmall.copyWith(height: 1.35),
+                  ),
+                ],
               ],
             ),
           ),

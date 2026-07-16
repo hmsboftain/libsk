@@ -16,7 +16,7 @@ The company is registered as **"LIBSK Commission Agency and Trading Company"** (
 | Cloud Functions | Node.js |
 | Search | Algolia (synced via Cloud Functions) |
 | Email | Resend (domain verified) / SendGrid planned |
-| Payment | Migrating from Stripe → MyFatoorah or Tap Payments (KWD + KNET) |
+| Payment | Payzah (KWD + KNET + Apple Pay) |
 | Delivery | Delivery API integration pending |
 | SMS | Unifonic (planned) |
 | WhatsApp AI | 360dialog + Claude API (planned) |
@@ -86,7 +86,11 @@ The company is registered as **"LIBSK Commission Agency and Trading Company"** (
 ## Pending / In Progress
 
 ### Launch Blockers (Priority Order)
-1. Payment gateway migration — Stripe → MyFatoorah or Tap Payments (KWD + KNET support)
+1. Payment gateway integration — Payzah: KNET verified end-to-end in sandbox
+   (Direct Integration, in-app WebView); credit card (MPGS hosted checkout)
+   declining in sandbox, under investigation; Apple Pay (Transit) not yet
+   scoped — Stripe fully removed (client + Cloud Functions); refunds are
+   manual via Payzah dashboard + superadmin "Mark as Refunded"
 2. Delivery API integration
 3. Apple Developer enrollment (Organization, DUNS requested — blocked Apple-side)
 4. Firebase Crashlytics — integration incomplete, do not treat as active

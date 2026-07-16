@@ -585,6 +585,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get yourPaymentWasSuccessful => 'Your payment was successful';
 
   @override
+  String orderFromBoutique(String boutiqueName) {
+    return 'Your order from $boutiqueName';
+  }
+
+  @override
+  String get paidSecurelyViaPayzah => 'Paid securely via Payzah';
+
+  @override
   String get thankYou => 'Thank you';
 
   @override
@@ -599,7 +607,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get yourCartIsEmpty => 'Your cart is empty';
 
   @override
-  String get cartEmptySubtitle => 'Discover pieces from Kuwait\'s boutiques and start your bag.';
+  String get cartEmptySubtitle => 'Your cart is empty. Add items from a boutique to get started.';
 
   @override
   String get browseBoutiques => 'Browse Boutiques';
@@ -1839,22 +1847,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homepageBanner => 'Homepage Banner';
 
   @override
-  String get promoHomepageBannerPricing => 'From 50 KWD/week';
+  String get promoHomepageBannerPricing => 'From 35 KWD/week';
 
   @override
   String get featuredBoutiques => 'Featured Boutiques';
 
   @override
-  String get promoFeaturedBoutiquesPricing => 'From 30 KWD/week';
+  String get promoFeaturedBoutiquesPricing => 'From 20 KWD/week';
 
   @override
-  String get promoFeaturedProductsPricing => 'From 20 KWD/week';
+  String get promoFeaturedProductsPricing => 'From 15 KWD/week';
 
   @override
   String get searchPlacement => 'Search Placement';
 
   @override
-  String get promoSearchPlacementPricing => 'From 15 KWD/week';
+  String get promoSearchPlacementPricing => 'From 12 KWD/week';
 
   @override
   String get unknownOwner => 'Unknown owner';
@@ -2008,16 +2016,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get resolveNoRefund => 'Resolve — No Refund';
 
   @override
-  String get resolveWithRefund => 'Resolve + Refund';
+  String get resolveWithRefund => 'Resolve — Refund Issued';
 
   @override
   String get noPaymentIntentFound => 'No payment intent found for this order';
 
   @override
-  String get disputeResolvedWithRefund => 'Dispute resolved and refund issued successfully';
+  String get disputeResolvedWithRefund => 'Dispute resolved and order marked as Refunded';
 
   @override
   String get failedToProcessRefund => 'Failed to process refund';
+
+  @override
+  String get markAsRefunded => 'Mark as Refunded';
+
+  @override
+  String get refundManualNote => 'Refunds are issued manually from the Payzah merchant dashboard. This action only marks the order as Refunded and records your admin account — it does not move any money.';
+
+  @override
+  String get orderMarkedRefunded => 'Order marked as Refunded';
 
   @override
   String get disputeResolved => 'Dispute resolved successfully';
@@ -2234,6 +2251,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get knet => 'KNET';
 
   @override
+  String get applePay => 'Apple Pay';
+
+  @override
   String get markAsOutOfStock => 'Mark as Out of Stock';
 
   @override
@@ -2406,4 +2426,392 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get discountLabel => 'Discount';
+
+  @override
+  String get paymentPreparingTitle => 'Preparing your payment';
+
+  @override
+  String get paymentPreparingBody => 'Just a moment while we set things up.';
+
+  @override
+  String get paymentRedirectingTitle => 'Taking you to secure payment';
+
+  @override
+  String get paymentRedirectingBody => 'You\'ll be redirected to complete your payment.';
+
+  @override
+  String get paymentVerifyingTitle => 'Confirming your payment';
+
+  @override
+  String get paymentVerifyingBody => 'This may take a few moments. Please keep the app open.';
+
+  @override
+  String get paymentConfirmedTitle => 'Payment confirmed';
+
+  @override
+  String get paymentConfirmedBody => 'Thank you — your order has been placed.';
+
+  @override
+  String get paymentFailedTitle => 'Payment unsuccessful';
+
+  @override
+  String get paymentFailedBody => 'Your payment could not be completed and you have not been charged. Please try again.';
+
+  @override
+  String get paymentUnderReviewTitle => 'Payment under review';
+
+  @override
+  String get paymentUnderReviewBody => 'We couldn\'t confirm the outcome of your payment yet. Please don\'t pay again — our team is verifying it and your order will be updated shortly.';
+
+  @override
+  String get specialRequest => 'Special Request';
+
+  @override
+  String get specialRequestHint => 'e.g. make it a little longer or shorter (optional)';
+
+  @override
+  String get addedToCartTitle => 'Added to cart';
+
+  @override
+  String get goToCart => 'Go to Cart';
+
+  @override
+  String get continueShopping => 'Continue Shopping';
+
+  @override
+  String get tryAgain => 'Try Again';
+
+  @override
+  String get paymentNotCompletedTitle => 'Payment not completed';
+
+  @override
+  String get paymentNotCompletedBody => 'You haven\'t been charged. You can try again to finish paying, or return to your cart.';
+
+  @override
+  String get returnToCart => 'Return to cart';
+
+  @override
+  String get continueAction => 'Continue';
+
+  @override
+  String get promoPaymentBookedBody => 'Your promotion is booked and goes live next week.';
+
+  @override
+  String get promoPaymentNotCompletedBody => 'You haven\'t been charged. You can try again to finish paying, or go back to your dashboard.';
+
+  @override
+  String get promoReturnToDashboard => 'Back to dashboard';
+
+  @override
+  String get bookPromotion => 'Book a Promotion';
+
+  @override
+  String get bookPromotionSubtitle => 'Promote your boutique on the home page';
+
+  @override
+  String get promoBookingInterimNote => 'Books a Featured Boutique slot for the upcoming week (Sun–Sat). Choose a payment method to continue.';
+
+  @override
+  String get bookAndPay => 'Book & Pay';
+
+  @override
+  String promoPerWeek(String price) {
+    return '$price KWD / week';
+  }
+
+  @override
+  String get promoStartDay => 'Start day';
+
+  @override
+  String get promoDays => 'Days';
+
+  @override
+  String promoSelectedTotal(String price) {
+    return 'Total: $price KWD';
+  }
+
+  @override
+  String get promoTabBook => 'Book';
+
+  @override
+  String get promoTabMyBookings => 'My bookings';
+
+  @override
+  String get promoUpcomingWeek => 'Upcoming week';
+
+  @override
+  String promoRateLine(String daily, String weekly) {
+    return '$daily/day · $weekly full week';
+  }
+
+  @override
+  String promoFeedRateLine(String one, String two) {
+    return '$one for 1 post · $two for 2';
+  }
+
+  @override
+  String get promoNeedsApproval => 'Needs approval';
+
+  @override
+  String get promoByCategoryNote => 'Availability shown per category';
+
+  @override
+  String get promoFeedWeekNote => 'Whole week · 1–2 posts · no dates';
+
+  @override
+  String get promoSoldOutWeek => 'Fully booked next week';
+
+  @override
+  String get promoPickYourDays => 'Pick your days';
+
+  @override
+  String get promoPickCategoryFirst => 'Choose a category and products to see day availability.';
+
+  @override
+  String get promoLegendPicked => 'Picked';
+
+  @override
+  String get promoLegendOpen => 'Open';
+
+  @override
+  String get promoLegendFull => 'Full';
+
+  @override
+  String get promoTotalLabel => 'Total';
+
+  @override
+  String promoPriceKwd(String price) {
+    return '$price KWD';
+  }
+
+  @override
+  String promoFullWeekNudge(String price, String saving) {
+    return 'Book the full week for $price KWD — $saving KWD less than these days.';
+  }
+
+  @override
+  String get promoExtendFullWeek => 'Extend to full week';
+
+  @override
+  String get promoProductToFeature => 'Product to feature';
+
+  @override
+  String get promoChooseProduct => 'Choose a product';
+
+  @override
+  String get promoChoosePosts => 'Choose 1–2 posts';
+
+  @override
+  String get promoChooseCategory => 'Choose a category';
+
+  @override
+  String get promoCategory => 'Category';
+
+  @override
+  String get promoPinProducts => 'Products to pin (1–2)';
+
+  @override
+  String get promoPostsToSponsor => 'Posts to sponsor';
+
+  @override
+  String get promoBannerImage => 'Banner image';
+
+  @override
+  String get promoUploadBanner => 'Upload banner image';
+
+  @override
+  String get promoBannerReviewNote => 'Banner creatives are reviewed by our team before they go live.';
+
+  @override
+  String get promoChange => 'Change';
+
+  @override
+  String get promoChangeSelection => 'Change selection';
+
+  @override
+  String get promoSearchProducts => 'Search your products';
+
+  @override
+  String get promoNoProducts => 'You haven\'t added any products yet.';
+
+  @override
+  String get promoSelectProduct => 'Select product';
+
+  @override
+  String promoSelectCount(int count) {
+    return 'Select $count';
+  }
+
+  @override
+  String promoBookAndPayAmount(String price) {
+    return 'Book & pay · $price KWD';
+  }
+
+  @override
+  String promoUseCredit(String amount) {
+    return 'Use promo credit · $amount KWD available';
+  }
+
+  @override
+  String get promoCreditApplied => 'Promo credit';
+
+  @override
+  String get promoRemainingToPay => 'To pay';
+
+  @override
+  String get promoConfirmBooking => 'Confirm booking';
+
+  @override
+  String get promoCreditBookedTitle => 'Booking confirmed';
+
+  @override
+  String promoCreditBookedBody(String amount) {
+    return '$amount KWD of promo credit was used — nothing to pay. Your promotion is booked and goes live next week.';
+  }
+
+  @override
+  String get promoCreditAdmin => 'Promo Credits';
+
+  @override
+  String get promoCreditAdminSubtitle => 'Founding partner credit and manual adjustments.';
+
+  @override
+  String get promoCreditLaunchRecharge => 'Launch recharge';
+
+  @override
+  String get promoCreditLaunchRechargeDesc => 'Grants Week-1 founding credit to every boutique still pending, and schedules their Week-2 grant 7 days later. Safe to re-run — already-recharged boutiques are skipped.';
+
+  @override
+  String promoCreditPendingCount(String count) {
+    return '$count pending';
+  }
+
+  @override
+  String get promoCreditRunRecharge => 'Run recharge';
+
+  @override
+  String promoCreditRechargeConfirm(String count) {
+    return 'Grant Week-1 promo credit to $count boutique(s) now? This also schedules their Week-2 grant.';
+  }
+
+  @override
+  String promoCreditRechargeResult(String recharged, String skipped) {
+    return 'Recharged $recharged, skipped $skipped.';
+  }
+
+  @override
+  String get promoCreditNoPending => 'No boutiques are pending founding credit.';
+
+  @override
+  String get promoCreditSearchBoutiques => 'Search boutiques';
+
+  @override
+  String get promoCreditFoundingBadge => 'Founding';
+
+  @override
+  String get promoCreditPendingBadge => 'Pending';
+
+  @override
+  String get promoCreditAdjustTitle => 'Adjust promo credit';
+
+  @override
+  String get promoCreditAmountHint => 'Amount in KWD (negative to remove)';
+
+  @override
+  String get promoCreditReasonHint => 'Reason (e.g. goodwill top-up)';
+
+  @override
+  String get promoCreditExpiryHint => 'Expires in days (0 = never)';
+
+  @override
+  String get promoCreditApply => 'Apply';
+
+  @override
+  String promoCreditAdjustResult(String applied, String balance) {
+    return 'Applied $applied KWD. New balance $balance KWD.';
+  }
+
+  @override
+  String get promoCreditAmountRequired => 'Enter a non-zero amount.';
+
+  @override
+  String get foundingPartnerLabel => 'Founding partner';
+
+  @override
+  String get foundingPartnerHint => 'Grants free promo credit at launch (Week 1, then Week 2). Credit is issued by the launch recharge, not now.';
+
+  @override
+  String get promoNoBookings => 'You haven\'t booked any promotions yet.';
+
+  @override
+  String get promoGroupCurrent => 'Active & upcoming';
+
+  @override
+  String get promoGroupPast => 'Past';
+
+  @override
+  String get promoStatusActive => 'Active';
+
+  @override
+  String get promoStatusPendingReview => 'Pending review';
+
+  @override
+  String get promoStatusAwaitingPayment => 'Awaiting payment';
+
+  @override
+  String get promoStatusRejected => 'Rejected';
+
+  @override
+  String get promoStatusCancelled => 'Cancelled';
+
+  @override
+  String get promoStatusExpired => 'Expired';
+
+  @override
+  String get promoPlacementHomeBanner => 'Home banner';
+
+  @override
+  String get promoPlacementFeaturedProduct => 'Featured product';
+
+  @override
+  String get promoPlacementFeaturedBoutique => 'Featured boutique';
+
+  @override
+  String get promoPlacementTopOfCategory => 'Top of category';
+
+  @override
+  String get promoPlacementFeedSponsored => 'Feed sponsored';
+
+  @override
+  String get promoBannerApprovals => 'Banner approvals';
+
+  @override
+  String get promoBannerApprovalsSubtitle => 'Review paid home-banner creatives.';
+
+  @override
+  String get promoNoPendingBanners => 'No banners awaiting review.';
+
+  @override
+  String get promoApprove => 'Approve';
+
+  @override
+  String get promoReject => 'Reject';
+
+  @override
+  String get promoRejectReasonHint => 'Reason (optional)';
+
+  @override
+  String get promoBannerApproved => 'Banner approved.';
+
+  @override
+  String get promoBannerRejected => 'Banner rejected.';
+
+  @override
+  String get promoRemove => 'Remove';
+
+  @override
+  String get promoImageTooLarge => 'Image must be under 5 MB. Please choose a smaller file.';
+
+  @override
+  String get promoImageWrongType => 'That file isn\'t an image. Choose a JPG, PNG, or WebP.';
 }

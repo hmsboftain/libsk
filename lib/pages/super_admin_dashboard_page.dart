@@ -17,6 +17,8 @@ import 'disputes_page.dart';
 import 'filtered_users_page.dart';
 import 'global_orders_page.dart';
 import 'hero_banner_management_page.dart';
+import 'promo_banner_approval_page.dart';
+import 'promo_credit_admin_page.dart';
 import 'send_notification_page.dart';
 import '../core/constants/countries.dart';
 import '../services/currency_service.dart';
@@ -461,6 +463,34 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                             context,
                             MaterialPageRoute(
                               builder: (_) => const DiscountCodesPage(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _StatCard(
+                          title: l10n.promoBannerApprovals,
+                          value: l10n.review,
+                          subtitle: l10n.promoBannerApprovalsSubtitle,
+                          icon: Icons.verified_outlined,
+                          compactValue: true,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PromoBannerApprovalPage(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _StatCard(
+                          title: l10n.promoCreditAdmin,
+                          value: l10n.promoCreditLaunchRecharge,
+                          subtitle: l10n.promoCreditAdminSubtitle,
+                          icon: Icons.card_giftcard_outlined,
+                          compactValue: true,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PromoCreditAdminPage(),
                             ),
                           ),
                         ),

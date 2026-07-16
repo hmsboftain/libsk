@@ -46,6 +46,7 @@ class _FeedAddToCartSheetState extends State<FeedAddToCartSheet> {
   String _selectedSize = '';
   String _selectedColor = '';
   bool _isAdding = false;
+  final _specialRequestController = TextEditingController();
 
   Product get _product => widget.product;
 
@@ -56,7 +57,17 @@ class _FeedAddToCartSheetState extends State<FeedAddToCartSheet> {
     if (_product.colors.isNotEmpty) _selectedColor = _product.colors.first;
   }
 
+  @override
+  void dispose() {
+    _specialRequestController.dispose();
+    super.dispose();
+  }
+
   Future<void> _add() async {
+    // Re-entrancy guard: drop a rapid second tap that lands before the disabled
+    // button has rebuilt, so the item can't be added twice.
+    if (_isAdding) return;
+
     final l10n = AppLocalizations.of(context)!;
     final hasColors = _product.colors.isNotEmpty;
 
@@ -85,6 +96,7 @@ class _FeedAddToCartSheetState extends State<FeedAddToCartSheet> {
         size: _selectedSize,
         color: hasColors ? _selectedColor : '',
         price: _product.price,
+        specialRequest: _specialRequestController.text,
       );
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -141,7 +153,12 @@ class _FeedAddToCartSheetState extends State<FeedAddToCartSheet> {
     final colors = _product.colors;
     final hasSizes = sizes.isNotEmpty;
 
-    return SafeArea(
+    // Tap anywhere off a field (e.g. the Special Request box) to drop the
+    // keyboard; child gestures still win, so chips and the button keep working.
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.translucent,
+      child: SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -216,6 +233,39 @@ class _FeedAddToCartSheetState extends State<FeedAddToCartSheet> {
               ),
             ],
 
+            const SizedBox(height: 16),
+            Text(l10n.specialRequest, style: AppTextStyles.labelLarge),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _specialRequestController,
+              minLines: 2,
+              maxLines: 4,
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
+              style: AppTextStyles.bodyMedium,
+              decoration: InputDecoration(
+                hintText: l10n.specialRequestHint,
+                hintStyle: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.secondaryText,
+                ),
+                filled: true,
+                fillColor: AppColors.field,
+                contentPadding: const EdgeInsets.all(14),
+                border: const OutlineInputBorder(
+                  borderRadius: BorderRadius.zero,
+                  borderSide: BorderSide(color: AppColors.border, width: 0.5),
+                ),
+                enabledBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.zero,
+                  borderSide: BorderSide(color: AppColors.border, width: 0.5),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.zero,
+                  borderSide: BorderSide(color: AppColors.deepAccent, width: 1),
+                ),
+              ),
+            ),
+
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -244,6 +294,7 @@ class _FeedAddToCartSheetState extends State<FeedAddToCartSheet> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

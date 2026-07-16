@@ -449,8 +449,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     _contactTile(
                       icon: Icons.chat_outlined,
                       title: 'WhatsApp',
-                      subtitle: '+965 XXXX XXXX',
-                      onTap: () => _launchUrl('https://wa.me/965XXXXXXXX'),
+                      subtitle: '+965 60700596',
+                      onTap: () => _launchUrl('https://wa.me/96560700596'),
                     ),
                     const SizedBox(height: 10),
                     _contactTile(

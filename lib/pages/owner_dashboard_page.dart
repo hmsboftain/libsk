@@ -10,6 +10,7 @@ import 'add_product_page.dart';
 import 'my_boutique_page.dart';
 import 'owner_discount_codes_page.dart';
 import 'owner_orders_page.dart';
+import 'promo_dashboard_page.dart';
 import 'sales_insights_page.dart';
 import '../core/constants/countries.dart';
 import '../services/currency_service.dart';
@@ -427,6 +428,17 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                             boutiqueName:
                                 _boutiqueData?['name']?.toString() ?? '',
                           ),
+                        ),
+                      ),
+                    ),
+                    _ActionCard(
+                      title: l10n.bookPromotion,
+                      subtitle: l10n.bookPromotionSubtitle,
+                      icon: Icons.campaign_outlined,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PromoDashboardPage(),
                         ),
                       ),
                     ),

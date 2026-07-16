@@ -7,8 +7,13 @@ import '../widgets/theme.dart';
 
 class OrderConfirmationPage extends StatelessWidget {
   final String orderNumber;
+  final String boutiqueName;
 
-  const OrderConfirmationPage({super.key, required this.orderNumber});
+  const OrderConfirmationPage({
+    super.key,
+    required this.orderNumber,
+    this.boutiqueName = '',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +62,23 @@ class OrderConfirmationPage extends StatelessWidget {
                 l10n.yourPaymentWasSuccessful,
                 style: AppTextStyles.bodyLarge.copyWith(
                   fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (boutiqueName.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  l10n.orderFromBoutique(boutiqueName),
+                  style: AppTextStyles.headingSmall.copyWith(
+                    color: AppColors.deepAccent,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                l10n.paidSecurelyViaPayzah,
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.secondaryText,
                 ),
               ),
               const SizedBox(height: 18),

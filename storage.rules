@@ -54,6 +54,15 @@ service firebase.storage {
       allow delete: if canManageBoutique(boutiqueId);
     }
 
+    // Promo home-banner creatives an owner uploads when booking a home_banner
+    // placement. Scoped to the owner's boutique like every other owner upload;
+    // the creative is reviewed before it publishes to hero_banners.
+    match /promo_banners/{boutiqueId}/{imageId} {
+      allow read: if true;
+      allow create, update: if isValidImage() && canManageBoutique(boutiqueId);
+      allow delete: if canManageBoutique(boutiqueId);
+    }
+
     match /hero_banners/{imageId} {
       allow read: if true;
       allow create, update: if isValidImage() && isAdmin();

@@ -9,9 +9,11 @@ import '../core/services/performance_service.dart';
 import '../core/utils/image_sizing.dart';
 import '../models/product.dart';
 import '../pages/boutique_storefront_page.dart';
+import '../pages/cart_page.dart';
 import '../pages/product_page.dart';
 import '../services/follow_service.dart';
 import '../services/saved_items_controller.dart';
+import 'added_to_cart_sheet.dart';
 import 'boutique_logo_avatar.dart';
 import 'feed_add_to_cart_sheet.dart';
 import 'follow_button.dart';
@@ -141,12 +143,12 @@ class _FeedCardState extends State<FeedCard> {
   Future<void> _openSheet() async {
     if (_soldOut) return;
     final added = await FeedAddToCartSheet.show(context, product);
-    if (added == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.itemAddedToCart),
-          duration: const Duration(seconds: 1),
-        ),
+    if (added != true || !mounted) return;
+    final goToCart = await AddedToCartSheet.show(context);
+    if (goToCart == true && mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const CartPage()),
       );
     }
   }

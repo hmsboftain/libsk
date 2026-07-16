@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:libsk/navigation/main_navigation_bar.dart';
 import '../pages/cart_page.dart';
 import '../pages/search_page.dart';
@@ -132,16 +131,14 @@ class AppHeader extends StatelessWidget {
                           right: 2,
                           top: 2,
                           child:
-                              StreamBuilder<
-                                QuerySnapshot<Map<String, dynamic>>
-                              >(
-                                stream: FirestoreService.getCartItemsStream(),
+                              StreamBuilder<int>(
+                                stream:
+                                    FirestoreService.getCartItemCountStream(),
                                 builder: (context, snapshot) {
-                                  if (!snapshot.hasData ||
-                                      snapshot.data!.docs.isEmpty) {
+                                  final count = snapshot.data ?? 0;
+                                  if (count <= 0) {
                                     return const SizedBox();
                                   }
-                                  final count = snapshot.data!.docs.length;
                                   return Container(
                                     width: 16,
                                     height: 16,

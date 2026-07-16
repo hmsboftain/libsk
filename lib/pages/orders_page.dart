@@ -28,6 +28,7 @@ Color _statusColor(String status) {
     case 'shipped':
       return AppColors.deepAccent;
     case 'cancelled':
+    case 'refunded':
       return AppColors.secondaryText;
     default:
       return AppColors.softAccent;

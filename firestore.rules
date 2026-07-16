@@ -105,6 +105,21 @@ service cloud.firestore {
              (!('madeToOrder' in d) || d.madeToOrder is bool);
     }
 
+    // Shape guard for the per-boutique cart summary doc (carts/{boutiqueId}).
+    // Present-only checks so partial updates (e.g. just itemCount/updatedAt via
+    // FieldValue) still pass.
+    function isValidCartSummary() {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+               'boutiqueId', 'boutiqueName', 'boutiqueLogoUrl', 'itemCount',
+               'createdAt', 'updatedAt'
+             ]) &&
+             (!('boutiqueId'      in d) || (d.boutiqueId      is string && d.boutiqueId.size()      <= 200)) &&
+             (!('boutiqueName'    in d) || (d.boutiqueName    is string && d.boutiqueName.size()    <= 300)) &&
+             (!('boutiqueLogoUrl' in d) || (d.boutiqueLogoUrl is string && d.boutiqueLogoUrl.size() <= 1000)) &&
+             (!('itemCount'       in d) || (d.itemCount       is int    && d.itemCount >= 0 && d.itemCount <= 999));
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) &&
@@ -130,13 +145,19 @@ service cloud.firestore {
         allow read, delete: if isOwner(userId);
         allow create, update: if isOwner(userId) && isValidAddress();
       }
-      match /cart_items/{itemId} {
+      // Per-boutique carts: a summary doc at carts/{boutiqueId} plus an
+      // items/{itemId} subcollection. Guest-path writes stay shape-validated;
+      // owner writes keep their latitude so the guest→user merge is unaffected.
+      match /carts/{boutiqueId} {
         allow read, delete: if isOwner(userId) || isGuestPath(userId);
-        // Guest cart writes are shape-validated (the guest path is
-        // unauthenticated). Owner writes keep their existing latitude so the
-        // post-login guest→user cart merge is unaffected.
         allow create, update: if isOwner(userId) ||
-          (isGuestPath(userId) && isValidCartItem());
+          (isGuestPath(userId) && isValidCartSummary());
+
+        match /items/{itemId} {
+          allow read, delete: if isOwner(userId) || isGuestPath(userId);
+          allow create, update: if isOwner(userId) ||
+            (isGuestPath(userId) && isValidCartItem());
+        }
       }
       match /orders/{orderId} {
         allow read: if isOwner(userId) || isAdmin();
@@ -155,33 +176,67 @@ service cloud.firestore {
 
     match /boutiques/{boutiqueId} {
       allow read: if true;
-      allow create: if isSuperAdmin();
+      // Superadmin onboarding may seed foundingPartner / promoCreditPending, but
+      // NEVER the credit ledger's denormalized total or the Week-2 scheduling
+      // flags — those are server-only (a grant is the first thing to ever write
+      // promoCreditBalance, via a Cloud Function).
+      allow create: if isSuperAdmin() &&
+        !request.resource.data.keys().hasAny([
+          'promoCreditBalance', 'promoCreditWeek2DueAt', 'promoCreditWeek2Pending',
+        ]);
       allow update: if (isBoutiqueOwnerOf(boutiqueId) || isAdmin()) &&
         // Server-only promo/ranking fields — only Cloud Functions (admin SDK
         // bypasses rules) may write these. Blocked for every client, including
         // admins, so paid promo placement & trending rank can't be set by hand.
+        // The promoCredit* group is the founding-partner credit ledger: its live
+        // balance and grant schedule are mutated ONLY by the recharge/scheduled/
+        // spend Cloud Functions, never by any client (not even the owner).
         !request.resource.data.diff(resource.data).affectedKeys()
           .hasAny([
             'followerCount', 'isFeedSponsored', 'feedSponsoredUntil',
             'weeklyOrders', 'salesCount', 'isTrending',
             'totalSales', 'rating', 'reviewCount',
-          ]);
+            'promoCreditBalance', 'foundingPartner', 'promoCreditPending',
+            'promoCreditWeek2DueAt', 'promoCreditWeek2Pending',
+          ]) &&
+        // Home-page featuring fields drive the PAID "Featured Boutique"
+        // placement. Admins may still set them by hand (free editorial curation
+        // via the admin homepage tool); boutique owners may NOT — otherwise an
+        // owner could grant themselves a paid placement for free. The paid path
+        // writes them from a Cloud Function (admin SDK bypasses rules).
+        (isAdmin() ||
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['isVisibleOnHome', 'homeExpiresAt', 'homeOrder']));
       allow delete: if isSuperAdmin();
 
       match /products/{productId} {
         allow read: if true;
         allow create: if (isBoutiqueOwnerOf(boutiqueId) || isAdmin()) &&
           isValidProduct() &&
+          // No promo/ranking fields may be set at creation time by any client —
+          // featuring & paid placement are applied later (admin curation or a
+          // Cloud Function), never seeded on the initial product write.
           !request.resource.data.keys().hasAny([
             'isFeedSponsored', 'feedSponsoredUntil', 'weeklyOrders',
             'salesCount', 'isTrending', 'totalSales', 'rating', 'reviewCount',
+            'isFeaturedOnHome', 'featuredExpiresAt', 'featuredOrder',
+            'promotedCategories', 'categoryPromoUntil',
           ]);
         allow update: if (isBoutiqueOwnerOf(boutiqueId) || isAdmin()) &&
           isValidProduct() &&
+          // Server-only for EVERY client (incl. admins): computed counters, feed
+          // sponsorship, and paid category pinning (no manual curation UI).
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'isFeedSponsored', 'feedSponsoredUntil', 'weeklyOrders',
             'salesCount', 'isTrending', 'totalSales', 'rating', 'reviewCount',
-          ]);
+            'promotedCategories', 'categoryPromoUntil',
+          ]) &&
+          // Home "Featured Pieces" fields drive PAID placement. Admins may set
+          // them by hand (editorial curation); owners may NOT (paid-only, via a
+          // Cloud Function which bypasses rules with the admin SDK).
+          (isAdmin() ||
+            !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['isFeaturedOnHome', 'featuredExpiresAt', 'featuredOrder']));
         allow delete: if isBoutiqueOwnerOf(boutiqueId) || isAdmin();
       }
       match /orders/{orderId} {
@@ -189,6 +244,16 @@ service cloud.firestore {
         allow create: if false;
         allow update: if isBoutiqueOwnerOf(boutiqueId) || isAdmin();
         allow delete: if false;
+      }
+      // Founding-partner promo-credit ledger: the full audit trail of every
+      // grant / spend / expiry / admin_adjustment. Owners read their own
+      // boutique's ledger (the booking screen shows the live balance); admins
+      // read all. EVERY write is server-only — createPromoBooking, the payment
+      // settlement branch, the scheduled recharge/expiry jobs and the manual
+      // adjust callable all use the admin SDK, which bypasses these rules.
+      match /promoCredits/{creditId} {
+        allow read: if isBoutiqueOwnerOf(boutiqueId) || isAdmin();
+        allow write: if false;
       }
     }
 
@@ -228,6 +293,25 @@ service cloud.firestore {
       // Admin-only analytics read. Written exclusively by Cloud Functions via
       // the admin SDK (which bypasses rules), so all client writes are denied.
       allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /promo_bookings/{bookingId} {
+      // Boutique owners read their OWN bookings (the dashboard "My bookings"
+      // list and availability views query by boutiqueId); admins read all.
+      // Every write is server-only — createPromoBooking, the payment-resolution
+      // branch and the weekly expiry job use the admin SDK, which bypasses
+      // these rules. Clients never create or mutate a booking directly.
+      allow read: if isAdmin() || isBoutiqueOwnerOf(resource.data.boutiqueId);
+      allow write: if false;
+    }
+
+    match /payment_attempts/{attemptId} {
+      // Written exclusively by Cloud Functions (admin SDK bypasses rules).
+      // Customers may read their own attempt so checkout's Verifying state
+      // can listen for the reconciled status; admins may read all.
+      allow read: if isSignedIn() &&
+        (resource.data.customerUid == request.auth.uid || isAdmin());
       allow write: if false;
     }
 

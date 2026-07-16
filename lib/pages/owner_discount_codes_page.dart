@@ -448,6 +448,9 @@ class _CreateCodeSheetState extends State<_CreateCodeSheet> {
   }
 
   Future<void> _save() async {
+    // Re-entrancy guard: drop a rapid second tap before the disabled state
+    // rebuilds, so the discount code can't be created twice.
+    if (_isSaving) return;
     final code = _codeController.text.trim().toUpperCase();
     final valueText = _valueController.text.trim();
 

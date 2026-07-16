@@ -1,6 +1,22 @@
 {
   "indexes": [
     {
+      "collectionGroup": "promo_bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "dayStart", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "promo_bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "dayEnd", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "boutiques",
       "queryScope": "COLLECTION",
       "fields": [
@@ -138,6 +154,30 @@
       "fields": [
         { "fieldPath": "boutiqueId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payment_attempts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "promoCredits",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "expiresAt", "order": "ASCENDING" },
+        { "fieldPath": "remainingFils", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "boutiques",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "promoCreditWeek2Pending", "order": "ASCENDING" },
+        { "fieldPath": "promoCreditWeek2DueAt", "order": "ASCENDING" }
       ]
     }
   ],
