@@ -1,9 +1,12 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../navigation/main_navigation_bar.dart';
 import '../services/firestore_service.dart';
+import '../services/verification_service.dart';
 import '../widgets/theme.dart';
+import 'email_verification_page.dart';
 
 /// Branded splash shown for the first ~800ms while we finish boot tasks.
 ///
@@ -58,6 +61,26 @@ class _SplashPageState extends State<SplashPage>
     super.dispose();
   }
 
+  /// Routes a signed-in-but-unverified user to the code screen before the app
+  /// opens. Abandoning drops the session — browsing continues as a guest, which
+  /// is the app's normal signed-out state, rather than a live gated account.
+  Future<void> _resolveVerificationGate() async {
+    try {
+      final status = await VerificationService.checkCurrentUser();
+      if (!status.needsEmail || !mounted) return;
+
+      final verified = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const EmailVerificationPage()),
+      );
+      if (verified != true) {
+        await FirebaseAuth.instance.signOut();
+      }
+    } catch (_) {
+      // Never strand boot on a verification failure — an offline launch falls
+      // through to the app, and the gate re-runs on the next start.
+    }
+  }
+
   Future<void> _runBootSequence() async {
     // Step 2 — guest cart prep (idempotent; safe even if main() already ran it).
     try {
@@ -73,6 +96,16 @@ class _SplashPageState extends State<SplashPage>
     } catch (_) {}
     if (!mounted) return;
     setState(() => _progress = 0.75);
+
+    // Step 3.5 — resume an interrupted signup.
+    //
+    // The Auth session survives a restart, so a user who created an account and
+    // then closed the app before entering their code would otherwise boot
+    // straight into an app their account isn't cleared for. Send them back to
+    // the code screen instead. Grandfathered and social accounts report clear
+    // here and never see this.
+    await _resolveVerificationGate();
+    if (!mounted) return;
 
     // Brief settle so the user actually sees the progress bar fill.
     await Future.delayed(const Duration(milliseconds: 250));

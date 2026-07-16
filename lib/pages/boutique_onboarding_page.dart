@@ -88,6 +88,19 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
       final userDoc = userQuery.docs.first;
       final userData = userDoc.data();
 
+      // Owners are promoted from ordinary customer accounts, so this is the one
+      // path where an unverified signup could be handed owner privileges and
+      // skip the gate entirely. Fail closed: a missing flag is an anomaly worth
+      // a look, not a pass. Grandfathered accounts read true (the backfill
+      // stamped them) and are unaffected.
+      if (userData['emailVerified'] != true) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.ownerMustVerifyEmailFirst)),
+        );
+        return;
+      }
+
       if (!mounted) return;
       setState(() {
         _foundUid = userDoc.id;

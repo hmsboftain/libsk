@@ -179,6 +179,14 @@
         { "fieldPath": "promoCreditWeek2Pending", "order": "ASCENDING" },
         { "fieldPath": "promoCreditWeek2DueAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "emailVerified", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

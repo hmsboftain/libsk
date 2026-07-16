@@ -26,7 +26,12 @@ const {
 const { defineString, defineSecret } = require("firebase-functions/params");
 const algoliaAppId = defineString("ALGOLIA_APP_ID");
 const algoliaAdminKey = defineString("ALGOLIA_ADMIN_KEY");
-const resendApiKey = defineString("RESEND_API_KEY");
+// Resend is a managed secret, not a plain param. The .env copy was leaked and
+// revoked (see "Remove leaked env file from tracking"), so defineString was
+// reading a dead key and every transactional email was failing at send. The
+// live key lives in Secret Manager — same pattern as PAYZAH_PRIVATE_KEY.
+// Every function that calls getResend() must list it in `secrets:`.
+const resendApiKey = defineSecret("RESEND_API_KEY");
 const myFatoorahApiKey = defineString("MYFATOORAH_API_KEY");
 // Server-side gate for the Payzah direct (redirect-based) checkout scaffolding.
 // Stays "false" until the real Payzah API integration lands, so no client can
@@ -1620,7 +1625,7 @@ function orderEmailHtml({ title, orderNumber, date, customerName, items, subtota
 }
 
 exports.sendOrderConfirmationEmail = onDocumentCreated(
-  "global_orders/{orderId}",
+  { document: "global_orders/{orderId}", secrets: [resendApiKey] },
   async (event) => {
     const order = event.data.data();
     if (!order || !order.customerEmail) return;
@@ -1653,7 +1658,7 @@ exports.sendOrderConfirmationEmail = onDocumentCreated(
 );
 
 exports.sendOrderStatusEmail = onDocumentUpdated(
-  "global_orders/{orderId}",
+  { document: "global_orders/{orderId}", secrets: [resendApiKey] },
   async (event) => {
     const before = event.data.before.data();
     const after = event.data.after.data();
@@ -3650,7 +3655,10 @@ function onlyAllowedKeys(obj, allowed) {
 // ================= BOUTIQUE APPLICATION =================
 
 exports.submitBoutiqueApplication = require("firebase-functions/v2/https").onRequest(
-  { cors: ["https://libsk.com", "https://www.libsk.com", "https://libsk-b68f5.web.app"] },
+  {
+    cors: ["https://libsk.com", "https://www.libsk.com", "https://libsk-b68f5.web.app"],
+    secrets: [resendApiKey],
+  },
   async (req, res) => {
     if (req.method !== "POST") { res.status(405).send("Method not allowed"); return; }
 
@@ -3755,7 +3763,10 @@ exports.submitBoutiqueApplication = require("firebase-functions/v2/https").onReq
 // ================= CONTACT FORM =================
 
 exports.submitContactForm = require("firebase-functions/v2/https").onRequest(
-  { cors: ["https://libsk.com", "https://www.libsk.com", "https://libsk-b68f5.web.app"] },
+  {
+    cors: ["https://libsk.com", "https://www.libsk.com", "https://libsk-b68f5.web.app"],
+    secrets: [resendApiKey],
+  },
   async (req, res) => {
     if (req.method !== "POST") { res.status(405).send("Method not allowed"); return; }
     try {
@@ -3830,4 +3841,317 @@ exports.submitContactForm = require("firebase-functions/v2/https").onRequest(
       res.status(500).json({ error: "Failed to send message" });
     }
   }
+);
+// ================= EMAIL OTP VERIFICATION =================
+//
+// A custom 6-digit code flow, deliberately NOT Firebase's built-in link-based
+// verification. Firebase Auth's own `emailVerified` remains the source of
+// truth: social sign-ins arrive with it already true, and verifyEmailOtp flips
+// it for password signups. The users doc only mirrors it, so the cleanup job
+// and admin views can query verification state without walking Auth.
+
+// Pure OTP logic (code generation, hashing, the verify decision table) lives in
+// email_otp.js and is unit-tested in test/email_otp.test.js.
+const {
+  OTP_TTL_MS,
+  generateOtp,
+  hashOtp,
+  isValidOtpFormat,
+  evaluateOtpAttempt,
+  resendWaitMs,
+} = require("./email_otp");
+
+function otpEmailHtml(code, locale) {
+  const ar = locale === "ar";
+  const dir = ar ? "rtl" : "ltr";
+  const title = ar ? "رمز التحقق" : "Your verification code";
+  const intro = ar
+    ? "استخدم الرمز التالي لتأكيد بريدك الإلكتروني:"
+    : "Use the code below to confirm your email address:";
+  const expiry = ar
+    ? "ينتهي هذا الرمز خلال ١٠ دقائق."
+    : "This code expires in 10 minutes.";
+  const ignore = ar
+    ? "إذا لم تطلب هذا الرمز، يمكنك تجاهل هذه الرسالة."
+    : "If you didn't request this code, you can ignore this email.";
+
+  return `<!DOCTYPE html>
+<html dir="${dir}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#FFFDF8;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#FFFDF8;padding:40px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#FFFDF8;border:1px solid #DDD8D1;max-width:560px;width:100%;">
+        <tr><td style="padding:32px 40px 24px;border-bottom:1px solid #DDD8D1;" align="${ar ? "right" : "left"}">
+          <p style="margin:0;font-family:Georgia,serif;font-size:26px;letter-spacing:4px;color:#2C2925;text-transform:uppercase;">LIBSK</p>
+        </td></tr>
+        <tr><td style="padding:36px 40px;" align="${ar ? "right" : "left"}">
+          <p style="margin:0 0 6px;font-family:Georgia,serif;font-size:20px;color:#2C2925;">${title}</p>
+          <p style="margin:0 0 28px;font-family:Arial,sans-serif;font-size:13px;color:#8E877D;">${intro}</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+            <tr><td align="center" style="padding:22px 0;background:#F5F1EA;border:1px solid #DDD8D1;">
+              <p style="margin:0;font-family:Georgia,serif;font-size:34px;letter-spacing:10px;color:#2C2925;">${code}</p>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;color:#8E877D;">${expiry}</p>
+          <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#8E877D;">${ignore}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function sendOtpEmail(to, code, locale) {
+  // Unlike sendOrderEmail, a delivery failure here must reach the caller: the
+  // user is sitting on the verify screen and a silently-swallowed error would
+  // leave them waiting for a mail that never sends.
+  const resend = getResend();
+  await resend.emails.send({
+    from: "LIBSK <accounts@libsk.com>",
+    to,
+    subject: locale === "ar" ? "رمز التحقق — LIBSK" : "Your LIBSK verification code",
+    html: otpEmailHtml(code, locale),
+  });
+  logger.info("OTP email sent", { to });
+}
+
+exports.sendEmailOtp = onCall({ secrets: [resendApiKey] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be signed in.");
+  }
+  const uid = request.auth.uid;
+
+  // The account exists before verification starts, so uid is a stable rate-limit
+  // key. Five sends an hour also caps the blast radius of a stolen session.
+  const rateOk = await checkRateLimit(`otp_send_${uid}`, 5, 3600);
+  if (!rateOk) {
+    throw new HttpsError("resource-exhausted", "Too many verification emails. Please try again later.");
+  }
+
+  const userRecord = await admin.auth().getUser(uid);
+  if (userRecord.emailVerified) {
+    // Idempotent — a double-tap or a Google user landing here costs nothing.
+    return { alreadyVerified: true };
+  }
+  if (!userRecord.email) {
+    throw new HttpsError("failed-precondition", "This account has no email address.");
+  }
+
+  const ref = db.collection("email_otps").doc(uid);
+  const existing = await ref.get();
+  if (existing.exists) {
+    const waitMs = resendWaitMs(existing.get("lastSentAt"), Date.now());
+    if (waitMs > 0) {
+      const retryAfterSeconds = Math.ceil(waitMs / 1000);
+      throw new HttpsError(
+        "resource-exhausted",
+        `Please wait ${retryAfterSeconds}s before requesting another code.`,
+        { retryAfterSeconds },
+      );
+    }
+  }
+
+  const code = generateOtp();
+  // Issuing a new code invalidates the previous one and resets the attempt
+  // counter. That hands a guesser 5 fresh attempts per resend, but the 5/hour
+  // send cap holds that to 25 guesses/hour against a 10^6 space.
+  await ref.set({
+    hash: hashOtp(uid, code),
+    email: userRecord.email,
+    expiresAt: Date.now() + OTP_TTL_MS,
+    attempts: 0,
+    lastSentAt: Date.now(),
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await sendOtpEmail(userRecord.email, code, request.data?.locale === "ar" ? "ar" : "en");
+
+  return { sent: true, expiresInSeconds: OTP_TTL_MS / 1000 };
+});
+
+exports.verifyEmailOtp = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be signed in.");
+  }
+  const uid = request.auth.uid;
+
+  const rateOk = await checkRateLimit(`otp_verify_${uid}`, 20, 3600);
+  if (!rateOk) {
+    throw new HttpsError("resource-exhausted", "Too many attempts. Please try again later.");
+  }
+
+  const code = String(request.data?.code || "").trim();
+  if (!isValidOtpFormat(code)) {
+    throw new HttpsError("invalid-argument", "Enter the 6-digit code.");
+  }
+
+  const ref = db.collection("email_otps").doc(uid);
+
+  // Transactional so two concurrent submits can't both consume the same code or
+  // race the attempt counter. The decision itself is pure — see email_otp.js.
+  const result = await db.runTransaction(async (tx) => {
+    const doc = await tx.get(ref);
+    const decision = evaluateOtpAttempt({
+      record: doc.exists ? doc.data() : null,
+      uid,
+      code,
+      now: Date.now(),
+    });
+
+    if (decision.consume) tx.delete(ref);
+    else if (decision.incrementTo !== undefined) tx.update(ref, { attempts: decision.incrementTo });
+
+    return decision;
+  });
+
+  if (!result.ok) {
+    if (result.reason === "expired") {
+      throw new HttpsError("deadline-exceeded", "That code has expired. Request a new one.");
+    }
+    if (result.reason === "no-code") {
+      throw new HttpsError("not-found", "No active code. Request a new one.");
+    }
+    if (result.reason === "too-many-attempts") {
+      throw new HttpsError("resource-exhausted", "Too many incorrect attempts. Request a new code.");
+    }
+    throw new HttpsError("invalid-argument", "Incorrect code.", { remaining: result.remaining });
+  }
+
+  // Auth first — it's the source of truth the gate reads. The users doc is only
+  // a queryable mirror, so if the second write fails the user is still verified
+  // and the mirror self-heals on the next verified read.
+  await admin.auth().updateUser(uid, { emailVerified: true });
+  await db.collection("users").doc(uid).set({
+    emailVerified: true,
+    emailVerifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  logger.info("Email verified via OTP", { uid });
+  return { verified: true };
+});
+
+// Mirrors Auth's emailVerified onto the profile at creation. Google and Apple
+// hand back an already-verified address, so those accounts start verified and
+// never see the OTP screen; password signups start false.
+exports.mirrorEmailVerifiedOnProfileCreate = onDocumentCreated("users/{uid}", async (event) => {
+  const uid = event.params.uid;
+  try {
+    const userRecord = await admin.auth().getUser(uid);
+    await event.data.ref.set(
+      { emailVerified: userRecord.emailVerified === true },
+      { merge: true },
+    );
+  } catch (err) {
+    // Never throw: a failure here must not block profile creation. The mirror
+    // is reconciled by verifyEmailOtp, and the cleanup job re-checks Auth
+    // before it deletes anything.
+    logger.error("Failed to mirror emailVerified", { uid, err: err.message });
+  }
+});
+
+// ================= UNVERIFIED ACCOUNT CLEANUP =================
+//
+// Incomplete signups shouldn't accumulate forever, but deletion is the one
+// irreversible thing in this feature, so every filter here is fail-safe:
+// a doc missing emailVerified or createdAt simply never matches, and is left
+// alone rather than guessed at.
+//
+// Grandfathered accounts carry emailVerified: true (the backfill stamps both
+// flags), so the query below cannot see them. The explicit verificationExempt
+// guard in the delete loop is belt-and-braces on top of that.
+
+const UNVERIFIED_FLAG_AFTER_MS = 48 * 60 * 60 * 1000;      // 48h → flag
+const UNVERIFIED_DELETE_AFTER_MS = 7 * 24 * 60 * 60 * 1000; // 7d  → purge
+
+exports.cleanupUnverifiedAccounts = onSchedule(
+  { schedule: "every 24 hours", maxInstances: 1 },
+  async () => {
+    const now = Date.now();
+
+    // ── Pass 1: flag abandoned signups (reversible, no data loss) ──────────
+    const flagCutoff = admin.firestore.Timestamp.fromMillis(now - UNVERIFIED_FLAG_AFTER_MS);
+    const flagSnap = await db.collection("users")
+      .where("emailVerified", "==", false)
+      .where("createdAt", "<", flagCutoff)
+      .limit(500)
+      .get();
+
+    let flagged = 0;
+    const batch = db.batch();
+    for (const doc of flagSnap.docs) {
+      if (doc.get("signupAbandoned") === true) continue;
+      batch.update(doc.ref, {
+        signupAbandoned: true,
+        signupAbandonedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      flagged++;
+    }
+    if (flagged > 0) await batch.commit();
+
+    // ── Pass 2: purge signups abandoned past the retention window ──────────
+    const deleteCutoff = admin.firestore.Timestamp.fromMillis(now - UNVERIFIED_DELETE_AFTER_MS);
+    const deleteSnap = await db.collection("users")
+      .where("emailVerified", "==", false)
+      .where("createdAt", "<", deleteCutoff)
+      .limit(200)
+      .get();
+
+    let deleted = 0;
+    let healed = 0;
+    let skipped = 0;
+
+    for (const doc of deleteSnap.docs) {
+      const uid = doc.id;
+
+      // Should be unreachable given the emailVerified filter, but this is the
+      // last gate before an irreversible delete — a grandfathered account must
+      // never be destroyed by a mirror that drifted.
+      if (doc.get("verificationExempt") === true) {
+        logger.warn("Cleanup skipped an exempt account", { uid });
+        skipped++;
+        continue;
+      }
+
+      // Auth is the source of truth. If the mirror is stale and the user is in
+      // fact verified, heal the mirror instead of deleting a real account.
+      let authUser = null;
+      try {
+        authUser = await admin.auth().getUser(uid);
+      } catch (err) {
+        if (err.code !== "auth/user-not-found") {
+          logger.error("Cleanup could not resolve Auth user; skipping", { uid, err: err.message });
+          skipped++;
+          continue;
+        }
+        // Auth user already gone — fall through and clear the orphaned doc.
+      }
+
+      if (authUser && authUser.emailVerified) {
+        await doc.ref.set({ emailVerified: true }, { merge: true });
+        logger.info("Cleanup healed a stale emailVerified mirror", { uid });
+        healed++;
+        continue;
+      }
+
+      try {
+        // Auth first: revokes the ability to sign in, so a partial failure
+        // leaves an inert doc rather than a live account with no profile.
+        if (authUser) await admin.auth().deleteUser(uid);
+        // recursiveDelete reaches the subcollections (carts, saved_items,
+        // following, saved_addresses) that a plain doc delete would orphan.
+        await db.recursiveDelete(doc.ref);
+        deleted++;
+      } catch (err) {
+        logger.error("Cleanup failed to purge account", { uid, err: err.message });
+      }
+    }
+
+    logger.info("Unverified account cleanup complete", {
+      flagged, deleted, healed, skipped,
+      flagCandidates: flagSnap.size,
+      deleteCandidates: deleteSnap.size,
+    });
+  },
 );

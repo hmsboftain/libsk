@@ -2814,4 +2814,70 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get promoImageWrongType => 'That file isn\'t an image. Choose a JPG, PNG, or WebP.';
+
+  @override
+  String get verifyYourEmail => 'Verify your email';
+
+  @override
+  String verificationCodeSentTo(String email) {
+    return 'We sent a 6-digit code to $email';
+  }
+
+  @override
+  String get enterSixDigitCode => 'Enter the 6-digit code';
+
+  @override
+  String get verifyCode => 'Verify';
+
+  @override
+  String get resendCode => 'Resend code';
+
+  @override
+  String resendCodeIn(int seconds) {
+    return 'Resend in ${seconds}s';
+  }
+
+  @override
+  String get codeSentCheckInbox => 'Code sent. Check your inbox.';
+
+  @override
+  String get codeExpiredRequestNew => 'That code has expired. Request a new one.';
+
+  @override
+  String get incorrectCode => 'Incorrect code.';
+
+  @override
+  String incorrectCodeAttemptsLeft(int count) {
+    return 'Incorrect code. $count attempts left.';
+  }
+
+  @override
+  String get tooManyAttemptsRequestNew => 'Too many incorrect attempts. Request a new code.';
+
+  @override
+  String get tooManyCodeRequests => 'Too many requests. Please try again later.';
+
+  @override
+  String get emailVerifiedSuccess => 'Email verified.';
+
+  @override
+  String get wrongEmailStartOver => 'Wrong email? Start over';
+
+  @override
+  String get startOverConfirmTitle => 'Start over?';
+
+  @override
+  String get startOverConfirmBody => 'This signs you out and discards the account you just created. You\'ll be able to sign up again with a different email.';
+
+  @override
+  String get startOverConfirm => 'Start over';
+
+  @override
+  String get verificationRequiredToContinue => 'Verify your email to continue.';
+
+  @override
+  String get couldNotSendCode => 'Could not send the code. Please try again.';
+
+  @override
+  String get ownerMustVerifyEmailFirst => 'This account hasn\'t verified its email yet. Ask the owner to complete verification before onboarding.';
 }

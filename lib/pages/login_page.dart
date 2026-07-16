@@ -4,7 +4,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../services/firestore_service.dart';
+import '../services/verification_service.dart';
 import '../widgets/theme.dart';
+import 'email_verification_page.dart';
 import 'forgot_password_page.dart';
 import 'owner_dashboard_page.dart';
 import 'sign_up_page.dart';
@@ -58,6 +60,22 @@ class _LoginPageState extends State<LoginPage> {
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
+
+      // An account whose signup was never completed can authenticate but can't
+      // use the app. Resume verification here rather than rejecting the login,
+      // so an abandoned signup is finishable instead of a dead end.
+      final status = await VerificationService.checkCurrentUser();
+      if (status.needsEmail) {
+        if (!mounted) return;
+        final verified = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(builder: (_) => const EmailVerificationPage()),
+        );
+        if (verified != true) {
+          await FirebaseAuth.instance.signOut();
+          return;
+        }
+      }
 
       await FirestoreService.updateCurrentUserLastLogin();
       await FirestoreService.setCurrentUserOnline();

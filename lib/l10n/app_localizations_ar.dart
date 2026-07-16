@@ -2818,4 +2818,70 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get promoImageWrongType => 'هذا الملف ليس صورة. اختر JPG أو PNG أو WebP.';
+
+  @override
+  String get verifyYourEmail => 'تأكيد بريدك الإلكتروني';
+
+  @override
+  String verificationCodeSentTo(String email) {
+    return 'أرسلنا رمزًا من ٦ أرقام إلى $email';
+  }
+
+  @override
+  String get enterSixDigitCode => 'أدخل الرمز المكوّن من ٦ أرقام';
+
+  @override
+  String get verifyCode => 'تأكيد';
+
+  @override
+  String get resendCode => 'إعادة إرسال الرمز';
+
+  @override
+  String resendCodeIn(int seconds) {
+    return 'إعادة الإرسال خلال $seconds ثانية';
+  }
+
+  @override
+  String get codeSentCheckInbox => 'تم إرسال الرمز. تحقق من بريدك.';
+
+  @override
+  String get codeExpiredRequestNew => 'انتهت صلاحية الرمز. اطلب رمزًا جديدًا.';
+
+  @override
+  String get incorrectCode => 'رمز غير صحيح.';
+
+  @override
+  String incorrectCodeAttemptsLeft(int count) {
+    return 'رمز غير صحيح. تبقى $count محاولات.';
+  }
+
+  @override
+  String get tooManyAttemptsRequestNew => 'محاولات خاطئة كثيرة. اطلب رمزًا جديدًا.';
+
+  @override
+  String get tooManyCodeRequests => 'طلبات كثيرة جدًا. حاول مرة أخرى لاحقًا.';
+
+  @override
+  String get emailVerifiedSuccess => 'تم تأكيد البريد الإلكتروني.';
+
+  @override
+  String get wrongEmailStartOver => 'بريد خاطئ؟ ابدأ من جديد';
+
+  @override
+  String get startOverConfirmTitle => 'البدء من جديد؟';
+
+  @override
+  String get startOverConfirmBody => 'سيؤدي هذا إلى تسجيل خروجك وحذف الحساب الذي أنشأته للتو. يمكنك التسجيل مرة أخرى ببريد مختلف.';
+
+  @override
+  String get startOverConfirm => 'ابدأ من جديد';
+
+  @override
+  String get verificationRequiredToContinue => 'أكّد بريدك الإلكتروني للمتابعة.';
+
+  @override
+  String get couldNotSendCode => 'تعذّر إرسال الرمز. حاول مرة أخرى.';
+
+  @override
+  String get ownerMustVerifyEmailFirst => 'لم يتم تأكيد البريد الإلكتروني لهذا الحساب بعد. اطلب من المالك إكمال التحقق قبل التسجيل.';
 }

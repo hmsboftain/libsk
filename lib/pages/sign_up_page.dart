@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/utils/validators.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
+import 'email_verification_page.dart';
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -260,6 +261,27 @@ class _SignUpPageState extends State<SignUpPage> {
           email: email,
           phone: phone,
         );
+      }
+
+      if (!mounted) return;
+
+      // The account exists from here on, but it's gated until the emailed code
+      // round-trips. The guest cart merge deliberately waits until after that:
+      // an abandoned signup gets purged by the cleanup job, and a cart merged
+      // early would be destroyed with it.
+      final verified = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => EmailVerificationPage(email: email)),
+      );
+
+      if (verified != true) {
+        // Abandoned. The verification page has already signed out, and the
+        // account is left for the cleanup job — signing in again resumes at the
+        // code screen rather than dead-ending on "email already in use".
+        await FirebaseAuth.instance.signOut();
+        if (!mounted) return;
+        Navigator.pop(context, false);
+        return;
       }
 
       await FirestoreService.mergeGuestCartToUser();

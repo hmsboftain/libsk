@@ -44,6 +44,16 @@ service cloud.firestore {
              d.email     is string && d.email.size()     <= 100;
     }
 
+    // New accounts must start unverified. The flags may be present (the client
+    // seeds the full doc shape) but only as false; verificationExempt is
+    // grandfathering state and must never appear on a client-created doc.
+    function isUnverifiedAtCreate() {
+      let d = request.resource.data;
+      return (!('emailVerified' in d) || d.emailVerified == false) &&
+             (!('phoneVerified' in d) || d.phoneVerified == false) &&
+             !d.keys().hasAny(['verificationExempt', 'verificationExemptAt']);
+    }
+
     function isValidAddress() {
       let d = request.resource.data;
       return d.firstName    is string && d.firstName.size()    <= 50 &&
@@ -122,12 +132,20 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
+      // A client may seed the verification flags only as false — never true, and
+      // never verificationExempt. Granting yourself verified status at create
+      // time would otherwise walk straight past the signup gate.
       allow create: if isOwner(userId) &&
         request.resource.data.role == 'user' &&
-        isValidUserProfile();
+        isValidUserProfile() &&
+        isUnverifiedAtCreate();
+      // Verification state is server-owned: the OTP Cloud Functions and the
+      // backfill script write it via the admin SDK (which bypasses rules).
+      // Clients never flip their own flags, same principle as role.
       allow update: if (isOwner(userId) &&
         !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['role'])) || isAdmin();
+          .hasAny(['role', 'emailVerified', 'phoneVerified',
+                   'verificationExempt', 'verificationExemptAt'])) || isAdmin();
       allow delete: if isSuperAdmin();
 
       match /saved_items/{itemId} {
@@ -345,6 +363,15 @@ service cloud.firestore {
 
     match /rate_limits/{docId} {
       allow read, write: if false; // server-only
+    }
+
+    match /email_otps/{uid} {
+      // Server-only. Holds the hashed OTP, its expiry and the attempt counter —
+      // a client that could read this could read the hash and brute-force it
+      // offline, and a client that could write it could reset its own attempts.
+      // Covered by the catch-all deny below too; explicit here so it can't be
+      // loosened by accident.
+      allow read, write: if false;
     }
 
     match /{path=**}/products/{productId} {

@@ -5404,6 +5404,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'That file isn\'t an image. Choose a JPG, PNG, or WebP.'**
   String get promoImageWrongType;
+
+  /// No description provided for @verifyYourEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify your email'**
+  String get verifyYourEmail;
+
+  /// No description provided for @verificationCodeSentTo.
+  ///
+  /// In en, this message translates to:
+  /// **'We sent a 6-digit code to {email}'**
+  String verificationCodeSentTo(String email);
+
+  /// No description provided for @enterSixDigitCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the 6-digit code'**
+  String get enterSixDigitCode;
+
+  /// No description provided for @verifyCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify'**
+  String get verifyCode;
+
+  /// No description provided for @resendCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Resend code'**
+  String get resendCode;
+
+  /// No description provided for @resendCodeIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Resend in {seconds}s'**
+  String resendCodeIn(int seconds);
+
+  /// No description provided for @codeSentCheckInbox.
+  ///
+  /// In en, this message translates to:
+  /// **'Code sent. Check your inbox.'**
+  String get codeSentCheckInbox;
+
+  /// No description provided for @codeExpiredRequestNew.
+  ///
+  /// In en, this message translates to:
+  /// **'That code has expired. Request a new one.'**
+  String get codeExpiredRequestNew;
+
+  /// No description provided for @incorrectCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Incorrect code.'**
+  String get incorrectCode;
+
+  /// No description provided for @incorrectCodeAttemptsLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Incorrect code. {count} attempts left.'**
+  String incorrectCodeAttemptsLeft(int count);
+
+  /// No description provided for @tooManyAttemptsRequestNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many incorrect attempts. Request a new code.'**
+  String get tooManyAttemptsRequestNew;
+
+  /// No description provided for @tooManyCodeRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many requests. Please try again later.'**
+  String get tooManyCodeRequests;
+
+  /// No description provided for @emailVerifiedSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verified.'**
+  String get emailVerifiedSuccess;
+
+  /// No description provided for @wrongEmailStartOver.
+  ///
+  /// In en, this message translates to:
+  /// **'Wrong email? Start over'**
+  String get wrongEmailStartOver;
+
+  /// No description provided for @startOverConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Start over?'**
+  String get startOverConfirmTitle;
+
+  /// No description provided for @startOverConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This signs you out and discards the account you just created. You\'ll be able to sign up again with a different email.'**
+  String get startOverConfirmBody;
+
+  /// No description provided for @startOverConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Start over'**
+  String get startOverConfirm;
+
+  /// No description provided for @verificationRequiredToContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify your email to continue.'**
+  String get verificationRequiredToContinue;
+
+  /// No description provided for @couldNotSendCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not send the code. Please try again.'**
+  String get couldNotSendCode;
+
+  /// No description provided for @ownerMustVerifyEmailFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'This account hasn\'t verified its email yet. Ask the owner to complete verification before onboarding.'**
+  String get ownerMustVerifyEmailFirst;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

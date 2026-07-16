@@ -1195,6 +1195,17 @@ class FirestoreService {
 
   // ── User documents ─────────────────────────────────────────────────────────
 
+  /// Creates the profile only if one doesn't already exist.
+  ///
+  /// Every Google/Apple sign-in calls this, not just the first, so it must be
+  /// idempotent. It previously used an unmerged `set()`, which on a returning
+  /// user reset `createdAt` and attempted to force `role` back to `'user'` —
+  /// a write the rules reject for boutique owners, surfacing as a generic
+  /// "something went wrong" on an otherwise valid login.
+  ///
+  /// Verification flags are deliberately absent here: they are server-owned.
+  /// The onUserProfileCreated trigger mirrors Auth's `emailVerified` in, and
+  /// the rules reject any client attempt to set them true.
   static Future<void> createUserProfile({
     required String uid,
     required String firstName,
@@ -1202,7 +1213,11 @@ class FirestoreService {
     required String email,
     required String phone,
   }) async {
-    await _firestore.collection('users').doc(uid).set({
+    final ref = _firestore.collection('users').doc(uid);
+    final existing = await ref.get();
+    if (existing.exists) return;
+
+    await ref.set({
       'firstName': firstName,
       'lastName': lastName,
       'fullName': '$firstName $lastName',
@@ -1211,6 +1226,7 @@ class FirestoreService {
       'role': 'user',
       'isActive': true,
       'isOnline': false,
+      'phoneVerified': false,
       'createdAt': FieldValue.serverTimestamp(),
       'lastLoginAt': FieldValue.serverTimestamp(),
     });
