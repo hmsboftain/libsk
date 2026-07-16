@@ -320,8 +320,29 @@ service cloud.firestore {
       // Every write is server-only — createPromoBooking, the payment-resolution
       // branch and the weekly expiry job use the admin SDK, which bypasses
       // these rules. Clients never create or mutate a booking directly.
+      //
+      // The `stats` rollup (clicks / attributed sales) rides along on this same
+      // read: the ad-analytics dashboard needs no extra permission, and because
+      // these numbers are billing-adjacent they stay server-written like the
+      // rest of the doc — logPromoClick and attributePromoSales own them.
       allow read: if isAdmin() || isBoutiqueOwnerOf(resource.data.boutiqueId);
       allow write: if false;
+
+      // The orders a booking's clicks drove — the dashboard's drill-down.
+      // boutiqueId is denormalised onto each doc so authorising a read here
+      // costs no parent lookup.
+      match /attributed_sales/{orderId} {
+        allow read: if isAdmin() || isBoutiqueOwnerOf(resource.data.boutiqueId);
+        allow write: if false;
+      }
+    }
+
+    match /promo_click_events/{eventId} {
+      // Raw click log — server-only in BOTH directions. Written by logPromoClick
+      // via the admin SDK; owners never read it (they read the rollup on the
+      // booking instead), so an owner cannot mine which customers tapped their
+      // ad. Deny-all keeps the raw event stream out of client reach entirely.
+      allow read, write: if false;
     }
 
     match /payment_attempts/{attemptId} {

@@ -4,6 +4,7 @@ const {
   onDocumentCreated,
   onDocumentUpdated,
   onDocumentDeleted,
+  onDocumentWritten,
 } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 
@@ -23,6 +24,17 @@ const {
   allocateCreditFifo,
   splitCreditCharge,
 } = require("./promo_credit");
+// Pure ad-analytics logic (click validation, de-dup, attribution) — no I/O, unit
+// tested in test/promo_analytics.test.js. Same split as promo_credit above.
+const {
+  ATTRIBUTION_WINDOW_MS,
+  isPaidOrderStatus,
+  isReversedOrderStatus,
+  clickEventId,
+  subjectTypeFor,
+  validateClick,
+  attributeOrder,
+} = require("./promo_analytics");
 const { defineString, defineSecret } = require("firebase-functions/params");
 const algoliaAppId = defineString("ALGOLIA_APP_ID");
 const algoliaAdminKey = defineString("ALGOLIA_ADMIN_KEY");
@@ -2174,7 +2186,19 @@ exports.expireFeedSponsored = onSchedule(
     .limit(500)
     .get();
   const batch = db.batch();
-  snap.docs.forEach(doc => batch.update(doc.ref, { isFeedSponsored: false }));
+  snap.docs.forEach((doc) => {
+    const update = { isFeedSponsored: false };
+    // Drop the feed stamp with the flag, or it would outlive the sponsorship and
+    // keep attributing clicks to a finished booking. Unconditional is correct
+    // here: promoSetFlag only ever EXTENDS feedSponsoredUntil, so once it has
+    // lapsed every booking that stamped this product has lapsed too.
+    const stamps = doc.data().promoAttribution;
+    if (Array.isArray(stamps) && stamps.some((s) => s && s.placementType === "feed_sponsored")) {
+      update.promoAttribution = stamps.filter(
+        (s) => !(s && s.placementType === "feed_sponsored"));
+    }
+    batch.update(doc.ref, update);
+  });
   if (snap.docs.length > 0) await batch.commit();
 });
 
@@ -2737,9 +2761,49 @@ exports.createPromoBooking = onCall(async (request) => {
 
 const toMillisOr0 = (v) => (v && typeof v.toMillis === "function" ? v.toMillis() : 0);
 
+// ---- Promo provenance stamp -------------------------------------------------
+//
+// The rendering flags below say a doc IS promoted, never WHY: the admin homepage
+// tool sets the very same fields for free editorial curation (deliberately — see
+// the section header). Ad analytics must never bill an editorial pick to a paid
+// booking, and the client queries those flags directly, so nothing downstream can
+// tell paid from free. The stamp is the missing link:
+//
+//   promoAttribution: [
+//     { placementType: "featured_product", bookingId, boutiqueId },
+//     { placementType: "top_of_category",  bookingId, boutiqueId, category },
+//   ]
+//
+// Read by the client from a doc it ALREADY holds (see promoAttributionFor in
+// lib/services/promo_click_service.dart), so firing a click costs zero reads.
+// No stamp → editorial → no event, which is exactly the paid/free split the
+// booleans cannot express.
+//
+// An ARRAY, not a map keyed by placement, for two reasons: category names are
+// not valid Firestore field-path segments ("Blouses & Shirts", "Dra'a"), and one
+// product may be pinned in two categories by two different bookings, which a
+// single top_of_category key would silently collide. Adds use arrayUnion (atomic,
+// idempotent on re-run); removals read-modify-write, matching how the flag
+// helpers around them already work.
+const promoStampEntry = ({ placementType, bookingId, boutiqueId, category }) => ({
+  placementType,
+  bookingId,
+  boutiqueId,
+  ...(category ? { category } : {}),
+});
+
+// Drop every stamp belonging to `bookingId` (all categories it pinned). Returns
+// the surviving array, or null when nothing changed — so callers skip the write.
+function promoStampsWithout(data, bookingId) {
+  const current = Array.isArray(data.promoAttribution) ? data.promoAttribution : [];
+  const kept = current.filter((s) => s && s.bookingId !== bookingId);
+  return kept.length === current.length ? null : kept;
+}
+
 // Set a boolean flag + extend its expiry to at least `until` (never shorten a
-// later, e.g. admin-set, expiry) + ensure an order field exists.
-async function promoSetFlag(ref, { flagField, expiryField, orderField, until }) {
+// later, e.g. admin-set, expiry) + ensure an order field exists. `stamp` records
+// which booking paid for this rendering (see above); omit it for editorial writes.
+async function promoSetFlag(ref, { flagField, expiryField, orderField, until, stamp }) {
   const snap = await ref.get();
   if (!snap.exists) return;
   const data = snap.data();
@@ -2753,20 +2817,40 @@ async function promoSetFlag(ref, { flagField, expiryField, orderField, until }) 
   // excluded — every promoted doc must have one. Never overwrite an existing
   // (admin-chosen) order; editorial picks use small ints and sort first.
   if (orderField && data[orderField] === undefined) update[orderField] = Date.now();
+  if (stamp) {
+    update.promoAttribution = admin.firestore.FieldValue.arrayUnion(
+      promoStampEntry(stamp));
+  }
   await ref.update(update);
 }
 
 // Clear a flag ONLY if its expiry has lapsed, so a longer admin feature stays.
-async function promoClearFlag(ref, { flagField, expiryField, orderField }) {
+// The STAMP, however, always goes when the booking ends: if an admin has extended
+// the feature past the paid window, the doc keeps rendering but the clicks it
+// earns from then on are editorial, not paid, and must stop being attributed.
+async function promoClearFlag(ref, { flagField, expiryField, orderField, stamp }) {
   const snap = await ref.get();
   if (!snap.exists) return;
   const data = snap.data();
-  if (toMillisOr0(data[expiryField]) > Date.now()) return; // still featured
-  const update = {
-    [flagField]: false,
-    [expiryField]: admin.firestore.FieldValue.delete(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  };
+
+  const update = {};
+  if (stamp) {
+    const kept = promoStampsWithout(data, stamp.bookingId);
+    if (kept) update.promoAttribution = kept;
+  }
+
+  if (toMillisOr0(data[expiryField]) > Date.now()) {
+    // Still featured by a longer admin feature — unstamp only, flags untouched.
+    if (Object.keys(update).length) {
+      update.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+      await ref.update(update);
+    }
+    return;
+  }
+
+  update[flagField] = false;
+  update[expiryField] = admin.firestore.FieldValue.delete();
+  update.updatedAt = admin.firestore.FieldValue.serverTimestamp();
   if (orderField) update[orderField] = admin.firestore.FieldValue.delete();
   await ref.update(update);
 }
@@ -2780,26 +2864,32 @@ async function applyPromoRendering(booking) {
   const until = booking.dayEnd || booking.weekEnd; // render-window end
   const product = (pid) =>
     db.collection("boutiques").doc(bid).collection("products").doc(pid);
+  // Provenance for ad analytics — see the stamp comment above. booking.id is
+  // supplied by the callers (the activator spreads { id: doc.id, ...booking }).
+  const stampFor = (extra) => (booking.id
+    ? { placementType: booking.placementType, bookingId: booking.id, boutiqueId: bid, ...extra }
+    : undefined);
 
   switch (booking.placementType) {
     case "featured_product":
       for (const pid of booking.targetProductIds || []) {
         await promoSetFlag(product(pid), {
           flagField: "isFeaturedOnHome", expiryField: "featuredExpiresAt",
-          orderField: "featuredOrder", until,
+          orderField: "featuredOrder", until, stamp: stampFor(),
         });
       }
       return {};
     case "featured_boutique":
       await promoSetFlag(db.collection("boutiques").doc(bid), {
         flagField: "isVisibleOnHome", expiryField: "homeExpiresAt",
-        orderField: "homeOrder", until,
+        orderField: "homeOrder", until, stamp: stampFor(),
       });
       return {};
     case "feed_sponsored":
       for (const pid of booking.targetProductIds || []) {
         await promoSetFlag(product(pid), {
           flagField: "isFeedSponsored", expiryField: "feedSponsoredUntil", until,
+          stamp: stampFor(),
         });
       }
       return {};
@@ -2810,9 +2900,16 @@ async function applyPromoRendering(booking) {
           const snap = await ref.get();
           if (!snap.exists) continue;
           const keep = toMillisOr0(snap.data().categoryPromoUntil) > until.toMillis();
+          const stamp = stampFor({ category: pin.category });
           await ref.update({
             promotedCategories: admin.firestore.FieldValue.arrayUnion(pin.category),
             categoryPromoUntil: keep ? snap.data().categoryPromoUntil : until,
+            // Stamped per category: the same product pinned in two categories by
+            // two bookings must credit each click to the right one.
+            ...(stamp ? {
+              promoAttribution: admin.firestore.FieldValue.arrayUnion(
+                promoStampEntry(stamp)),
+            } : {}),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
         }
@@ -2845,26 +2942,29 @@ async function revokePromoRendering(booking) {
   const bid = booking.boutiqueId;
   const product = (pid) =>
     db.collection("boutiques").doc(bid).collection("products").doc(pid);
+  // Only the owning booking may drop its own stamp — an expiring booking must
+  // never unstamp a later one that has since taken the same surface.
+  const stamp = booking.id ? { bookingId: booking.id } : undefined;
 
   switch (booking.placementType) {
     case "featured_product":
       for (const pid of booking.targetProductIds || []) {
         await promoClearFlag(product(pid), {
           flagField: "isFeaturedOnHome", expiryField: "featuredExpiresAt",
-          orderField: "featuredOrder",
+          orderField: "featuredOrder", stamp,
         });
       }
       break;
     case "featured_boutique":
       await promoClearFlag(db.collection("boutiques").doc(bid), {
         flagField: "isVisibleOnHome", expiryField: "homeExpiresAt",
-        orderField: "homeOrder",
+        orderField: "homeOrder", stamp,
       });
       break;
     case "feed_sponsored":
       for (const pid of booking.targetProductIds || []) {
         await promoClearFlag(product(pid), {
-          flagField: "isFeedSponsored", expiryField: "feedSponsoredUntil",
+          flagField: "isFeedSponsored", expiryField: "feedSponsoredUntil", stamp,
         });
       }
       break;
@@ -2880,6 +2980,10 @@ async function revokePromoRendering(booking) {
           };
           if (toMillisOr0(snap.data().categoryPromoUntil) <= Date.now()) {
             update.categoryPromoUntil = admin.firestore.FieldValue.delete();
+          }
+          if (stamp) {
+            const kept = promoStampsWithout(snap.data(), stamp.bookingId);
+            if (kept) update.promoAttribution = kept;
           }
           await ref.update(update);
         }
@@ -2940,7 +3044,10 @@ exports.expirePromoBookings = onSchedule(
     for (const doc of snap.docs) {
       try {
         const booking = doc.data();
-        if (booking.renderingApplied) await revokePromoRendering(booking);
+        // id is load-bearing: revoke matches it to drop only THIS booking's stamp.
+        if (booking.renderingApplied) {
+          await revokePromoRendering({ id: doc.id, ...booking });
+        }
         await doc.ref.update({
           status: "expired",
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -3587,6 +3694,269 @@ exports.adminActivatePromoSlot = onCall({ maxInstances: 2 }, async (request) => 
 
   return { success: true };
 });
+
+// ================= PROMO ADS: CLICK TRACKING & SALES ATTRIBUTION =================
+//
+// Boutique owners buy placements; this measures whether they worked. Two numbers
+// per booking — clicks, and sales those clicks led to — rolled up onto the
+// booking doc so the dashboard reads the SAME documents it already loads for "My
+// bookings" and never scans the raw event log.
+//
+// Impressions are deliberately not tracked (write volume, and clicks + sales
+// already answer "did this booking earn real engagement"), so there is no CTR.
+//
+// Cost, since this is the one part that scales with traffic rather than with
+// bookings: two writes per click (event + rollup). At ~1k clicks/day that is
+// inside the free tier; at 50k/day — far beyond any plausible LIBSK volume — it
+// is a few dollars a month. Batching would be premature. The real ceiling is
+// per-document contention on a single booking's counter at ~1 sustained write/s,
+// i.e. ~86k clicks/day on ONE booking; if that ever happens, shard the counter.
+// The 30-min de-dup bucket pushes that ceiling out further.
+
+// Raw click log. Retained for the attribution window plus an audit trail; the
+// permanent numbers live in the booking rollup, so these are safe to age out.
+const PROMO_CLICK_EVENTS = "promo_click_events";
+
+/**
+ * Record a tap on a promoted placement.
+ *
+ * The client passes the bookingId it read from the provenance stamp on a doc it
+ * already had (zero extra reads) — but that claim is never trusted: the booking
+ * is re-read here and validateClick re-derives, from the booking itself, that it
+ * is active, inside its booked window, and genuinely renders this subject.
+ * Without that gate a crafted client could dump clicks onto any booking, padding
+ * its own stats or poisoning a competitor's.
+ *
+ * De-dup is structural rather than a read-then-check: the event id is
+ * deterministic per (booking, person, 30-min bucket), so a repeat tap makes the
+ * batched .create() fail with ALREADY_EXISTS and the counter simply doesn't move.
+ *
+ * Fire-and-forget from the client's perspective — a thrown error must never break
+ * a tap, so the caller ignores the result (see promo_click_service.dart).
+ */
+exports.logPromoClick = onCall(async (request) => {
+  const data = request.data || {};
+  const bookingId = String(data.bookingId || "");
+  const placementType = String(data.placementType || "");
+  const subjectId = String(data.subjectId || "");
+  const category = data.category ? String(data.category) : null;
+  // Stable per-device id (SharedPreferences 'guestCartId'). Recorded on every
+  // click, signed in or not.
+  //
+  // NOTE — signed-out clicks are recorded but NOT yet attributable: browsing
+  // works signed out, checkout does not, and creditPromoAttribution matches on
+  // uid, which a signed-out click does not have. So "tapped an ad, signed up,
+  // bought" — the acquisition case an ad is most valuable for — currently
+  // undercounts. Closing it means claiming these events onto the uid at
+  // sign-in; deviceId is captured now so that claim has something to match on.
+  const deviceId = String(data.deviceId || "").slice(0, 128);
+
+  if (!bookingId || !placementType || !subjectId) {
+    throw new HttpsError("invalid-argument", "Missing click parameters.");
+  }
+  const subjectType = subjectTypeFor(placementType);
+  if (!subjectType) throw new HttpsError("invalid-argument", "Unknown placement type.");
+
+  // Identity: the signed-in uid when there is one, else the device. Both are
+  // recorded when available so attribution can bridge a sign-in.
+  const uid = request.auth ? request.auth.uid : null;
+  const clickerId = uid || deviceId;
+  if (!clickerId) throw new HttpsError("invalid-argument", "No click identity.");
+
+  // Generous ceiling — real users cannot reach it, but it stops a script turning
+  // one device into unbounded writes even against distinct bookings.
+  const rateOk = await checkRateLimit(`promo_click_${clickerId}`, 300, 3600);
+  if (!rateOk) return { recorded: false, reason: "rate-limited" };
+
+  const bookingSnap = await db.collection("promo_bookings").doc(bookingId).get();
+  const nowMs = Date.now();
+  const check = validateClick(
+    bookingSnap.exists ? bookingSnap.data() : null,
+    { placementType, subjectId, category }, nowMs,
+  );
+  if (!check.ok) {
+    // Not an error to the user — a stale stamp on a cached screen lands here
+    // routinely (booking just expired). Logged so spoofing is visible.
+    logger.info("Promo click rejected", { bookingId, reason: check.reason, uid });
+    return { recorded: false, reason: check.reason };
+  }
+  const booking = bookingSnap.data();
+
+  const eventRef = db.collection(PROMO_CLICK_EVENTS)
+    .doc(clickEventId(bookingId, clickerId, nowMs));
+  const bookingRef = bookingSnap.ref;
+  const clickedAt = admin.firestore.Timestamp.fromMillis(nowMs);
+
+  // Server clock only: the 48h window must not be steerable by a device clock.
+  const batch = db.batch();
+  batch.create(eventRef, {
+    bookingId,
+    boutiqueId: booking.boutiqueId,
+    placementType,
+    subjectType,
+    subjectId,
+    ...(category ? { category } : {}),
+    uid,
+    deviceId: deviceId || null,
+    clickedAt,
+    attributionExpiresAt: admin.firestore.Timestamp.fromMillis(
+      nowMs + ATTRIBUTION_WINDOW_MS),
+    attributed: false,
+  });
+  batch.update(bookingRef, {
+    "stats.clicks": admin.firestore.FieldValue.increment(1),
+    "stats.lastClickAt": clickedAt,
+    "stats.updatedAt": admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  try {
+    await batch.commit();
+    return { recorded: true };
+  } catch (err) {
+    // ALREADY_EXISTS === the de-dup bucket did its job. The batch is atomic, so
+    // the counter did not move either. Anything else is a real failure.
+    if (err && err.code === 6) return { recorded: false, reason: "deduped" };
+    logger.error("Failed to log promo click", { bookingId, error: String(err) });
+    throw new HttpsError("internal", "Could not record click.");
+  }
+});
+
+/**
+ * Credit a paid order to the bookings whose clicks drove it, and back it out if
+ * the order later stops being paid.
+ *
+ * Watches global_orders because every write path converges there — createOrder,
+ * setOrderStatusFromAttempt (Payzah reconcile), updateOrderStatus, and the
+ * client-side markOrderRefundedAsAdmin — so one trigger sees them all regardless
+ * of who wrote it.
+ *
+ * Timing is the subtle part: Payzah orders are CREATED as "Pending Payment" and
+ * only become "Placed" once reconciled, so attributing at creation would count
+ * abandoned checkouts as sales. Credit is therefore taken on the transition INTO
+ * a paid status, which covers both Payzah's later flip and Stripe's
+ * created-as-Placed.
+ *
+ * This function writes to the booking, not to the order, and the guard is the
+ * per-order attributed_sales doc — so its own writes cannot re-trigger it into a
+ * loop, and a replay is a no-op.
+ */
+exports.attributePromoSales = onDocumentWritten(
+  "global_orders/{orderId}",
+  async (event) => {
+    const orderId = event.params.orderId;
+    const before = event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data.after.exists ? event.data.after.data() : null;
+    if (!after) return; // deleted
+
+    const wasPaid = before ? isPaidOrderStatus(before.status) : false;
+    const isPaid = isPaidOrderStatus(after.status);
+
+    if (!wasPaid && isPaid) {
+      await creditPromoAttribution(orderId, after);
+      return;
+    }
+    if (wasPaid && isReversedOrderStatus(after.status)) {
+      await reversePromoAttribution(orderId, after.status);
+    }
+  },
+);
+
+// Find the customer's clicks in the window and credit the winning bookings.
+async function creditPromoAttribution(orderId, order) {
+  const uid = order.customerUid;
+  if (!uid) return;
+
+  const orderMs = toMillisOr0(order.createdAt) || Date.now();
+  const cutoff = admin.firestore.Timestamp.fromMillis(orderMs - ATTRIBUTION_WINDOW_MS);
+
+  // One query, both subject types: a customer's clicks in 48h is a tiny set, so
+  // pulling them and matching in memory beats a query per item/boutique.
+  const snap = await db.collection(PROMO_CLICK_EVENTS)
+    .where("uid", "==", uid)
+    .where("clickedAt", ">=", cutoff)
+    .get();
+  if (snap.empty) return;
+
+  const clicks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const credits = attributeOrder(clicks, order.items || [], orderMs);
+  if (!credits.length) return;
+
+  for (const credit of credits) {
+    const bookingRef = db.collection("promo_bookings").doc(credit.bookingId);
+    // Doc id = orderId, so a replay collides and the whole batch aborts — the
+    // rollup cannot double-count.
+    const saleRef = bookingRef.collection("attributed_sales").doc(orderId);
+
+    const batch = db.batch();
+    batch.create(saleRef, {
+      orderId,
+      orderNumber: order.orderNumber || null,
+      // Denormalised so the security rule can authorise a read without loading
+      // the parent booking.
+      boutiqueId: credit.boutiqueId,
+      bookingId: credit.bookingId,
+      placementType: credit.placementType,
+      revenueFils: credit.revenueFils,
+      productIds: credit.items,
+      clickEventId: credit.clickId,
+      attributedAt: admin.firestore.FieldValue.serverTimestamp(),
+      reversed: false,
+    });
+    batch.update(bookingRef, {
+      "stats.attributedOrders": admin.firestore.FieldValue.increment(1),
+      "stats.attributedRevenueFils": admin.firestore.FieldValue.increment(credit.revenueFils),
+      "stats.updatedAt": admin.firestore.FieldValue.serverTimestamp(),
+    });
+    batch.update(db.collection(PROMO_CLICK_EVENTS).doc(credit.clickId), {
+      attributed: true, attributedOrderId: orderId,
+    });
+
+    try {
+      await batch.commit();
+    } catch (err) {
+      if (err && err.code === 6) continue; // already attributed — replay
+      logger.error("Failed to attribute promo sale", {
+        orderId, bookingId: credit.bookingId, error: String(err),
+      });
+    }
+  }
+}
+
+// Back the credit out when an order is cancelled or refunded, so a booking's
+// numbers reflect money actually kept. The sale doc is marked rather than
+// deleted — the audit trail of what was credited and undone survives.
+async function reversePromoAttribution(orderId, newStatus) {
+  const snap = await db.collectionGroup("attributed_sales")
+    .where("orderId", "==", orderId)
+    .get();
+
+  for (const doc of snap.docs) {
+    try {
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(doc.ref);
+        if (!fresh.exists) return;
+        const sale = fresh.data();
+        if (sale.reversed === true) return; // idempotent
+        const bookingRef = doc.ref.parent.parent;
+        tx.update(doc.ref, {
+          reversed: true,
+          reversedReason: newStatus,
+          reversedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        tx.update(bookingRef, {
+          "stats.attributedOrders": admin.firestore.FieldValue.increment(-1),
+          "stats.attributedRevenueFils": admin.firestore.FieldValue.increment(
+            -(Number(sale.revenueFils) || 0)),
+          "stats.updatedAt": admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (err) {
+      logger.error("Failed to reverse promo attribution", {
+        orderId, sale: doc.id, error: String(err),
+      });
+    }
+  }
+}
 
 // ================= FOLLOW COUNTS =================
 
