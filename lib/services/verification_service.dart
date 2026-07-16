@@ -2,6 +2,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+/// Accounts created before this instant predate mandatory verification and are
+/// never challenged — see requirement: existing users are not retroactively
+/// subject to it.
+///
+/// This is the moment verification went live in production (the Cloud Functions
+/// deploy on 16 Jul 2026). It is a fixed point in the past and must never be
+/// moved forward: doing so would re-grandfather accounts that were created
+/// under the requirement and have already been gated by it.
+final DateTime kVerificationCutoff = DateTime.utc(2026, 7, 16, 15, 30);
+
 /// What a signed-in account still owes before it can use the app.
 class VerificationStatus {
   final bool needsEmail;
@@ -84,10 +94,21 @@ class VerificationService {
     final fresh = _auth.currentUser;
     if (fresh == null) return const VerificationStatus.clear();
 
-    final needsEmail = !fresh.emailVerified;
+    final createdAt = fresh.metadata.creationTime;
+    final emailVerified = fresh.emailVerified;
+
+    // Grandfathered accounts are resolved without touching Firestore, so an
+    // existing user can never be locked out by a failed read.
+    if (isGrandfathered(createdAt: createdAt)) {
+      return const VerificationStatus.clear();
+    }
 
     if (!await isPhoneEnforcementEnabled()) {
-      return VerificationStatus(needsEmail: needsEmail, needsPhone: false);
+      return resolveStatus(
+        createdAt: createdAt,
+        emailVerified: emailVerified,
+        phoneEnforced: false,
+      );
     }
 
     // Phone is the one check that needs Firestore, because there's no Auth-side
@@ -96,16 +117,57 @@ class VerificationService {
     try {
       final doc = await _firestore.collection('users').doc(fresh.uid).get();
       final data = doc.data();
-      if (data?['verificationExempt'] == true) {
-        return const VerificationStatus.clear();
-      }
-      return VerificationStatus(
-        needsEmail: needsEmail,
-        needsPhone: data?['phoneVerified'] != true,
+      return resolveStatus(
+        createdAt: createdAt,
+        emailVerified: emailVerified,
+        phoneEnforced: true,
+        exempt: data?['verificationExempt'] == true,
+        phoneVerified: data?['phoneVerified'] == true,
       );
     } catch (_) {
-      return VerificationStatus(needsEmail: needsEmail, needsPhone: false);
+      return resolveStatus(
+        createdAt: createdAt,
+        emailVerified: emailVerified,
+        phoneEnforced: false,
+      );
     }
+  }
+
+  /// Whether an account predates mandatory verification.
+  ///
+  /// Auth's creationTime is set by Firebase, is immutable, is carried in the
+  /// token, and exists for every account — so this holds even when the profile
+  /// doc is missing or its verificationExempt flag was never backfilled. It is
+  /// the primary grandfather signal precisely because it depends on nothing
+  /// having gone right beforehand; verificationExempt is the queryable record
+  /// of the same decision, not the mechanism.
+  static bool isGrandfathered({required DateTime? createdAt}) {
+    if (createdAt == null) return false;
+    return createdAt.isBefore(kVerificationCutoff);
+  }
+
+  /// The gate's decision table, pure so it can be tested without Firebase.
+  ///
+  /// Extracted after a live regression: the exempt check previously sat inside
+  /// the phone-enforcement branch, so with phone enforcement off it never ran
+  /// and every grandfathered account was prompted for a code it could not
+  /// receive. Nothing here may read ambient state — that's what let the bug
+  /// hide.
+  static VerificationStatus resolveStatus({
+    required DateTime? createdAt,
+    required bool emailVerified,
+    required bool phoneEnforced,
+    bool exempt = false,
+    bool phoneVerified = false,
+  }) {
+    // Grandfathering wins over everything, by either signal.
+    if (exempt || isGrandfathered(createdAt: createdAt)) {
+      return const VerificationStatus.clear();
+    }
+    return VerificationStatus(
+      needsEmail: !emailVerified,
+      needsPhone: phoneEnforced && !phoneVerified,
+    );
   }
 
   /// Sends a 6-digit code to the signed-in user's email address.

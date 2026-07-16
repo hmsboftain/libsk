@@ -24,12 +24,17 @@
 	<string>????</string>
 	<key>CFBundleURLTypes</key>
 	<array>
+		<!-- Google Sign-In callback. Must equal REVERSED_CLIENT_ID in the
+		     GoogleService-Info.plist that Xcode actually bundles (ios/, the
+		     com.libsk.app app) — GIDSignIn reads that file natively and aborts
+		     on launch if the scheme is absent. The previous value here belonged
+		     to the retired com.boftain.libsk app and crashed sign-in. -->
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.836617178098-9k32tnbq495n87mj42fjsg9c99p54jfg</string>
+				<string>com.googleusercontent.apps.836617178098-jg2p6u438tv5mmn16hqcau7dp7doaffl</string>
 			</array>
 		</dict>
 		<!-- Payzah payment redirect: libsk://payment-result?... -->

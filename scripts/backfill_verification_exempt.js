@@ -32,6 +32,12 @@ const PROJECT_ID = "libsk-b68f5";
 const COMMIT = process.argv.includes("--commit");
 const BATCH_LIMIT = 400; // Firestore caps a batch at 500 writes.
 
+// The instant verification went live. Only accounts created BEFORE this are
+// grandfathered. Without this bound the script would exempt accounts created
+// under the requirement — a permanent bypass for exactly the users the gate
+// exists for. Must match kVerificationCutoff in lib/services/verification_service.dart.
+const CUTOFF = new Date("2026-07-16T15:30:00Z");
+
 admin.initializeApp({ projectId: PROJECT_ID });
 const db = admin.firestore();
 
@@ -41,21 +47,48 @@ async function main() {
 
   const snap = await db.collection("users").get();
   console.log(`users docs found: ${snap.size}`);
+  console.log(`cutoff:           ${CUTOFF.toISOString()} (created before this = grandfathered)\n`);
 
-  // Only touch docs that don't already carry the flag, so re-running is safe
-  // and an interrupted run can simply be re-invoked.
-  const pending = snap.docs.filter((d) => d.get("verificationExempt") !== true);
-  const already = snap.size - pending.length;
+  // Age is judged on Auth's creationTime, not the Firestore createdAt: it is
+  // set by Firebase, immutable, and present even on docs whose createdAt write
+  // never landed.
+  const pending = [];
+  let already = 0;
+  let tooNew = 0;
+  let noAuth = 0;
 
-  console.log(`already exempt:   ${already}`);
-  console.log(`to stamp:         ${pending.length}\n`);
+  for (const doc of snap.docs) {
+    if (doc.get("verificationExempt") === true) { already++; continue; }
+    let record;
+    try {
+      record = await admin.auth().getUser(doc.id);
+    } catch (err) {
+      if (err.code === "auth/user-not-found") {
+        console.warn(`  ! ${doc.id} has no Auth user — skipped (nothing to sign in with)`);
+        noAuth++;
+        continue;
+      }
+      throw err;
+    }
+    if (new Date(record.metadata.creationTime) >= CUTOFF) {
+      // Created under the requirement. Exempting it would be a permanent bypass.
+      tooNew++;
+      continue;
+    }
+    pending.push({ doc, record });
+  }
+
+  console.log(`already exempt:      ${already}`);
+  console.log(`created after cutoff: ${tooNew}  (left alone — subject to verification)`);
+  console.log(`no Auth user:        ${noAuth}`);
+  console.log(`to stamp:            ${pending.length}\n`);
 
   if (pending.length === 0) {
     console.log("Nothing to do.\n");
     return;
   }
 
-  for (const doc of pending) {
+  for (const { doc } of pending) {
     const email = doc.get("email") || "(no email)";
     const role = doc.get("role") || "user";
     console.log(`  ${doc.id}  ${role.padEnd(15)} ${email}`);
@@ -63,7 +96,12 @@ async function main() {
   console.log("");
 
   if (!COMMIT) {
-    console.log("Dry run — re-run with --commit to apply.\n");
+    console.log("=".repeat(64));
+    console.log("  DRY RUN — NOTHING WAS WRITTEN. No account is grandfathered yet.");
+    console.log(`  ${pending.length} accounts still need stamping.`);
+    console.log("  Re-run with --commit to actually apply:");
+    console.log("      node scripts/backfill_verification_exempt.js --commit");
+    console.log("=".repeat(64) + "\n");
     return;
   }
 
@@ -76,32 +114,19 @@ async function main() {
   // them. Grandfathered means treated as verified, so we say so in Auth and the
   // gate needs no Firestore read at all on the hot path.
   let authStamped = 0;
-  let authMissing = 0;
-  for (const doc of pending) {
-    try {
-      const record = await admin.auth().getUser(doc.id);
-      if (!record.emailVerified) {
-        await admin.auth().updateUser(doc.id, { emailVerified: true });
-        authStamped++;
-      }
-    } catch (err) {
-      if (err.code === "auth/user-not-found") {
-        // Firestore profile with no Auth user behind it — nothing to sign in
-        // with, so leave it be and let a human look.
-        console.warn(`  ! ${doc.id} has no Auth user; Firestore-only stamp`);
-        authMissing++;
-      } else {
-        throw err;
-      }
+  for (const { doc, record } of pending) {
+    if (!record.emailVerified) {
+      await admin.auth().updateUser(doc.id, { emailVerified: true });
+      authStamped++;
     }
   }
-  console.log(`auth: ${authStamped} stamped verified, ${authMissing} without an Auth user\n`);
+  console.log(`auth: ${authStamped} stamped verified\n`);
 
   // Pass 2 — Firestore mirror.
   let written = 0;
   for (let i = 0; i < pending.length; i += BATCH_LIMIT) {
     const batch = db.batch();
-    for (const doc of pending.slice(i, i + BATCH_LIMIT)) {
+    for (const { doc } of pending.slice(i, i + BATCH_LIMIT)) {
       batch.update(doc.ref, {
         verificationExempt: true,
         // Stamped true as well: an exempt account is treated as fully verified
