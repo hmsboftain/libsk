@@ -2269,6 +2269,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get saleBadge => 'تخفيض';
 
   @override
+  String get promotedBadge => 'مُروَّج';
+
+  @override
   String get salePriceMustBeLessThanPrice => 'يجب أن يكون سعر التخفيض أقل من السعر العادي';
 
   @override

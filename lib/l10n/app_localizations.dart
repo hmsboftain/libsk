@@ -4427,6 +4427,12 @@ abstract class AppLocalizations {
   /// **'SALE'**
   String get saleBadge;
 
+  /// Ad disclosure on a product a boutique has paid to pin at the top of a category. Shown appended to the boutique name, e.g. 'LUWANI · PROMOTED'. Uppercase to match the boutique caps line it joins.
+  ///
+  /// In en, this message translates to:
+  /// **'PROMOTED'**
+  String get promotedBadge;
+
   /// No description provided for @salePriceMustBeLessThanPrice.
   ///
   /// In en, this message translates to:

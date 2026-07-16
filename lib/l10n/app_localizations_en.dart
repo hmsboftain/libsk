@@ -2269,6 +2269,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get saleBadge => 'SALE';
 
   @override
+  String get promotedBadge => 'PROMOTED';
+
+  @override
   String get salePriceMustBeLessThanPrice => 'Sale price must be less than the regular price';
 
   @override

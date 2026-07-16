@@ -12,6 +12,22 @@ import 'product_page.dart';
 
 enum CategorySort { newest, priceLow, priceHigh }
 
+/// Merge promoted [pinned] entries ahead of the [organic] list, dropping any
+/// organic entry that is already pinned so a promoted product is shown once,
+/// at the top — never duplicated further down its own category.
+///
+/// Pure and generic over [keyOf] so it can be unit-tested without Firestore
+/// (see test/category_pins_test.dart).
+List<T> mergePinnedFirst<T>(
+  List<T> pinned,
+  List<T> organic,
+  String Function(T) keyOf,
+) {
+  if (pinned.isEmpty) return organic;
+  final pinnedKeys = pinned.map(keyOf).toSet();
+  return [...pinned, ...organic.where((e) => !pinnedKeys.contains(keyOf(e)))];
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 class CategoryProductsPage extends StatefulWidget {
@@ -31,6 +47,10 @@ class CategoryProductsPage extends StatefulWidget {
 class _CategoryProductsPageState extends State<CategoryProductsPage> {
   static const int _pageSize = 20;
 
+  // top_of_category allows 6 items per category per day; the headroom covers a
+  // capacity change without silently dropping a pin someone paid for.
+  static const int _pinLimit = 12;
+
   CategorySort _sort = CategorySort.newest;
   final ScrollController _scrollController = ScrollController();
 
@@ -39,6 +59,13 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
   bool _loadingMore = false;
   bool _hasMore = true;
   DocumentSnapshot<Map<String, dynamic>>? _cursor;
+
+  // Products a boutique has PAID to pin at the top of this category
+  // (top_of_category placement). Fetched once and prepended to the list, never
+  // paginated: the placement caps a category at 6 pinned items per day, so this
+  // stays tiny. Independent of _sort — a pin outranks whatever the shopper has
+  // sorted by, which is the whole thing the boutique bought.
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> _pinnedDocs = [];
 
   // Non-null when the initial load failed (e.g. a missing Firestore index
   // throwing failed-precondition). Kept distinct from "loaded but empty" so a
@@ -49,6 +76,7 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _loadPinned();
     _loadInitial();
   }
 
@@ -79,6 +107,38 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
         break;
     }
     return q.limit(_pageSize);
+  }
+
+  // Paid pins for this category. The rendering fields are written by the promo
+  // activator (applyPromoRendering) when a booking's window opens and cleared
+  // when it ends, so "currently pinned" is exactly: tagged with this category
+  // AND not yet expired.
+  //
+  // The "All" view (category == null) pins nothing — the placement is sold per
+  // category, so there is no such thing as a pin across every category.
+  Future<void> _loadPinned() async {
+    final category = widget.category;
+    if (category == null) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collectionGroup('products')
+          .where('promotedCategories', arrayContains: category)
+          .where('categoryPromoUntil', isGreaterThan: Timestamp.now())
+          .limit(_pinLimit)
+          .get();
+      if (!mounted) return;
+      setState(() {
+        _pinnedDocs
+          ..clear()
+          ..addAll(snap.docs);
+      });
+    } catch (e) {
+      // Pins are an enhancement on top of the category list: a failure here
+      // (e.g. a missing index) must never take the page down with it. It DOES
+      // mean a boutique paid for a pin that isn't showing, so it is logged
+      // rather than swallowed silently.
+      debugPrint('CATEGORY PINS ERROR: $e');
+    }
   }
 
   void _onScroll() {
@@ -202,7 +262,21 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                     );
                   }
 
-                  final docs = _docs;
+                  // Paid pins ride above the organic list in every sort mode,
+                  // deduped so a pinned product never appears twice. Merged at
+                  // render time (not in _docs) so pagination and its cursor keep
+                  // tracking the organic query alone.
+                  final docs = mergePinnedFirst(
+                    _pinnedDocs,
+                    _docs,
+                    (d) => d.reference.path,
+                  );
+                  // Identify paid cards by path rather than by index: a pinned
+                  // product is deduped out of the organic list, so "the first N
+                  // are the pins" holds today but would break silently the moment
+                  // the merge changes.
+                  final pinnedPaths =
+                      _pinnedDocs.map((d) => d.reference.path).toSet();
 
                   return CustomScrollView(
                     controller: _scrollController,
@@ -286,8 +360,11 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 30),
                           sliver: SliverGrid(
                             delegate: SliverChildBuilderDelegate(
-                              (context, index) =>
-                                  _CategoryProductCard(doc: docs[index]),
+                              (context, index) => _CategoryProductCard(
+                                doc: docs[index],
+                                isPromoted: pinnedPaths
+                                    .contains(docs[index].reference.path),
+                              ),
                               childCount: docs.length,
                             ),
                             gridDelegate:
@@ -329,7 +406,12 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
 class _CategoryProductCard extends StatelessWidget {
   final QueryDocumentSnapshot<Map<String, dynamic>> doc;
 
-  const _CategoryProductCard({required this.doc});
+  /// True when this card is here because a boutique PAID to pin it
+  /// (top_of_category), rather than because it organically matched the
+  /// category. Drives the "· PROMOTED" ad disclosure.
+  final bool isPromoted;
+
+  const _CategoryProductCard({required this.doc, this.isPromoted = false});
 
   @override
   Widget build(BuildContext context) {
@@ -399,7 +481,16 @@ class _CategoryProductCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            product.boutiqueName.toUpperCase(),
+            // Ad disclosure rides the existing boutique caps line rather than
+            // adding one: the grid tile is a fixed aspect ratio with an Expanded
+            // image, so a fourth text line on promoted cards ONLY would shrink
+            // their image and leave the row visually misaligned against the
+            // organic cards beside it. The "·" separator matches the feed's own
+            // idiom ("Following · 2h").
+            isPromoted
+                ? '${product.boutiqueName.toUpperCase()} · '
+                    '${AppLocalizations.of(context)!.promotedBadge}'
+                : product.boutiqueName.toUpperCase(),
             style: AppTextStyles.capsLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

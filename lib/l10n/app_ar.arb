@@ -773,6 +773,7 @@
   "salePrice": "سعر التخفيض",
   "salePriceHint": "مثال: 20.000",
   "saleBadge": "تخفيض",
+  "promotedBadge": "مُروَّج",
   "salePriceMustBeLessThanPrice": "يجب أن يكون سعر التخفيض أقل من السعر العادي",
   "pendingOrders": "الطلبات المعلقة",
   "allCaughtUp": "كل شيء محدث",

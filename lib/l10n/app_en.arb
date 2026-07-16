@@ -770,6 +770,10 @@
   "salePrice": "Sale Price",
   "salePriceHint": "e.g. 20.000",
   "saleBadge": "SALE",
+  "promotedBadge": "PROMOTED",
+  "@promotedBadge": {
+    "description": "Ad disclosure on a product a boutique has paid to pin at the top of a category. Shown appended to the boutique name, e.g. 'LUWANI · PROMOTED'. Uppercase to match the boutique caps line it joins."
+  },
   "salePriceMustBeLessThanPrice": "Sale price must be less than the regular price",
   "pendingOrders": "Pending Orders",
   "allCaughtUp": "All caught up",

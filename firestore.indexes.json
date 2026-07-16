@@ -17,6 +17,14 @@
       ]
     },
     {
+      "collectionGroup": "products",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "promotedCategories", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "categoryPromoUntil", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "promo_bookings",
       "queryScope": "COLLECTION",
       "fields": [
