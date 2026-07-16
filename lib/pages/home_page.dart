@@ -18,6 +18,7 @@ import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 import 'boutique_storefront_page.dart';
 import 'product_page.dart';
+import '../core/services/promo_click_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -413,23 +414,32 @@ class _FeaturedProductCard extends StatelessWidget {
     final displayImageUrl = product.displayImageUrl;
 
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ProductPage(
-            productId: product.id,
-            boutiqueId: product.boutiqueId,
-            imageUrl: displayImageUrl,
-            imageUrls: product.imageUrls,
-            title: title,
-            price: product.price,
-            description: description,
-            sizes: product.sizes,
-            stock: product.stock,
-            boutiqueName: boutiqueName,
+      onTap: () {
+        // Paid placement? Log it. A product featured here by an ADMIN carries no
+        // stamp, so this no-ops and the click is never billed to a booking.
+        // Deliberately not awaited — measurement must not delay navigation.
+        PromoClickService.instance.logStamped(
+          promoStampFor(product.promoAttribution, PromoPlacement.featuredProduct),
+          subjectId: product.id,
+        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProductPage(
+              productId: product.id,
+              boutiqueId: product.boutiqueId,
+              imageUrl: displayImageUrl,
+              imageUrls: product.imageUrls,
+              title: title,
+              price: product.price,
+              description: description,
+              sizes: product.sizes,
+              stock: product.stock,
+              boutiqueName: boutiqueName,
+            ),
           ),
-        ),
-      ),
+        );
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -537,12 +547,24 @@ class _HomeBoutiqueCard extends StatelessWidget {
         : 'B';
 
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => BoutiqueStorefrontPage(boutiqueId: boutiqueId),
-        ),
-      ),
+      onTap: () {
+        // featured_boutique is boutique-scoped: the subject is the boutique, and
+        // any purchase from it inside the window attributes back to this click.
+        // An admin-featured boutique has no stamp, so this no-ops.
+        PromoClickService.instance.logStamped(
+          promoStampFor(
+            promoAttributionOf(data),
+            PromoPlacement.featuredBoutique,
+          ),
+          subjectId: boutiqueId,
+        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BoutiqueStorefrontPage(boutiqueId: boutiqueId),
+          ),
+        );
+      },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         padding: const EdgeInsets.all(14),

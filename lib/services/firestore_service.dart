@@ -81,6 +81,12 @@ class FirestoreService {
     return _guestCartId!;
   }
 
+  /// The stable per-device id, for callers that need to identify a device
+  /// rather than own a cart. Unlike [_cartOwnerId] this never throws and stays
+  /// the device id even when signed in — promo click logging sends it so a tap
+  /// made while signed out has something to be matched on later.
+  static String? get guestCartId => _guestCartId;
+
   // ── Saved Items ────────────────────────────────────────────────────────────
 
   static CollectionReference<Map<String, dynamic>> get _savedItemsRef =>

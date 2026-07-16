@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../core/utils/image_sizing.dart';
 import '../pages/boutique_storefront_page.dart';
 import 'theme.dart';
+import '../core/services/promo_click_service.dart';
 
 /// Is this banner a PAID home_banner placement, or free editorial curation?
 ///
@@ -134,6 +135,7 @@ class _RotatingHeroBannerState extends State<RotatingHeroBanner> {
 
                   return HeroBannerTapTarget(
                     boutiqueId: boutiqueId,
+                    bannerData: data,
                     child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -244,17 +246,33 @@ class HeroBannerTapTarget extends StatelessWidget {
   final String? boutiqueId;
   final Widget child;
 
-  const HeroBannerTapTarget({super.key, required this.boutiqueId, required this.child});
+  /// The raw banner document, used to log the promo click. Omitted in tests that
+  /// only care about tap behaviour; a banner with no promoBookingId logs nothing.
+  final Map<String, dynamic>? bannerData;
+
+  const HeroBannerTapTarget({
+    super.key,
+    required this.boutiqueId,
+    required this.child,
+    this.bannerData,
+  });
 
   @override
   Widget build(BuildContext context) {
     final id = boutiqueId;
     if (id == null) return child;
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => BoutiqueStorefrontPage(boutiqueId: id)),
-      ),
+      onTap: () {
+        // home_banner is the one placement whose provenance is a scalar
+        // (promoBookingId on the hero_banners doc) rather than a stamp array.
+        // Not awaited — the storefront opens regardless.
+        final data = bannerData;
+        if (data != null) PromoClickService.instance.logBannerClick(data);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => BoutiqueStorefrontPage(boutiqueId: id)),
+        );
+      },
       child: child,
     );
   }

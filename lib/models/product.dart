@@ -25,6 +25,13 @@ class Product {
   final bool isOutOfStock;
   final double? salePrice;
 
+  /// Raw promo provenance stamps written by applyPromoRendering — which paid
+  /// booking, if any, put this product on the surface you are looking at. Empty
+  /// for organic products AND for admin editorial picks, which set the same
+  /// rendering flags for free. Read it with promoStampFor() rather than
+  /// directly; see lib/core/services/promo_click_service.dart.
+  final List<dynamic> promoAttribution;
+
   const Product({
     required this.id,
     required this.boutiqueId,
@@ -44,6 +51,7 @@ class Product {
     required this.feedPostedAt,
     required this.isOutOfStock,
     required this.salePrice,
+    this.promoAttribution = const [],
   });
 
   factory Product.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -73,6 +81,8 @@ class Product {
           : null,
       isOutOfStock: data['isOutOfStock'] == true,
       salePrice: _parseNullableDouble(data['salePrice']),
+      promoAttribution:
+          data['promoAttribution'] is List ? data['promoAttribution'] as List : const [],
     );
   }
 

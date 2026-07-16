@@ -19,6 +19,7 @@ import 'feed_add_to_cart_sheet.dart';
 import 'follow_button.dart';
 import 'product_badges.dart';
 import 'theme.dart';
+import '../core/services/promo_click_service.dart';
 
 /// Why a given product is appearing in the feed. Drives the header subtitle.
 enum FeedBadge { followed, hot, sponsored, recommended }
@@ -107,9 +108,18 @@ class _FeedCardState extends State<FeedCard> {
 
   void _openProduct() {
     if (_isSponsored) {
+      // Firebase Analytics: aggregate funnel, not per-booking.
       AnalyticsService.instance.logPromoSlotTap(
         product.boutiqueId,
         widget.feedPosition,
+      );
+      // The booking-level click that feeds the boutique's own ad dashboard.
+      // Distinct from the GA event above: this one is attributable to the
+      // specific feed_sponsored booking that paid for this post, and no-ops if
+      // the post is on the feed for any other reason. Not awaited.
+      PromoClickService.instance.logStamped(
+        promoStampFor(product.promoAttribution, PromoPlacement.feedSponsored),
+        subjectId: product.id,
       );
     }
     Navigator.push(

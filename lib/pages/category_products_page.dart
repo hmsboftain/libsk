@@ -9,6 +9,7 @@ import '../widgets/error_state_widget.dart';
 import '../widgets/product_badges.dart';
 import '../widgets/theme.dart';
 import 'product_page.dart';
+import '../core/services/promo_click_service.dart';
 
 enum CategorySort { newest, priceLow, priceHigh }
 
@@ -364,6 +365,7 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                                 doc: docs[index],
                                 isPromoted: pinnedPaths
                                     .contains(docs[index].reference.path),
+                                category: widget.category,
                               ),
                               childCount: docs.length,
                             ),
@@ -411,7 +413,16 @@ class _CategoryProductCard extends StatelessWidget {
   /// category. Drives the "· PROMOTED" ad disclosure.
   final bool isPromoted;
 
-  const _CategoryProductCard({required this.doc, this.isPromoted = false});
+  /// The category being browsed. Required to attribute a pin click: one product
+  /// can be pinned in two categories by two different bookings, and a tap here
+  /// belongs to whichever booking bought THIS category.
+  final String? category;
+
+  const _CategoryProductCard({
+    required this.doc,
+    this.isPromoted = false,
+    this.category,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -419,23 +430,39 @@ class _CategoryProductCard extends StatelessWidget {
     final displayImageUrl = product.displayImageUrl;
 
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ProductPage(
-            productId: product.id,
-            boutiqueId: product.boutiqueId,
-            imageUrl: displayImageUrl,
-            imageUrls: product.imageUrls,
-            title: product.title,
-            price: product.price,
-            description: product.description,
-            sizes: product.sizes,
-            stock: product.stock,
-            boutiqueName: product.boutiqueName,
+      onTap: () {
+        // Only a pinned card can be a paid click. An organic result that happens
+        // to belong to a boutique with a live booking elsewhere is NOT this
+        // placement, so it must not be credited to it — hence the isPromoted
+        // gate on top of the stamp lookup.
+        if (isPromoted && category != null) {
+          PromoClickService.instance.logStamped(
+            promoStampFor(
+              product.promoAttribution,
+              PromoPlacement.topOfCategory,
+              category: category,
+            ),
+            subjectId: product.id,
+          );
+        }
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProductPage(
+              productId: product.id,
+              boutiqueId: product.boutiqueId,
+              imageUrl: displayImageUrl,
+              imageUrls: product.imageUrls,
+              title: product.title,
+              price: product.price,
+              description: product.description,
+              sizes: product.sizes,
+              stock: product.stock,
+              boutiqueName: product.boutiqueName,
+            ),
           ),
-        ),
-      ),
+        );
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
