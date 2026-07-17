@@ -2763,7 +2763,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get promoAnalyticsViewPerformance => 'عرض الأداء';
 
   @override
-  String get promoAnalyticsClicks => 'النقرات';
+  String get promoAnalyticsClicks => 'الضغطات';
 
   @override
   String get promoAnalyticsOrders => 'الطلبات';
@@ -2778,13 +2778,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String get promoAnalyticsConversion => 'معدل التحويل';
 
   @override
-  String get promoAnalyticsClicksByDay => 'النقرات حسب اليوم';
+  String get promoAnalyticsClicksByDay => 'الضغطات حسب اليوم';
 
   @override
   String get promoAnalyticsAttributedOrders => 'الطلبات من هذا الإعلان';
 
   @override
-  String get promoAnalyticsNoClicksYet => 'لا توجد نقرات بعد.';
+  String get promoAnalyticsNoClicksYet => 'لا توجد ضغطات بعد.';
 
   @override
   String get promoAnalyticsNoOrdersYet => 'لا توجد طلبات من هذا الإعلان بعد.';
@@ -2796,13 +2796,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String get promoAnalyticsNeverRan => 'لم يُعرض هذا الحجز مطلقاً، لذا لا توجد بيانات.';
 
   @override
-  String get promoAnalyticsClickNote => 'نقر المتسوّق على الإعلان نفسه أكثر من مرة خلال ٣٠ دقيقة يُحتسب نقرة واحدة.';
+  String get promoAnalyticsClickNote => 'ضغط المتسوّق على الإعلان نفسه أكثر من مرة خلال ٣٠ دقيقة يُحتسب ضغطة واحدة.';
 
   @override
-  String get promoAnalyticsAttributionNote => 'الطلبات المحتسبة هنا تمت خلال ٤٨ ساعة من نقر المتسوّق على هذا الإعلان. تُستبعد الطلبات المستردّة والملغاة.';
+  String get promoAnalyticsAttributionNote => 'الطلبات المحتسبة هنا تمت خلال ٤٨ ساعة من ضغط المتسوّق على هذا الإعلان. تُستبعد الطلبات المستردّة والملغاة.';
 
   @override
-  String get promoAnalyticsNoImpressionsNote => 'لا يتم تتبّع المشاهدات، لذا هذه ليست نسبة النقر إلى الظهور — بل الطلبات لكل نقرة.';
+  String get promoAnalyticsNoImpressionsNote => 'لا يتم تتبّع المشاهدات، لذا هذه ليست نسبة الضغط إلى الظهور — بل الطلبات لكل ضغطة.';
 
   @override
   String promoAnalyticsOrderNumber(String number) {
