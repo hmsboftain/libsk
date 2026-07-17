@@ -5279,6 +5279,126 @@ abstract class AppLocalizations {
   /// **'Past'**
   String get promoGroupPast;
 
+  /// No description provided for @promoAnalyticsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Ad performance'**
+  String get promoAnalyticsTitle;
+
+  /// No description provided for @promoAnalyticsViewPerformance.
+  ///
+  /// In en, this message translates to:
+  /// **'View performance'**
+  String get promoAnalyticsViewPerformance;
+
+  /// No description provided for @promoAnalyticsClicks.
+  ///
+  /// In en, this message translates to:
+  /// **'Clicks'**
+  String get promoAnalyticsClicks;
+
+  /// No description provided for @promoAnalyticsOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'Orders'**
+  String get promoAnalyticsOrders;
+
+  /// No description provided for @promoAnalyticsRevenue.
+  ///
+  /// In en, this message translates to:
+  /// **'Revenue'**
+  String get promoAnalyticsRevenue;
+
+  /// No description provided for @promoAnalyticsAdSpend.
+  ///
+  /// In en, this message translates to:
+  /// **'Ad spend'**
+  String get promoAnalyticsAdSpend;
+
+  /// No description provided for @promoAnalyticsConversion.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversion'**
+  String get promoAnalyticsConversion;
+
+  /// No description provided for @promoAnalyticsClicksByDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Clicks by day'**
+  String get promoAnalyticsClicksByDay;
+
+  /// No description provided for @promoAnalyticsAttributedOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'Orders from this ad'**
+  String get promoAnalyticsAttributedOrders;
+
+  /// No description provided for @promoAnalyticsNoClicksYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No clicks yet.'**
+  String get promoAnalyticsNoClicksYet;
+
+  /// No description provided for @promoAnalyticsNoOrdersYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No orders from this ad yet.'**
+  String get promoAnalyticsNoOrdersYet;
+
+  /// No description provided for @promoAnalyticsNotRunYet.
+  ///
+  /// In en, this message translates to:
+  /// **'This booking hasn\'t run yet. Performance appears once it goes live.'**
+  String get promoAnalyticsNotRunYet;
+
+  /// No description provided for @promoAnalyticsNeverRan.
+  ///
+  /// In en, this message translates to:
+  /// **'This booking never went live, so there\'s nothing to report.'**
+  String get promoAnalyticsNeverRan;
+
+  /// No description provided for @promoAnalyticsClickNote.
+  ///
+  /// In en, this message translates to:
+  /// **'A shopper tapping the same ad more than once in 30 minutes counts as one click.'**
+  String get promoAnalyticsClickNote;
+
+  /// No description provided for @promoAnalyticsAttributionNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Orders counted here were placed within 48 hours of a shopper tapping this ad. Refunded and cancelled orders are removed.'**
+  String get promoAnalyticsAttributionNote;
+
+  /// No description provided for @promoAnalyticsNoImpressionsNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Views aren\'t tracked, so this isn\'t a click-through rate — it\'s orders per click.'**
+  String get promoAnalyticsNoImpressionsNote;
+
+  /// No description provided for @promoAnalyticsOrderNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Order #{number}'**
+  String promoAnalyticsOrderNumber(String number);
+
+  /// No description provided for @promoAnalyticsReturnedOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Refunded'**
+  String get promoAnalyticsReturnedOrder;
+
+  /// No description provided for @promoAnalyticsNetPositive.
+  ///
+  /// In en, this message translates to:
+  /// **'Earned {amount} KWD more than it cost'**
+  String promoAnalyticsNetPositive(String amount);
+
+  /// No description provided for @promoAnalyticsNetNegative.
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} KWD short of what it cost'**
+  String promoAnalyticsNetNegative(String amount);
+
   /// No description provided for @promoStatusActive.
   ///
   /// In en, this message translates to:

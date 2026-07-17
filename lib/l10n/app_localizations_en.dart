@@ -2753,6 +2753,72 @@ class AppLocalizationsEn extends AppLocalizations {
   String get promoGroupPast => 'Past';
 
   @override
+  String get promoAnalyticsTitle => 'Ad performance';
+
+  @override
+  String get promoAnalyticsViewPerformance => 'View performance';
+
+  @override
+  String get promoAnalyticsClicks => 'Clicks';
+
+  @override
+  String get promoAnalyticsOrders => 'Orders';
+
+  @override
+  String get promoAnalyticsRevenue => 'Revenue';
+
+  @override
+  String get promoAnalyticsAdSpend => 'Ad spend';
+
+  @override
+  String get promoAnalyticsConversion => 'Conversion';
+
+  @override
+  String get promoAnalyticsClicksByDay => 'Clicks by day';
+
+  @override
+  String get promoAnalyticsAttributedOrders => 'Orders from this ad';
+
+  @override
+  String get promoAnalyticsNoClicksYet => 'No clicks yet.';
+
+  @override
+  String get promoAnalyticsNoOrdersYet => 'No orders from this ad yet.';
+
+  @override
+  String get promoAnalyticsNotRunYet => 'This booking hasn\'t run yet. Performance appears once it goes live.';
+
+  @override
+  String get promoAnalyticsNeverRan => 'This booking never went live, so there\'s nothing to report.';
+
+  @override
+  String get promoAnalyticsClickNote => 'A shopper tapping the same ad more than once in 30 minutes counts as one click.';
+
+  @override
+  String get promoAnalyticsAttributionNote => 'Orders counted here were placed within 48 hours of a shopper tapping this ad. Refunded and cancelled orders are removed.';
+
+  @override
+  String get promoAnalyticsNoImpressionsNote => 'Views aren\'t tracked, so this isn\'t a click-through rate — it\'s orders per click.';
+
+  @override
+  String promoAnalyticsOrderNumber(String number) {
+    return 'Order #$number';
+  }
+
+  @override
+  String get promoAnalyticsReturnedOrder => 'Refunded';
+
+  @override
+  String promoAnalyticsNetPositive(String amount) {
+    return 'Earned $amount KWD more than it cost';
+  }
+
+  @override
+  String promoAnalyticsNetNegative(String amount) {
+    return '$amount KWD short of what it cost';
+  }
+
+  @override
   String get promoStatusActive => 'Active';
 
   @override

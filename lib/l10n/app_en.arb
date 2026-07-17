@@ -935,6 +935,35 @@
   "promoNoBookings": "You haven't booked any promotions yet.",
   "promoGroupCurrent": "Active & upcoming",
   "promoGroupPast": "Past",
+  "promoAnalyticsTitle": "Ad performance",
+  "promoAnalyticsViewPerformance": "View performance",
+  "promoAnalyticsClicks": "Clicks",
+  "promoAnalyticsOrders": "Orders",
+  "promoAnalyticsRevenue": "Revenue",
+  "promoAnalyticsAdSpend": "Ad spend",
+  "promoAnalyticsConversion": "Conversion",
+  "promoAnalyticsClicksByDay": "Clicks by day",
+  "promoAnalyticsAttributedOrders": "Orders from this ad",
+  "promoAnalyticsNoClicksYet": "No clicks yet.",
+  "promoAnalyticsNoOrdersYet": "No orders from this ad yet.",
+  "promoAnalyticsNotRunYet": "This booking hasn't run yet. Performance appears once it goes live.",
+  "promoAnalyticsNeverRan": "This booking never went live, so there's nothing to report.",
+  "promoAnalyticsClickNote": "A shopper tapping the same ad more than once in 30 minutes counts as one click.",
+  "promoAnalyticsAttributionNote": "Orders counted here were placed within 48 hours of a shopper tapping this ad. Refunded and cancelled orders are removed.",
+  "promoAnalyticsNoImpressionsNote": "Views aren't tracked, so this isn't a click-through rate — it's orders per click.",
+  "promoAnalyticsOrderNumber": "Order #{number}",
+  "@promoAnalyticsOrderNumber": {
+    "placeholders": { "number": { "type": "String" } }
+  },
+  "promoAnalyticsReturnedOrder": "Refunded",
+  "promoAnalyticsNetPositive": "Earned {amount} KWD more than it cost",
+  "@promoAnalyticsNetPositive": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "promoAnalyticsNetNegative": "{amount} KWD short of what it cost",
+  "@promoAnalyticsNetNegative": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
   "promoStatusActive": "Active",
   "promoStatusPendingReview": "Pending review",
   "promoStatusAwaitingPayment": "Awaiting payment",

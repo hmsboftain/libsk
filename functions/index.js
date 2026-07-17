@@ -31,6 +31,7 @@ const {
   isPaidOrderStatus,
   isReversedOrderStatus,
   clickEventId,
+  kuwaitDayKey,
   subjectTypeFor,
   validateClick,
   attributeOrder,
@@ -3803,11 +3804,23 @@ exports.logPromoClick = onCall(async (request) => {
       nowMs + ATTRIBUTION_WINDOW_MS),
     attributed: false,
   });
-  batch.update(bookingRef, {
-    "stats.clicks": admin.firestore.FieldValue.increment(1),
-    "stats.lastClickAt": clickedAt,
-    "stats.updatedAt": admin.firestore.FieldValue.serverTimestamp(),
-  });
+  // Per-day counts drive the dashboard's sparkline. Bucketed by KUWAIT calendar
+  // date, because a booking's days are Kuwait midnight-to-midnight (promoNextWeek)
+  // — bucketing by UTC would smear every click after 21:00 local into the next
+  // day and show clicks on days the boutique never bought. A booking spans at
+  // most 7 days, so this map stays tiny.
+  //
+  // Written via FieldPath rather than dot-notation: "2026-07-16" starts with a
+  // digit and contains hyphens, so it is not a valid bare field-path segment.
+  const F = admin.firestore.FieldPath;
+  batch.update(
+    bookingRef,
+    new F("stats", "clicks"), admin.firestore.FieldValue.increment(1),
+    new F("stats", "lastClickAt"), clickedAt,
+    new F("stats", "updatedAt"), admin.firestore.FieldValue.serverTimestamp(),
+    new F("stats", "clicksByDay", kuwaitDayKey(nowMs)),
+    admin.firestore.FieldValue.increment(1),
+  );
 
   try {
     await batch.commit();

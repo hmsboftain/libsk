@@ -40,6 +40,25 @@ const REVERSED_ORDER_STATUSES = ["Cancelled", "Refunded"];
 const isPaidOrderStatus = (s) => PAID_ORDER_STATUSES.includes(s);
 const isReversedOrderStatus = (s) => REVERSED_ORDER_STATUSES.includes(s);
 
+// Kuwait is UTC+3 year-round (no DST). Intentionally duplicated from index.js's
+// KUWAIT_OFFSET_MS rather than imported: index.js requires firebase-functions at
+// module load, which would drag the whole runtime into these pure unit tests. A
+// physical fact about a timezone with no DST is safe to state twice.
+const KUWAIT_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * The "YYYY-MM-DD" bucket a click belongs to, on KUWAIT's calendar.
+ *
+ * Bookings are sold in Kuwait midnight-to-midnight days (see promoNextWeek), so
+ * the per-day click counts behind the dashboard sparkline have to be cut on the
+ * same clock. Bucketing by UTC would push every click after 21:00 Kuwait into
+ * the next day — showing a boutique clicks on days it never bought, and zero on
+ * the evening of the day it did.
+ */
+function kuwaitDayKey(ms) {
+  return new Date(ms + KUWAIT_OFFSET_MS).toISOString().slice(0, 10);
+}
+
 // Accepts a Firestore Timestamp (live data) or epoch ms (tests) — same tolerance
 // as isPromoOccupying in index.js.
 function toMillis(v) {
@@ -194,6 +213,8 @@ function attributeOrder(clicks, items, orderMs) {
 
 module.exports = {
   ATTRIBUTION_WINDOW_MS,
+  KUWAIT_OFFSET_MS,
+  kuwaitDayKey,
   CLICK_DEDUP_WINDOW_MS,
   PAID_ORDER_STATUSES,
   REVERSED_ORDER_STATUSES,

@@ -7,6 +7,7 @@ import '../models/promo_availability.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
 import 'promo_placement_booking_page.dart';
+import 'promo_booking_analytics_page.dart';
 
 /// The boutique owner's promotions hub: a "Book" tab (availability browser for
 /// the upcoming week across all 5 placements) and a "My bookings" tab
@@ -398,13 +399,21 @@ class _MyBookingsTab extends StatelessWidget {
                 if (currentDocs.isNotEmpty) ...[
                   _groupHeader(l10n.promoGroupCurrent),
                   for (final d in currentDocs)
-                    _BookingRow(data: d.data(), locale: _locale(context)),
+                    _BookingRow(
+                      bookingId: d.id,
+                      data: d.data(),
+                      locale: _locale(context),
+                    ),
                 ],
                 if (pastDocs.isNotEmpty) ...[
                   const SizedBox(height: 18),
                   _groupHeader(l10n.promoGroupPast),
                   for (final d in pastDocs)
-                    _BookingRow(data: d.data(), locale: _locale(context)),
+                    _BookingRow(
+                      bookingId: d.id,
+                      data: d.data(),
+                      locale: _locale(context),
+                    ),
                 ],
               ],
             );
@@ -448,10 +457,15 @@ class _MyBookingsTab extends StatelessWidget {
 }
 
 class _BookingRow extends StatelessWidget {
+  final String bookingId;
   final Map<String, dynamic> data;
   final String locale;
 
-  const _BookingRow({required this.data, required this.locale});
+  const _BookingRow({
+    required this.bookingId,
+    required this.data,
+    required this.locale,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -459,6 +473,15 @@ class _BookingRow extends StatelessWidget {
     final type = data['placementType']?.toString() ?? '';
     final status = data['status']?.toString() ?? '';
     final price = (data['priceKwd'] as num?)?.toDouble();
+
+    // Only a booking the server actually put on screen can have performance.
+    // A pending or rejected booking has no clicks by construction, so it gets
+    // no entry point rather than a page of zeroes reading as failure.
+    final hasRun = bookingHasRun(data);
+    final stats = data['stats'];
+    final statsMap = stats is Map ? stats : const {};
+    final clicks = (statsMap['clicks'] as num?)?.toInt() ?? 0;
+    final orders = (statsMap['attributedOrders'] as num?)?.toInt() ?? 0;
 
     final dayStart = data['dayStart'];
     final dayEnd = data['dayEnd'];
@@ -470,7 +493,7 @@ class _BookingRow extends StatelessWidget {
           '${DateFormat('EEE d', locale).format(start)} – ${DateFormat('EEE d MMM', locale).format(lastDay)}';
     }
 
-    return Container(
+    final card = Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -522,8 +545,51 @@ class _BookingRow extends StatelessWidget {
               ),
             ),
           ],
+          if (hasRun) ...[
+            const SizedBox(height: 10),
+            const Divider(color: AppColors.border, thickness: 0.5, height: 1),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${l10n.promoAnalyticsClicks}: $clicks  ·  '
+                    '${l10n.promoAnalyticsOrders}: $orders',
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ),
+                Text(
+                  l10n.promoAnalyticsViewPerformance,
+                  style: AppTextStyles.capsLabel.copyWith(
+                    color: AppColors.deepAccent,
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right,
+                  size: 16,
+                  color: AppColors.deepAccent,
+                ),
+              ],
+            ),
+          ],
         ],
       ),
+    );
+
+    if (!hasRun) return card;
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PromoBookingAnalyticsPage(
+            bookingId: bookingId,
+            boutiqueId: data['boutiqueId']?.toString() ?? '',
+          ),
+        ),
+      ),
+      child: card,
     );
   }
 }

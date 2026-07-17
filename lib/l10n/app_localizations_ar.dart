@@ -2757,6 +2757,72 @@ class AppLocalizationsAr extends AppLocalizations {
   String get promoGroupPast => 'سابقة';
 
   @override
+  String get promoAnalyticsTitle => 'أداء الإعلان';
+
+  @override
+  String get promoAnalyticsViewPerformance => 'عرض الأداء';
+
+  @override
+  String get promoAnalyticsClicks => 'النقرات';
+
+  @override
+  String get promoAnalyticsOrders => 'الطلبات';
+
+  @override
+  String get promoAnalyticsRevenue => 'الإيرادات';
+
+  @override
+  String get promoAnalyticsAdSpend => 'تكلفة الإعلان';
+
+  @override
+  String get promoAnalyticsConversion => 'معدل التحويل';
+
+  @override
+  String get promoAnalyticsClicksByDay => 'النقرات حسب اليوم';
+
+  @override
+  String get promoAnalyticsAttributedOrders => 'الطلبات من هذا الإعلان';
+
+  @override
+  String get promoAnalyticsNoClicksYet => 'لا توجد نقرات بعد.';
+
+  @override
+  String get promoAnalyticsNoOrdersYet => 'لا توجد طلبات من هذا الإعلان بعد.';
+
+  @override
+  String get promoAnalyticsNotRunYet => 'لم يبدأ هذا الحجز بعد. سيظهر الأداء بمجرد أن يصبح نشطاً.';
+
+  @override
+  String get promoAnalyticsNeverRan => 'لم يُعرض هذا الحجز مطلقاً، لذا لا توجد بيانات.';
+
+  @override
+  String get promoAnalyticsClickNote => 'نقر المتسوّق على الإعلان نفسه أكثر من مرة خلال ٣٠ دقيقة يُحتسب نقرة واحدة.';
+
+  @override
+  String get promoAnalyticsAttributionNote => 'الطلبات المحتسبة هنا تمت خلال ٤٨ ساعة من نقر المتسوّق على هذا الإعلان. تُستبعد الطلبات المستردّة والملغاة.';
+
+  @override
+  String get promoAnalyticsNoImpressionsNote => 'لا يتم تتبّع المشاهدات، لذا هذه ليست نسبة النقر إلى الظهور — بل الطلبات لكل نقرة.';
+
+  @override
+  String promoAnalyticsOrderNumber(String number) {
+    return 'طلب رقم $number';
+  }
+
+  @override
+  String get promoAnalyticsReturnedOrder => 'مستردّ';
+
+  @override
+  String promoAnalyticsNetPositive(String amount) {
+    return 'حقّق $amount د.ك أكثر من تكلفته';
+  }
+
+  @override
+  String promoAnalyticsNetNegative(String amount) {
+    return 'أقل من تكلفته بـ $amount د.ك';
+  }
+
+  @override
   String get promoStatusActive => 'نشط';
 
   @override

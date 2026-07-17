@@ -11,6 +11,7 @@ const {
   isPaidOrderStatus,
   isReversedOrderStatus,
   clickEventId,
+  kuwaitDayKey,
   subjectTypeFor,
   validateClick,
   itemRevenueFils,
@@ -78,6 +79,44 @@ test("different bucket, booking or person all yield distinct ids", () => {
   assert.notEqual(base, clickEventId("bk1", "u1", NOW + 31 * 60_000));
   assert.notEqual(base, clickEventId("bk2", "u1", NOW));
   assert.notEqual(base, clickEventId("bk1", "u2", NOW));
+});
+
+// ─────────────────────────── per-day buckets (sparkline) ───────────────────────────
+
+test("clicks bucket by Kuwait's calendar day, not UTC's", () => {
+  // 21:00 UTC on Jul 16 is already 00:00 Jul 17 in Kuwait. Bucketing by UTC here
+  // would credit the click to a day the boutique may not even have booked.
+  assert.equal(kuwaitDayKey(Date.UTC(2026, 6, 16, 21, 0, 0)), "2026-07-17");
+  // One millisecond earlier is still Jul 16 locally.
+  assert.equal(kuwaitDayKey(Date.UTC(2026, 6, 16, 20, 59, 59, 999)), "2026-07-16");
+});
+
+test("Kuwait midnight and the instant before it land on different days", () => {
+  // Kuwait midnight == 21:00 UTC the previous day — the same boundary
+  // promoNextWeek cuts booking days on.
+  const midnight = Date.UTC(2026, 6, 18, 21, 0, 0);
+  assert.equal(kuwaitDayKey(midnight), "2026-07-19");
+  assert.equal(kuwaitDayKey(midnight - 1), "2026-07-18");
+});
+
+test("a click during Kuwait daytime keeps the obvious day", () => {
+  // 12:00 UTC = 15:00 Kuwait, same date either way.
+  assert.equal(kuwaitDayKey(Date.UTC(2026, 6, 16, 12, 0, 0)), "2026-07-16");
+});
+
+test("day keys sort chronologically as plain strings", () => {
+  // The sparkline sorts these keys directly; ISO ordering is what makes that safe.
+  const keys = [
+    kuwaitDayKey(Date.UTC(2026, 6, 18, 12)),
+    kuwaitDayKey(Date.UTC(2026, 6, 16, 12)),
+    kuwaitDayKey(Date.UTC(2026, 6, 17, 12)),
+  ];
+  assert.deepEqual([...keys].sort(), ["2026-07-16", "2026-07-17", "2026-07-18"]);
+});
+
+test("day keys cross month and year boundaries correctly", () => {
+  assert.equal(kuwaitDayKey(Date.UTC(2026, 6, 31, 21, 0, 0)), "2026-08-01");
+  assert.equal(kuwaitDayKey(Date.UTC(2026, 11, 31, 21, 0, 0)), "2027-01-01");
 });
 
 // ─────────────────────────── placement subject scoping ───────────────────────────
