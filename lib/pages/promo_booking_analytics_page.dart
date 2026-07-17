@@ -261,7 +261,7 @@ class PromoBookingAnalyticsPage extends StatelessWidget {
         if (clicks == 0)
           _muted(l10n.promoAnalyticsNoClicksYet)
         else
-          _Sparkline(series: series, locale: locale),
+          PromoClicksSparkline(series: series, locale: locale),
         const SizedBox(height: 8),
         _muted(l10n.promoAnalyticsClickNote),
 
@@ -345,53 +345,78 @@ class _Metric extends StatelessWidget {
 /// Bar-per-day clicks. Bars are proportional to the busiest day; a zero day
 /// renders as a visible baseline rather than nothing, so "ran but quiet" reads
 /// differently from "didn't run".
-class _Sparkline extends StatelessWidget {
+class PromoClicksSparkline extends StatelessWidget {
   final List<DayCount> series;
   final String locale;
 
-  const _Sparkline({required this.series, required this.locale});
+  const PromoClicksSparkline({super.key, required this.series, required this.locale});
+
+  /// Height of the plot area a bar is drawn in. The ONLY fixed vertical number
+  /// here: the count label, the day label and the spacing all size themselves,
+  /// and the Column sizes to them.
+  ///
+  /// This replaced a fixed 96px outer box, which overflowed by 4px on device —
+  /// the box height and the bar height were independent constants that had to
+  /// happen to agree, with two text lines between them. They didn't, and any
+  /// text-scale setting would have reopened it. Now there is no height budget to
+  /// bust: the row grows instead. See test/promo_sparkline_test.dart.
+  static const double _barArea = 56;
+
+  /// Baseline so a zero day is still a visible mark rather than nothing.
+  static const double _minBar = 2;
 
   @override
   Widget build(BuildContext context) {
     if (series.isEmpty) return const SizedBox.shrink();
     final max = series.map((d) => d.clicks).reduce((a, b) => a > b ? a : b);
 
-    return SizedBox(
-      height: 96,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (final d in series)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text('${d.clicks}', style: AppTextStyles.labelSmall),
-                    const SizedBox(height: 4),
-                    Container(
-                      height: max == 0 ? 2 : (d.clicks / max) * 56 + 2,
-                      decoration: BoxDecoration(
-                        color: d.clicks == 0
-                            ? AppColors.border
-                            : AppColors.deepAccent,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        for (final d in series)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${d.clicks}', style: AppTextStyles.labelSmall),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    height: _barArea,
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        height: _barHeight(d.clicks, max),
+                        decoration: BoxDecoration(
+                          color: d.clicks == 0
+                              ? AppColors.border
+                              : AppColors.deepAccent,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _dayLabel(d.day),
-                      style: AppTextStyles.labelSmall.copyWith(
-                        color: AppColors.secondaryText,
-                      ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _dayLabel(d.day),
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.secondaryText,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
+  }
+
+  /// Scaled so the busiest day exactly fills the plot area and can never exceed
+  /// it — the bar is bounded by construction rather than by a number that has to
+  /// be kept in step with the layout.
+  static double _barHeight(int clicks, int max) {
+    if (max <= 0 || clicks <= 0) return _minBar;
+    return (clicks / max) * (_barArea - _minBar) + _minBar;
   }
 
   String _dayLabel(String isoDay) {
