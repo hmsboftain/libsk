@@ -20,8 +20,28 @@ class AppHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    // The header is the app's "am I signed in?" indicator and sits on nearly
+    // every page, so it must track auth rather than sample it once.
+    //
+    // Reading currentUser at build time made it lie after signing in: login
+    // REPLACES its own route with the owner/admin dashboard, so the page
+    // underneath is never rebuilt. Press back and that page's header still
+    // renders the signed-out state — and its profile icon opens Login again,
+    // which reads exactly like being logged out. The session was live the whole
+    // time. Listening rebuilds the header the moment sign-in lands, even while
+    // it is covered by the dashboard route.
+    //
+    // initialData keeps the first frame correct, since the stream delivers its
+    // first event asynchronously and the header would otherwise flash as
+    // signed-out on every page open.
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      initialData: FirebaseAuth.instance.currentUser,
+      builder: (context, snapshot) => _buildHeader(context, snapshot.data),
+    );
+  }
 
+  Widget _buildHeader(BuildContext context, User? user) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
