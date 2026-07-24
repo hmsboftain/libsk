@@ -885,11 +885,32 @@ async function releaseOrderStock(orderId) {
 }
 
 async function resolvePaymentAttempt(attemptRef, attempt, outcome) {
-  await attemptRef.update({
-    status: outcome,
-    lastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  // Compare-and-set the terminal status inside a transaction: ONLY the caller
+  // that actually flips pending → outcome may run the side effects below. Three
+  // resolvers race for the same attempt — payzahRedirect (deep link),
+  // checkPayzahPaymentStatus (app resume) and reconcilePayzahPayments (cron) all
+  // read the same `pending` snapshot, then call here — and releaseOrderStock
+  // uses FieldValue.increment(), so two runs would restore stock TWICE (phantom
+  // inventory → oversell) and double-decrement salesCount/weeklyOrders. The txn
+  // makes exactly one caller win; the losers (and any function retry, which sees
+  // a no-longer-pending attempt) no-op before touching an order. Single-caller
+  // behaviour is unchanged: a pending attempt still resolves exactly as before.
+  const won = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(attemptRef);
+    if (!snap.exists || snap.data().status !== "pending") return false;
+    tx.update(attemptRef, {
+      status: outcome,
+      lastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return true;
   });
+  if (!won) {
+    logger.info("Payment attempt already resolved; skipping side effects", {
+      attemptId: attemptRef.id, outcome,
+    });
+    return;
+  }
 
   // Promo-booking attempts resolve onto their booking, not an order — and must
   // NOT run releaseOrderStock (there is no order). Step 4 will additionally
