@@ -14,6 +14,11 @@ import '../widgets/theme.dart';
 /// server-only and is never read here. Opening this page therefore costs one
 /// document the dashboard already had, plus a small subcollection read.
 ///
+/// Both reads are one-shot `get()`s refreshed by pull-to-refresh, not live
+/// `snapshots()` listeners: an owner reviewing an ad report wants a snapshot,
+/// not a socket held open for the whole session (a live booking-doc listener
+/// re-read the document on every click that landed while the page sat open).
+///
 /// Deliberately NOT shown: impressions, and therefore no click-through rate.
 /// Views aren't tracked (see the analytics section header in functions/index.js),
 /// so "conversion" here means orders per click and the UI says so rather than
@@ -90,9 +95,23 @@ bool bookingIsRunning(Map<String, dynamic> booking, DateTime now) {
   return bookingHasRun(booking) && end.toDate().isAfter(now);
 }
 
+/// Small secondary caption used in a few places on this page.
+Widget _muted(String text) => Text(
+      text,
+      style: AppTextStyles.labelSmall.copyWith(color: AppColors.secondaryText),
+    );
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-class PromoBookingAnalyticsPage extends StatelessWidget {
+/// The one-shot reads this page makes, fetched together on open and on
+/// pull-to-refresh: the booking's `stats` rollup, and its `attributed_sales`.
+class _AnalyticsData {
+  final Map<String, dynamic>? booking; // null when the booking doc is missing
+  final List<Map<String, dynamic>> sales;
+  const _AnalyticsData({required this.booking, required this.sales});
+}
+
+class PromoBookingAnalyticsPage extends StatefulWidget {
   final String bookingId;
   final String boutiqueId;
 
@@ -101,6 +120,60 @@ class PromoBookingAnalyticsPage extends StatelessWidget {
     required this.bookingId,
     required this.boutiqueId,
   });
+
+  @override
+  State<PromoBookingAnalyticsPage> createState() =>
+      _PromoBookingAnalyticsPageState();
+}
+
+class _PromoBookingAnalyticsPageState extends State<PromoBookingAnalyticsPage> {
+  _AnalyticsData? _data;
+  Object? _error;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<_AnalyticsData> _load() async {
+    final bookingRef = FirebaseFirestore.instance
+        .collection('promo_bookings')
+        .doc(widget.bookingId);
+    final bookingSnap = await bookingRef.get();
+    final booking = bookingSnap.data();
+
+    // attributed_sales was previously only rendered once the booking had run;
+    // preserve that — skip the subcollection read entirely when it hasn't, so a
+    // never-run booking still costs just the single document read.
+    var sales = const <Map<String, dynamic>>[];
+    if (booking != null && bookingHasRun(booking)) {
+      final salesSnap = await bookingRef.collection('attributed_sales').get();
+      sales = salesSnap.docs.map((d) => d.data()).toList();
+    }
+    return _AnalyticsData(booking: booking, sales: sales);
+  }
+
+  Future<void> _refresh() async {
+    // First load shows the spinner; a pull-to-refresh keeps the current content
+    // on screen — only `_loading` gates the spinner and it never goes back true.
+    try {
+      final data = await _load();
+      if (!mounted) return;
+      setState(() {
+        _data = data;
+        _error = null;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,28 +186,18 @@ class PromoBookingAnalyticsPage extends StatelessWidget {
           children: [
             const AppHeader(showBackButton: true),
             Expanded(
-              // Live: a click landing while the owner watches updates in place.
-              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('promo_bookings')
-                    .doc(bookingId)
-                    .snapshots(),
-                builder: (context, snap) {
-                  if (snap.connectionState == ConnectionState.waiting) {
-                    return const Center(
+              child: _loading
+                  ? const Center(
                       child: CircularProgressIndicator(
                         color: AppColors.deepAccent,
                         strokeWidth: 1.5,
                       ),
-                    );
-                  }
-                  final data = snap.data?.data();
-                  if (data == null) {
-                    return _note(l10n.promoAnalyticsNeverRan);
-                  }
-                  return _body(context, l10n, data);
-                },
-              ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _refresh,
+                      color: AppColors.deepAccent,
+                      child: _content(context, l10n),
+                    ),
             ),
           ],
         ),
@@ -142,10 +205,18 @@ class PromoBookingAnalyticsPage extends StatelessWidget {
     );
   }
 
+  Widget _content(BuildContext context, AppLocalizations l10n) {
+    if (_error != null) return _note(l10n.somethingWentWrong);
+    final booking = _data?.booking;
+    if (booking == null) return _note(l10n.promoAnalyticsNeverRan);
+    return _body(context, l10n, booking, _data!.sales);
+  }
+
   Widget _body(
     BuildContext context,
     AppLocalizations l10n,
     Map<String, dynamic> booking,
+    List<Map<String, dynamic>> sales,
   ) {
     final locale = Localizations.localeOf(context).toLanguageTag();
 
@@ -179,6 +250,9 @@ class PromoBookingAnalyticsPage extends StatelessWidget {
     );
 
     return ListView(
+      // Always scrollable so pull-to-refresh works even when the content is
+      // shorter than the viewport.
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
       children: [
         Text(l10n.promoAnalyticsTitle, style: AppTextStyles.displayMedium),
@@ -271,7 +345,7 @@ class PromoBookingAnalyticsPage extends StatelessWidget {
           style: AppTextStyles.headingSmall,
         ),
         const SizedBox(height: 10),
-        _AttributedSales(bookingId: bookingId, locale: locale),
+        _AttributedSales(sales: sales, locale: locale),
         const SizedBox(height: 8),
         _muted(l10n.promoAnalyticsAttributionNote),
       ],
@@ -287,22 +361,27 @@ class PromoBookingAnalyticsPage extends StatelessWidget {
         '${DateFormat('EEE d MMM', locale).format(lastDay)}';
   }
 
-  Widget _note(String text) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.secondaryText,
+  // Scrollable so pull-to-refresh works on the empty/error states too; centred
+  // by filling the viewport height.
+  Widget _note(String text) => LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  text,
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+              ),
             ),
           ),
         ),
-      );
-
-  static Widget _muted(String text) => Text(
-        text,
-        style: AppTextStyles.labelSmall.copyWith(color: AppColors.secondaryText),
       );
 }
 
@@ -426,59 +505,35 @@ class PromoClicksSparkline extends StatelessWidget {
   }
 }
 
-/// The orders this ad actually drove. Reads the booking's attributed_sales
-/// subcollection, which the security rules expose to this boutique's owner only.
+/// The orders this ad actually drove — rendered from the booking's
+/// attributed_sales, already fetched by the page (the security rules expose that
+/// subcollection to this boutique's owner only).
 class _AttributedSales extends StatelessWidget {
-  final String bookingId;
+  final List<Map<String, dynamic>> sales;
   final String locale;
 
-  const _AttributedSales({required this.bookingId, required this.locale});
+  const _AttributedSales({required this.sales, required this.locale});
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('promo_bookings')
-          .doc(bookingId)
-          .collection('attributed_sales')
-          .snapshots(),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-            height: 40,
-            child: Center(
-              child: SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  color: AppColors.deepAccent,
-                  strokeWidth: 1.5,
-                ),
-              ),
-            ),
-          );
-        }
-        final docs = snap.data?.docs ?? [];
-        if (docs.isEmpty) {
-          return PromoBookingAnalyticsPage._muted(l10n.promoAnalyticsNoOrdersYet);
-        }
-        // Newest first.
-        final sorted = docs.toList()
-          ..sort((a, b) {
-            final ta = a.data()['attributedAt'];
-            final tb = b.data()['attributedAt'];
-            final ma = ta is Timestamp ? ta.millisecondsSinceEpoch : 0;
-            final mb = tb is Timestamp ? tb.millisecondsSinceEpoch : 0;
-            return mb.compareTo(ma);
-          });
+    if (sales.isEmpty) {
+      return _muted(l10n.promoAnalyticsNoOrdersYet);
+    }
+    // Newest first.
+    final sorted = sales.toList()
+      ..sort((a, b) {
+        final ta = a['attributedAt'];
+        final tb = b['attributedAt'];
+        final ma = ta is Timestamp ? ta.millisecondsSinceEpoch : 0;
+        final mb = tb is Timestamp ? tb.millisecondsSinceEpoch : 0;
+        return mb.compareTo(ma);
+      });
 
-        return Column(
-          children: [
-            for (final d in sorted) _saleRow(context, l10n, d.data()),
-          ],
-        );
-      },
+    return Column(
+      children: [
+        for (final sale in sorted) _saleRow(context, l10n, sale),
+      ],
     );
   }
 
