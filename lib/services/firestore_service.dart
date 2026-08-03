@@ -185,6 +185,11 @@ class FirestoreService {
     required String floor,
     required String apartment,
     required String phone,
+    // Wasal area IDs — set when the address was picked from the Wasal area
+    // dropdowns. Delivery pricing and driver dispatch both require them;
+    // legacy free-text addresses simply omit them.
+    String? wasalGovernorateId,
+    String? wasalNeighborhoodId,
   }) async {
     await _savedAddressesRef.add({
       'type': 'kuwait',
@@ -198,6 +203,10 @@ class FirestoreService {
       'floor': floor,
       'apartment': apartment,
       'phone': phone,
+      if (wasalGovernorateId != null && wasalGovernorateId.isNotEmpty)
+        'wasalGovernorateId': wasalGovernorateId,
+      if (wasalNeighborhoodId != null && wasalNeighborhoodId.isNotEmpty)
+        'wasalNeighborhoodId': wasalNeighborhoodId,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }

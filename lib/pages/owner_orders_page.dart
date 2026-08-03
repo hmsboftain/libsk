@@ -7,6 +7,7 @@ import 'package:libsk/l10n/app_localizations.dart';
 import '../widgets/error_state_widget.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
+import '../services/wasal_service.dart';
 import '../widgets/skeleton_loaders.dart';
 import '../widgets/theme.dart';
 import '../core/constants/countries.dart';
@@ -19,6 +20,33 @@ String _fmt(double kwd) {
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
+
+/// Human-readable courier (Wasal) status, distinct from the LIBSK order
+/// status — this is where the driver physically is with the package.
+String _localizedWasalStatus(String status, AppLocalizations l10n) {
+  switch (status) {
+    case 'pending':
+      return l10n.wasalStatusPending;
+    case 'assigned':
+      return l10n.wasalStatusAssigned;
+    case 'on_way_to_merchant':
+      return l10n.wasalStatusOnWayToMerchant;
+    case 'picked_up':
+      return l10n.wasalStatusPickedUp;
+    case 'in_transit':
+      return l10n.wasalStatusInTransit;
+    case 'delivered':
+      return l10n.wasalStatusDelivered;
+    case 'failed':
+      return l10n.wasalStatusFailed;
+    case 'returned':
+      return l10n.wasalStatusReturned;
+    case 'cancelled':
+      return l10n.wasalStatusCancelled;
+    default:
+      return status;
+  }
+}
 
 String _localizedStatus(String status, AppLocalizations l10n) {
   switch (status.toLowerCase()) {
@@ -186,6 +214,35 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
     }
   }
 
+  /// "Ready for Pickup": the owner has packed this sub-order — the
+  /// markReadyForPickup Cloud Function creates the Wasal delivery order from
+  /// this boutique's branch and a driver is dispatched to collect it.
+  Future<void> _dispatchDelivery(String boutiqueOrderId) async {
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      await WasalService.instance.markReadyForPickup(
+        boutiqueOrderId: boutiqueOrderId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.deliveryRequested),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? l10n.deliveryDispatchFailed)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.deliveryDispatchFailed)));
+    }
+  }
+
   Widget _buildFilterChips() {
     final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
@@ -318,6 +375,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
               itemBuilder: (context, index) => _OrderCard(
                 doc: docs[index],
                 onStatusUpdate: _updateOrderStatus,
+                onDispatchDelivery: _dispatchDelivery,
               ),
             ),
           ),
@@ -407,8 +465,13 @@ class _OrderCard extends StatelessWidget {
     required String newStatus,
   })
   onStatusUpdate;
+  final Future<void> Function(String boutiqueOrderId) onDispatchDelivery;
 
-  const _OrderCard({required this.doc, required this.onStatusUpdate});
+  const _OrderCard({
+    required this.doc,
+    required this.onStatusUpdate,
+    required this.onDispatchDelivery,
+  });
 
   Future<void> _cancelOrder(
     BuildContext context,
@@ -503,6 +566,15 @@ class _OrderCard extends StatelessWidget {
 
     final isPlaced = status.toLowerCase() == 'placed';
 
+    // Courier (Wasal) state. A delivery can be re-requested only after a
+    // previous one ended without delivering (cancelled / failed / returned) —
+    // the server enforces the same rule authoritatively.
+    final wasalStatus = data['wasalStatus']?.toString() ?? '';
+    final canDispatch =
+        status.toLowerCase() == 'confirmed' &&
+        (wasalStatus.isEmpty ||
+            const ['cancelled', 'failed', 'returned'].contains(wasalStatus));
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -540,6 +612,16 @@ class _OrderCard extends StatelessWidget {
           Text(l10n.delivery, style: AppTextStyles.labelLarge),
           const SizedBox(height: 6),
           Text(deliveryMethod, style: AppTextStyles.bodyMedium),
+          if (wasalStatus.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              '${l10n.courierStatusLabel}: '
+              '${_localizedWasalStatus(wasalStatus, l10n)}',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.deepAccent,
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           Text(l10n.payment, style: AppTextStyles.labelLarge),
           const SizedBox(height: 6),
@@ -620,7 +702,79 @@ class _OrderCard extends StatelessWidget {
               ],
             ),
           ],
+          if (canDispatch) ...[
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 12),
+            // B1: this button disables itself for the duration of the call so a
+            // double-tap can't fire two dispatch requests from the client. The
+            // server also claims the dispatch atomically as the authoritative
+            // guard, but this stops the second request before it leaves.
+            _ReadyForPickupButton(
+              label: l10n.readyForPickup,
+              onDispatch: () => onDispatchDelivery(boutiqueOrderId),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+// ── "Ready for Pickup" dispatch button ────────────────────────────────────────
+// Owns its own in-flight state so it can't be tapped twice while the
+// markReadyForPickup call is running (B1, client-side half).
+
+class _ReadyForPickupButton extends StatefulWidget {
+  final String label;
+  final Future<void> Function() onDispatch;
+
+  const _ReadyForPickupButton({required this.label, required this.onDispatch});
+
+  @override
+  State<_ReadyForPickupButton> createState() => _ReadyForPickupButtonState();
+}
+
+class _ReadyForPickupButtonState extends State<_ReadyForPickupButton> {
+  bool _dispatching = false;
+
+  Future<void> _onPressed() async {
+    if (_dispatching) return;
+    setState(() => _dispatching = true);
+    try {
+      await widget.onDispatch();
+    } finally {
+      if (mounted) setState(() => _dispatching = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _dispatching ? null : _onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.deepAccent,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.deepAccent,
+          disabledForegroundColor: Colors.white,
+          elevation: 0,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.zero,
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+        child: _dispatching
+            ? const SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : Text(widget.label, style: AppTextStyles.button),
       ),
     );
   }

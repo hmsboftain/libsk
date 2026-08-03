@@ -25,6 +25,33 @@ double _calculateSubtotal(List<CartItem> items) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+/// Customer-facing courier status — where the driver physically is with the
+/// package, as pushed by Wasal webhooks (same mapping as the owner view).
+String _localizedWasalStatus(String status, AppLocalizations l10n) {
+  switch (status) {
+    case 'pending':
+      return l10n.wasalStatusPending;
+    case 'assigned':
+      return l10n.wasalStatusAssigned;
+    case 'on_way_to_merchant':
+      return l10n.wasalStatusOnWayToMerchant;
+    case 'picked_up':
+      return l10n.wasalStatusPickedUp;
+    case 'in_transit':
+      return l10n.wasalStatusInTransit;
+    case 'delivered':
+      return l10n.wasalStatusDelivered;
+    case 'failed':
+      return l10n.wasalStatusFailed;
+    case 'returned':
+      return l10n.wasalStatusReturned;
+    case 'cancelled':
+      return l10n.wasalStatusCancelled;
+    default:
+      return status;
+  }
+}
+
 class OrderDetailsPage extends StatefulWidget {
   final OrderItem order;
 
@@ -298,6 +325,29 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
                         style: AppTextStyles.labelLarge,
                       ),
                     ),
+                    // ── Courier status (Wasal) ────────────────────────
+                    if (widget.order.wasalStatus.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.local_shipping_outlined,
+                            size: 16,
+                            color: AppColors.deepAccent,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _localizedWasalStatus(
+                              widget.order.wasalStatus,
+                              l10n,
+                            ),
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.deepAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     Text(l10n.itemsOrdered, style: AppTextStyles.headingMedium),
                     const SizedBox(height: 16),

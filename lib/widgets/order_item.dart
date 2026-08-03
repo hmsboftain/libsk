@@ -22,6 +22,10 @@ class OrderItem {
   final DateTime? createdAt;
   final String paymentIntentId;
 
+  /// Live courier (Wasal) status for this order's delivery, synced by the
+  /// wasalWebhook Cloud Function. Empty until a driver has been requested.
+  final String wasalStatus;
+
   OrderItem({
     required this.id,
     required this.orderNumber,
@@ -32,6 +36,7 @@ class OrderItem {
     required this.orderedItems,
     this.createdAt,
     this.paymentIntentId = '',
+    this.wasalStatus = '',
   });
 
   String get displayDate {
@@ -89,6 +94,14 @@ class OrderItem {
       createdAt = createdAtValue.toDate();
     }
 
+    // Checkout is per boutique, so an order normally carries exactly one
+    // delivery; the first entry is the order's courier status.
+    String wasalStatus = '';
+    final wasalStatuses = data['wasalStatuses'];
+    if (wasalStatuses is Map && wasalStatuses.isNotEmpty) {
+      wasalStatus = wasalStatuses.values.first.toString();
+    }
+
     return OrderItem(
       id: id,
       orderNumber: data['orderNumber'] ?? '',
@@ -99,6 +112,7 @@ class OrderItem {
       orderedItems: orderedItems,
       createdAt: createdAt,
       paymentIntentId: data['paymentIntentId']?.toString() ?? '',
+      wasalStatus: wasalStatus,
     );
   }
 }

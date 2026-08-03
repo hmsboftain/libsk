@@ -5,6 +5,7 @@ import '../core/constants/countries.dart';
 import '../navigation/app_header.dart';
 import '../services/currency_service.dart';
 import '../services/firestore_service.dart';
+import '../services/wasal_service.dart';
 import '../widgets/theme.dart';
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -50,11 +51,36 @@ class _AddAddressPageState extends State<AddAddressPage> {
 
   bool _isSaving = false;
 
+  // ── Wasal delivery areas (Kuwait) ──────────────────────────────────────────
+  // Governorate/area become dropdowns backed by Wasal's area tree so every
+  // new address carries the IDs delivery pricing needs. If the tree can't be
+  // loaded the form falls back to the legacy free-text fields — the address
+  // still saves, it just can't get area-based delivery pricing.
+  List<WasalGovernorate>? _wasalAreas;
+  WasalGovernorate? _selectedGovernorate;
+  WasalArea? _selectedNeighborhood;
+  bool _areasLoadFailed = false;
+
   bool get _isKuwait => CurrencyService.instance.selectedCountryCode == 'KW';
+
+  Future<void> _loadWasalAreas() async {
+    try {
+      final areas = await WasalService.instance.getAreas();
+      if (!mounted) return;
+      setState(() {
+        _wasalAreas = areas;
+        _areasLoadFailed = areas.isEmpty;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _areasLoadFailed = true);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    if (_isKuwait) _loadWasalAreas();
     final displayName =
         FirebaseAuth.instance.currentUser?.displayName?.trim() ?? '';
     if (displayName.isNotEmpty) {
@@ -95,17 +121,24 @@ class _AddAddressPageState extends State<AddAddressPage> {
 
     try {
       if (_isKuwait) {
+        // Dropdown path: names come from the selected Wasal areas (English
+        // stored for consistency; the UI localizes at display time). The
+        // legacy free-text path keeps working when areas failed to load.
+        final gov = _selectedGovernorate;
+        final neigh = _selectedNeighborhood;
         await FirestoreService.addAddress(
           firstName: firstNameController.text.trim(),
           lastName: lastNameController.text.trim(),
-          governorate: governorateController.text.trim(),
-          area: areaController.text.trim(),
+          governorate: gov?.nameEn ?? governorateController.text.trim(),
+          area: neigh?.nameEn ?? areaController.text.trim(),
           block: blockController.text.trim(),
           street: streetController.text.trim(),
           house: houseController.text.trim(),
           floor: floorController.text.trim(),
           apartment: apartmentController.text.trim(),
           phone: phoneController.text.trim(),
+          wasalGovernorateId: gov?.id,
+          wasalNeighborhoodId: neigh?.id,
         );
       } else {
         final country = countryByCode(
@@ -140,30 +173,88 @@ class _AddAddressPageState extends State<AddAddressPage> {
   // ── Kuwait form fields ────────────────────────────────────────────────────
 
   Widget _buildKuwaitFields(AppLocalizations l10n) {
+    final localeCode = Localizations.localeOf(context).languageCode;
+
     return Column(
       children: [
-        // Governorate / Area
-        Row(
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: governorateController,
-                textInputAction: TextInputAction.next,
-                decoration: _inputStyle(l10n.governorate),
-                validator: (v) => _requiredValidator(v, l10n.requiredField),
+        // Governorate / Area — Wasal-backed dropdowns (free text as fallback)
+        if (_areasLoadFailed)
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: governorateController,
+                  textInputAction: TextInputAction.next,
+                  decoration: _inputStyle(l10n.governorate),
+                  validator: (v) => _requiredValidator(v, l10n.requiredField),
+                ),
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: TextFormField(
-                controller: areaController,
-                textInputAction: TextInputAction.next,
-                decoration: _inputStyle(l10n.area),
-                validator: (v) => _requiredValidator(v, l10n.requiredField),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextFormField(
+                  controller: areaController,
+                  textInputAction: TextInputAction.next,
+                  decoration: _inputStyle(l10n.area),
+                  validator: (v) => _requiredValidator(v, l10n.requiredField),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<WasalGovernorate>(
+                  initialValue: _selectedGovernorate,
+                  isExpanded: true,
+                  decoration: _inputStyle(l10n.governorate),
+                  items: (_wasalAreas ?? const [])
+                      .map(
+                        (g) => DropdownMenuItem(
+                          value: g,
+                          child: Text(
+                            g.nameFor(localeCode),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (g) => setState(() {
+                    _selectedGovernorate = g;
+                    _selectedNeighborhood = null;
+                  }),
+                  validator: (v) =>
+                      v == null ? l10n.requiredField : null,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: DropdownButtonFormField<WasalArea>(
+                  // Recreate the field when the governorate changes —
+                  // otherwise the FormField's internal state keeps a
+                  // selection that no longer exists in the new items list.
+                  key: ValueKey(_selectedGovernorate?.id),
+                  initialValue: _selectedNeighborhood,
+                  isExpanded: true,
+                  decoration: _inputStyle(l10n.area),
+                  items: (_selectedGovernorate?.neighborhoods ?? const [])
+                      .map(
+                        (n) => DropdownMenuItem(
+                          value: n,
+                          child: Text(
+                            n.nameFor(localeCode),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (n) => setState(() => _selectedNeighborhood = n),
+                  validator: (v) =>
+                      v == null ? l10n.requiredField : null,
+                ),
+              ),
+            ],
+          ),
         const SizedBox(height: 22),
 
         // Block / Street
