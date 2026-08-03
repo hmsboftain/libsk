@@ -69,7 +69,14 @@ admin.initializeApp();
 
 const db = admin.firestore();
 
-setGlobalOptions({maxInstances: 10});
+// cpu "gcf_gen1": gen1-style fractional CPU (~1/6 vCPU per instance at 256MiB)
+// instead of the v2 default of a FULL vCPU per instance. With ~55 functions in
+// us-central1 the 1-vCPU default kept the project pinned against the regional
+// "Total CPU allocation" quota and deploys failed their health checks.
+// Tradeoff: fractional-CPU instances serve one request at a time (no
+// concurrency), which is fine for these short CRUD-style functions at current
+// traffic. Revisit (raise cpu + quota) if p95 latency climbs post-launch.
+setGlobalOptions({maxInstances: 10, cpu: "gcf_gen1"});
 
 const {algoliasearch} = require("algoliasearch");
 
