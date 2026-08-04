@@ -366,7 +366,14 @@ service cloud.firestore {
     }
 
     match /metadata/{docId} {
-      allow read: if isSignedIn();
+      // Signed-in clients read the public config docs here — e.g. the
+      // verification gate reads metadata/verification_config. The one
+      // exception is order_counter: it holds cumulative order volume (a
+      // business metric) and is written and read ONLY by the server (admin
+      // SDK, which bypasses rules), so no client needs it. Expose that doc to
+      // admins alone rather than to every signed-in customer.
+      allow read: if isSignedIn() &&
+        (docId != 'order_counter' || isAdmin());
       allow write: if false;
     }
 
