@@ -55,6 +55,15 @@ const payzahDirectEnabled = defineString("PAYZAH_DIRECT_ENABLED", {default: "fal
 // PAYZAH_ENV picks the gateway host: "test" (sandbox) | "production".
 const payzahPrivateKey = defineSecret("PAYZAH_PRIVATE_KEY");
 const payzahEnv = defineString("PAYZAH_ENV", {default: "test"});
+// Wasal delivery integration. API key is a managed secret (pk_test_ in
+// sandbox, pk_live_ in production — same endpoints, no code changes). The
+// webhook secret is issued once when the webhook is registered with Wasal.
+// WASAL_ENABLED gates all Wasal behaviour (area-based delivery fees, order
+// dispatch) so nothing changes until keys are configured and branches exist.
+const wasal = require("./wasal");
+const wasalApiKey = defineSecret("WASAL_API_KEY");
+const wasalWebhookSecret = defineSecret("WASAL_WEBHOOK_SECRET");
+const wasalEnabled = defineString("WASAL_ENABLED", {default: "false"});
 
 admin.initializeApp();
 
@@ -212,7 +221,7 @@ async function checkRateLimit(key, maxRequests, windowSeconds) {
 
 // ================= CREATE ORDER =================
 
-exports.createOrder = onCall(async (request) => {
+exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
@@ -316,6 +325,27 @@ exports.createOrder = onCall(async (request) => {
     if (!boutiqueMap[bid]) boutiqueMap[bid] = [];
     boutiqueMap[bid].push(item);
   }
+
+  // ── Wasal area-based delivery fee ─────────────────────────────────────────
+  // Each boutique in the cart is a separate Wasal pickup, so the customer pays
+  // the area fee once per boutique. Resolved BEFORE the transaction (network
+  // I/O inside a transaction would repeat on retries). null → legacy flat fee.
+  // Fee lookup failures must never block checkout, hence the broad catch.
+  let wasalAreaFee = null;
+  if (wasalEnabled.value() === "true" &&
+      addressData &&
+      addressData.wasalGovernorateId &&
+      addressData.wasalNeighborhoodId) {
+    try {
+      wasalAreaFee = await getWasalAreaFee(
+        addressData.wasalGovernorateId,
+        addressData.wasalNeighborhoodId,
+      );
+    } catch (err) {
+      logger.warn("Wasal fee lookup failed — using flat delivery fee", err);
+    }
+  }
+  const wasalPickupCount = Math.max(1, Object.keys(boutiqueMap).length);
 
   const verifiedItems = [];
   let verifiedSubtotal = 0;
@@ -478,9 +508,13 @@ exports.createOrder = onCall(async (request) => {
     // Clamp incoming discountAmount to server-verified value
     discountAmount = Math.max(0, Math.min(discountAmount, verifiedSubtotal));
 
-    const deliveryCost = deliveryMethod === "Same Day Delivery" ? 5
-      : deliveryMethod === "Made to Order" ? 0
-      : 3;
+    // Area-based Wasal fee (per boutique pickup) when available; otherwise the
+    // legacy flat fee. Made to Order keeps free delivery, unchanged.
+    const deliveryCost = deliveryMethod === "Made to Order" ? 0
+      : wasalAreaFee !== null
+        ? parseFloat((wasalAreaFee * wasalPickupCount).toFixed(3))
+        : deliveryMethod === "Same Day Delivery" ? 5
+        : 3;
     const total = verifiedSubtotal + deliveryCost - discountAmount;
 
     // Flat 15% LIBSK commission on GMV — computed from the order subtotal,
@@ -493,6 +527,7 @@ exports.createOrder = onCall(async (request) => {
       date: dateString,
       itemCount: verifiedItems.reduce((s, i) => s + i.quantity, 0),
       total,
+      deliveryCost,
       commissionAmount,
       status: initialOrderStatus,
       customerUid: uid,
@@ -613,7 +648,7 @@ exports.createOrder = onCall(async (request) => {
 // triggers (notify/email) fire off the global_orders update as usual.
 const ORDER_STATUSES = ["Placed", "Confirmed", "On the Way", "Delivered", "Cancelled"];
 
-exports.updateOrderStatus = onCall(async (request) => {
+exports.updateOrderStatus = onCall({ secrets: [wasalApiKey] }, async (request) => {
   try {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
@@ -681,6 +716,27 @@ exports.updateOrderStatus = onCall(async (request) => {
     }
 
     await batch.commit();
+
+    // Cancelling an order with a live Wasal delivery also cancels the
+    // delivery, best-effort: the LIBSK cancellation must stand even if the
+    // Wasal call fails (support can cancel from the Wasal dashboard).
+    if (newStatus === "Cancelled" &&
+        wasalEnabled.value() === "true" &&
+        orderData.wasalOrderId &&
+        !wasal.WASAL_TERMINAL_STATUSES.includes(orderData.wasalStatus)) {
+      try {
+        await wasal.createWasalClient(wasalApiKey.value())
+          .cancelOrder(orderData.wasalOrderId);
+        await boutiqueOrderRef.update({
+          wasalStatus: "cancelled",
+          wasalStatusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (err) {
+        logger.warn("Wasal delivery cancel failed — cancel manually in dashboard",
+          { wasalOrderId: orderData.wasalOrderId, err: err.message });
+      }
+    }
+
     return { success: true, status: newStatus };
   } catch (error) {
     logger.error("Update order status error", error);
@@ -1648,7 +1704,11 @@ exports.sendOrderConfirmationEmail = onDocumentCreated(
     if (order.status === "Pending Payment") return;
 
     const items = order.items || [];
-    const deliveryCost = order.deliveryMethod === "Same Day Delivery" ? 5
+    // Prefer the fee stored on the order (area-based Wasal pricing); fall back
+    // to the legacy flat fee for orders created before deliveryCost existed.
+    const deliveryCost = typeof order.deliveryCost === "number"
+      ? order.deliveryCost
+      : order.deliveryMethod === "Same Day Delivery" ? 5
       : order.deliveryMethod === "Made to Order" ? 0 : 3;
     const subtotal = items.reduce((s, i) => s + (i.price * i.quantity), 0);
 
@@ -4536,5 +4596,491 @@ exports.cleanupUnverifiedAccounts = onSchedule(
       flagCandidates: flagSnap.size,
       deleteCandidates: deleteSnap.size,
     });
+  },
+);
+
+// ================= WASAL DELIVERY INTEGRATION =================
+//
+// Wasal is LIBSK's delivery partner (Kuwait). Model: LIBSK holds ONE Wasal
+// merchant account + wallet; every boutique is registered as a Wasal BRANCH
+// (boutiques/{id}.wasalBranchCode, set by the super admin after creating the
+// branch in the Wasal dashboard). Each boutique sub-order dispatches as its
+// own Wasal order when the owner taps "Ready for Pickup".
+//
+// Data:
+// - metadata/wasal_areas    — cached governorate→neighborhood tree (24h TTL)
+// - metadata/wasal_pricing  — cached merchant pricing zones (1h TTL)
+// - wasal_orders/{wasalOrderId} — mapping doc: which boutique order / user
+//   order / global order a Wasal order belongs to (webhook lookups)
+// - orders carry: wasalOrderId, wasalOrderNumber, wasalStatus, and (global
+//   orders) wasalStatuses.{id} for multi-boutique aggregation.
+//
+// The Wasal API rate limit is 600 req / 15 min — both caches exist to keep
+// checkout traffic (fee lookups) and address UI (area lists) off the API.
+
+const WASAL_AREAS_TTL_MS = 24 * 60 * 60 * 1000;
+const WASAL_PRICING_TTL_MS = 60 * 60 * 1000;
+// How long a "dispatch in progress" claim (markReadyForPickup) is honoured
+// before it is treated as stale. A normal dispatch clears the claim in a few
+// seconds; this only exists so a process that crashes mid-dispatch can't leave
+// an order permanently undispatchable.
+const WASAL_DISPATCH_CLAIM_STALE_MS = 2 * 60 * 1000;
+
+/** Cached governorate → neighborhoods tree (bilingual), refreshed every 24h. */
+async function getWasalAreasCached() {
+  const ref = db.collection("metadata").doc("wasal_areas");
+  const snap = await ref.get();
+  const cached = snap.exists ? snap.data() : null;
+  const fresh = cached && cached.fetchedAt &&
+    (Date.now() - cached.fetchedAt.toMillis()) < WASAL_AREAS_TTL_MS;
+  if (fresh && Array.isArray(cached.governorates)) return cached.governorates;
+
+  const client = wasal.createWasalClient(null); // area endpoints are public
+  const govData = await client.listGovernorates();
+  const govList = (govData && govData.list) || [];
+  const governorates = [];
+  for (const g of govList) {
+    const nData = await client.listNeighborhoods(g.sourceId);
+    const nList = (nData && nData.list) || [];
+    governorates.push({
+      id: String(g.sourceId),
+      nameEn: (g.title && g.title.en) || "",
+      nameAr: (g.title && g.title.ar) || "",
+      neighborhoods: nList.map((n) => ({
+        id: String(n.sourceId),
+        nameEn: (n.title && n.title.en) || "",
+        nameAr: (n.title && n.title.ar) || "",
+      })),
+    });
+  }
+  await ref.set({
+    governorates,
+    fetchedAt: admin.firestore.Timestamp.now(),
+  });
+  return governorates;
+}
+
+/** Cached raw /pricing payload for zone-fee resolution, refreshed hourly. */
+async function getWasalPricingCached() {
+  const ref = db.collection("metadata").doc("wasal_pricing");
+  const snap = await ref.get();
+  const cached = snap.exists ? snap.data() : null;
+  const fresh = cached && cached.fetchedAt &&
+    (Date.now() - cached.fetchedAt.toMillis()) < WASAL_PRICING_TTL_MS;
+  if (fresh && cached.raw !== undefined) return cached.raw;
+
+  const client = wasal.createWasalClient(wasalApiKey.value());
+  const raw = await client.getPricing();
+  await ref.set({
+    // Firestore rejects nested arrays / exotic values; JSON round-trip keeps
+    // the payload storable regardless of the exact response shape.
+    raw: JSON.parse(JSON.stringify(raw ?? null)),
+    fetchedAt: admin.firestore.Timestamp.now(),
+  });
+  return raw;
+}
+
+/** Delivery fee (KWD) for an area, or null when no pricing zone matches. */
+async function getWasalAreaFee(governorateId, neighborhoodId) {
+  const pricing = await getWasalPricingCached();
+  return wasal.resolveZoneFee(pricing, { governorateId, neighborhoodId });
+}
+
+/** Approved boutique owner check shared by the Wasal callables. */
+async function requireApprovedOwner(uid) {
+  const ownerDoc = await db.collection("boutique_owners").doc(uid).get();
+  if (!ownerDoc.exists || ownerDoc.data().isApproved !== true) {
+    throw new HttpsError("permission-denied", "You are not an approved boutique owner.");
+  }
+  const boutiqueId = ownerDoc.data().boutiqueId;
+  if (!boutiqueId) {
+    throw new HttpsError("failed-precondition", "No boutique is assigned to this account.");
+  }
+  return boutiqueId;
+}
+
+// ── getWasalAreas — bilingual area tree for the address form ─────────────────
+exports.getWasalAreas = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const rateOk = await checkRateLimit(`wasal_areas_${request.auth.uid}`, 30, 3600);
+  if (!rateOk) {
+    throw new HttpsError("resource-exhausted", "Too many requests. Please try again later.");
+  }
+  try {
+    const governorates = await getWasalAreasCached();
+    return { governorates };
+  } catch (error) {
+    logger.error("getWasalAreas failed", error);
+    throw new HttpsError("unavailable", "Could not load delivery areas. Please try again.");
+  }
+});
+
+// ── getWasalDeliveryFee — live fee quote for checkout ────────────────────────
+// Returns { fee: number|null, perBoutique: true }. null → client falls back to
+// the flat legacy fee, matching createOrder's server-side fallback exactly.
+exports.getWasalDeliveryFee = onCall({ secrets: [wasalApiKey] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const rateOk = await checkRateLimit(`wasal_fee_${request.auth.uid}`, 60, 3600);
+  if (!rateOk) {
+    throw new HttpsError("resource-exhausted", "Too many requests. Please try again later.");
+  }
+  if (wasalEnabled.value() !== "true") return { fee: null, perBoutique: true };
+
+  const governorateId = String(request.data?.governorateId || "");
+  const neighborhoodId = String(request.data?.neighborhoodId || "");
+  if (!governorateId || !neighborhoodId) {
+    throw new HttpsError("invalid-argument", "governorateId and neighborhoodId are required.");
+  }
+  try {
+    const fee = await getWasalAreaFee(governorateId, neighborhoodId);
+    return { fee, perBoutique: true };
+  } catch (error) {
+    logger.warn("getWasalDeliveryFee failed — client will use flat fee", error);
+    return { fee: null, perBoutique: true };
+  }
+});
+
+// ── markReadyForPickup — boutique owner dispatches a Wasal delivery ──────────
+//
+// The owner packs the sub-order and taps "Ready for Pickup". We upsert the
+// customer on Wasal (by phone), reuse-or-add their address, create the Wasal
+// order from the BOUTIQUE's branch code, and record the mapping everywhere.
+// Server-side only: the client sends just the boutiqueOrderId — branch, items,
+// pricing, and address all come from Firestore, never from the client.
+exports.markReadyForPickup = onCall({ secrets: [wasalApiKey] }, async (request) => {
+  // Hoisted above the try so the catch can release a committed dispatch claim (B1).
+  let boutiqueOrderRef = null;
+  let claimed = false;
+  try {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "You must be logged in.");
+    }
+    const uid = request.auth.uid;
+    const rateOk = await checkRateLimit(`wasal_dispatch_${uid}`, 60, 3600);
+    if (!rateOk) {
+      throw new HttpsError("resource-exhausted", "Too many requests. Please try again later.");
+    }
+    if (wasalEnabled.value() !== "true") {
+      throw new HttpsError("failed-precondition", "Delivery dispatch is not enabled yet.");
+    }
+
+    const boutiqueOrderId = request.data?.boutiqueOrderId;
+    if (typeof boutiqueOrderId !== "string" || !boutiqueOrderId || boutiqueOrderId.length > 200) {
+      throw new HttpsError("invalid-argument", "A valid boutiqueOrderId is required.");
+    }
+
+    const boutiqueId = await requireApprovedOwner(uid);
+
+    const boutiqueRef = db.collection("boutiques").doc(boutiqueId);
+    boutiqueOrderRef = boutiqueRef.collection("orders").doc(boutiqueOrderId);
+
+    // ── B1: claim the dispatch atomically BEFORE any Wasal API call ──────────
+    // All validation AND the "in-progress" sentinel are written in ONE
+    // transaction, so two "Ready for Pickup" taps racing in can never both
+    // reach the Wasal API: the loser hits the transaction's contention retry,
+    // re-reads the freshly-written sentinel, and bails with already-exists.
+    // The claim is released again if the dispatch below fails (see the outer
+    // catch), and a stale claim left by a crashed attempt is superseded after
+    // WASAL_DISPATCH_CLAIM_STALE_MS so an order is never stranded.
+    let orderData;
+    let branchCode;
+    let address;
+    let phone;
+    await db.runTransaction(async (tx) => {
+      const [boutiqueDoc, orderSnap] = await Promise.all([
+        tx.get(boutiqueRef),
+        tx.get(boutiqueOrderRef),
+      ]);
+      if (!orderSnap.exists) {
+        throw new HttpsError("not-found", "Order not found for this boutique.");
+      }
+      orderData = orderSnap.data();
+
+      branchCode = boutiqueDoc.exists ? String(boutiqueDoc.data().wasalBranchCode || "") : "";
+      if (!branchCode) {
+        throw new HttpsError("failed-precondition",
+          "This boutique has no Wasal branch configured. Contact LIBSK support.");
+      }
+      if (!["Placed", "Confirmed"].includes(orderData.status)) {
+        throw new HttpsError("failed-precondition",
+          `Order cannot be dispatched while in status "${orderData.status}".`);
+      }
+      // A live (non-terminal) delivery already exists — never dispatch twice.
+      // Re-dispatch is allowed only after a previous delivery ended terminally
+      // (cancelled / failed / returned).
+      if (orderData.wasalOrderId &&
+          !wasal.WASAL_TERMINAL_STATUSES.includes(orderData.wasalStatus)) {
+        throw new HttpsError("already-exists", "A delivery is already in progress for this order.");
+      }
+      // A dispatch is already mid-flight (sentinel set and still fresh).
+      const claimedAt = orderData.wasalDispatchClaimedAt;
+      const claimFresh = orderData.wasalDispatchClaimed === true && claimedAt &&
+        (Date.now() - claimedAt.toMillis()) < WASAL_DISPATCH_CLAIM_STALE_MS;
+      if (claimFresh) {
+        throw new HttpsError("already-exists",
+          "A delivery request is already being processed for this order.");
+      }
+
+      address = orderData.address || {};
+      if (!String(address.wasalGovernorateId || "") ||
+          !String(address.wasalNeighborhoodId || "")) {
+        throw new HttpsError("failed-precondition",
+          "The customer's address has no delivery area on file. Ask them to update their address.");
+      }
+      phone = wasal.normalizeKuwaitPhone(address.phone);
+      if (!phone) {
+        throw new HttpsError("failed-precondition",
+          "The customer's address has no valid phone number.");
+      }
+
+      tx.update(boutiqueOrderRef, {
+        wasalDispatchClaimed: true,
+        wasalDispatchClaimedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    claimed = true; // sentinel committed; the outer catch must release it on failure
+
+    const governorateId = String(address.wasalGovernorateId || "");
+    const neighborhoodId = String(address.wasalNeighborhoodId || "");
+
+    const client = wasal.createWasalClient(wasalApiKey.value());
+
+    // 1. Find-or-create the Wasal customer by phone.
+    const customerName = [address.firstName, address.lastName].filter(Boolean).join(" ").trim() ||
+      orderData.customerName || "LIBSK Customer";
+    const upserted = await client.upsertCustomer({ phoneNumber: phone, name: customerName });
+    const wasalCustomer = upserted.customer;
+
+    // 2. Reuse a matching address or add a new one (5-address cap: recycle the
+    //    first non-default slot when full).
+    //
+    //    blockId/streetId must be REAL PACI area references — free text is
+    //    rejected with "Invalid PACI location reference". The customer's block
+    //    number is resolved against the PACI block list for their
+    //    neighborhood (best-effort; blockId is optional). Street/house/floor
+    //    details always travel in line1 so the driver sees them regardless.
+    let resolvedBlockId = null;
+    try {
+      const blocks = await client.listBlocks(neighborhoodId);
+      resolvedBlockId = wasal.matchBlockId(blocks.list || [], address.block);
+    } catch (err) {
+      logger.warn("Wasal block lookup failed — dispatching without blockId", err);
+    }
+    const line1 = [
+      address.block ? `Block ${address.block}` : "",
+      address.street ? `Street ${address.street}` : "",
+      address.house ? `House ${address.house}` : "",
+    ].filter(Boolean).join(", ");
+    const targetAddress = {
+      label: address.label || "Home",
+      governorateId,
+      neighborhoodId,
+      ...(resolvedBlockId ? { blockId: resolvedBlockId } : {}),
+      houseNumber: String(address.house || ""),
+      floorNumber: String(address.floor || ""),
+      apartmentNumber: String(address.apartment || ""),
+      ...(line1 ? { line1 } : {}),
+    };
+    let existingAddresses = wasalCustomer.addresses;
+    if (!Array.isArray(existingAddresses)) {
+      const full = await client.getCustomer(wasalCustomer._id);
+      existingAddresses = (full.customer && full.customer.addresses) || [];
+    }
+    let wasalAddressId;
+    const match = wasal.findMatchingAddress(existingAddresses, targetAddress);
+    if (match) {
+      wasalAddressId = match._id;
+    } else if (existingAddresses.length >= 5) {
+      const recyclable = existingAddresses.find((a) => !a.isDefault) || existingAddresses[0];
+      await client.updateCustomerAddress(wasalCustomer._id, recyclable._id, targetAddress);
+      wasalAddressId = recyclable._id;
+    } else {
+      const added = await client.addCustomerAddress(wasalCustomer._id, targetAddress);
+      wasalAddressId = added.address._id;
+    }
+
+    // 3. Create the Wasal order. All LIBSK orders are prepaid (Payzah) — no
+    //    COD, no amountToCollect. pricing.deliveryFee is omitted so Wasal
+    //    resolves the wallet charge from the customer's area itself.
+    const items = (orderData.items || []).map((i) => ({
+      name: String(i.title || i.name || i.productName || "Item"),
+      qty: Number(i.quantity) || 1,
+      price: Number(i.price) || 0,
+      ...(i.sku ? { sku: String(i.sku) } : {}),
+      ...(i.size ? { note: `Size: ${i.size}` } : {}),
+    }));
+    const subtotal = (orderData.items || [])
+      .reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 0), 0);
+
+    const created = await client.createOrder({
+      customerId: wasalCustomer._id,
+      customerAddressId: wasalAddressId,
+      branchCode,
+      specialHandlingTags: ["none"],
+      paymentMethod: "prepaid",
+      pricing: { subtotal, total: subtotal },
+      items,
+      orderMerchantReferenceNumber: `${orderData.orderNumber}-${boutiqueOrderId.slice(0, 6)}`,
+      merchantNotes: `LIBSK order #${orderData.orderNumber}`,
+    });
+    const wasalOrder = created.order;
+
+    // 4. Record the mapping + stamp the order docs.
+    const batch = db.batch();
+    batch.set(db.collection("wasal_orders").doc(String(wasalOrder._id)), {
+      wasalOrderNumber: wasalOrder.orderNumber || "",
+      boutiqueId,
+      boutiqueOrderId,
+      customerUid: orderData.customerUid || "",
+      sourceUserOrderId: orderData.sourceUserOrderId || "",
+      orderNumber: orderData.orderNumber || "",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    const wasalFields = {
+      wasalOrderId: String(wasalOrder._id),
+      wasalOrderNumber: wasalOrder.orderNumber || "",
+      wasalStatus: wasalOrder.status || "pending",
+      wasalDispatchedAt: admin.firestore.FieldValue.serverTimestamp(),
+      wasalDispatchClaimed: false, // dispatch completed — release the B1 claim
+    };
+    batch.update(boutiqueOrderRef, wasalFields);
+    const sourceUserOrderId = orderData.sourceUserOrderId || "";
+    const customerUid = orderData.customerUid || "";
+    if (customerUid && sourceUserOrderId) {
+      batch.set(
+        db.collection("users").doc(customerUid)
+          .collection("orders").doc(sourceUserOrderId),
+        { [`wasalStatuses.${wasalOrder._id}`]: wasalOrder.status || "pending" },
+        { merge: true },
+      );
+      batch.set(
+        db.collection("global_orders").doc(sourceUserOrderId),
+        { [`wasalStatuses.${wasalOrder._id}`]: wasalOrder.status || "pending" },
+        { merge: true },
+      );
+    }
+    await batch.commit();
+    claimed = false; // released as part of the success batch above
+
+    return {
+      success: true,
+      wasalOrderId: String(wasalOrder._id),
+      wasalOrderNumber: wasalOrder.orderNumber || "",
+      status: wasalOrder.status || "pending",
+    };
+  } catch (error) {
+    // B1: a claim was committed but the dispatch didn't complete — release it
+    // so the owner can retry right away (the stale window is only a backstop
+    // for a hard crash before this runs).
+    if (claimed && boutiqueOrderRef) {
+      await boutiqueOrderRef.update({ wasalDispatchClaimed: false })
+        .catch((e) => logger.warn("Failed to release Wasal dispatch claim",
+          { boutiqueOrderId: boutiqueOrderRef.id, err: e.message }));
+    }
+    logger.error("markReadyForPickup failed", error);
+    if (error instanceof HttpsError) throw error;
+    if (error instanceof wasal.WasalError) {
+      throw new HttpsError("unavailable", `Delivery dispatch failed: ${error.message}`);
+    }
+    throw new HttpsError("internal", "Failed to dispatch delivery.");
+  }
+});
+
+// ── wasalWebhook — signed status pushes from Wasal ───────────────────────────
+//
+// Registered once against Wasal (POST /integration/merchant/webhook with this
+// function's URL); the returned secret is stored as WASAL_WEBHOOK_SECRET.
+// Signature is verified over the RAW body before anything is trusted. Wasal
+// requires a 2xx within 8 seconds; work here is a couple of Firestore ops.
+// NOTE: the sandbox never fires webhooks — production only.
+exports.wasalWebhook = onRequest(
+  { secrets: [wasalWebhookSecret], maxInstances: 3 },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") {
+        res.status(405).send("Method Not Allowed");
+        return;
+      }
+      const signature = req.get("X-Wasal-Signature") || "";
+      if (!wasal.verifyWebhookSignature(req.rawBody, wasalWebhookSecret.value(), signature)) {
+        logger.warn("Wasal webhook rejected: bad signature");
+        res.status(401).send("Invalid signature");
+        return;
+      }
+
+      const { event, data } = req.body || {};
+      if (event === "ping") {
+        res.status(200).send("pong");
+        return;
+      }
+
+      // Tolerant payload extraction — the order may sit at data.order or data.
+      const order = (data && (data.order || data)) || {};
+      const wasalOrderId = String(order._id || order.orderId || "");
+      const wasalStatus = String(order.status || "");
+      if (!wasalOrderId || !wasalStatus) {
+        res.status(200).send("No order in payload — ignored");
+        return;
+      }
+
+      const mapSnap = await db.collection("wasal_orders").doc(wasalOrderId).get();
+      if (!mapSnap.exists) {
+        // Not one of ours (or created outside LIBSK) — acknowledge and move on.
+        res.status(200).send("Unknown order — ignored");
+        return;
+      }
+      const map = mapSnap.data();
+      const libskStatus = wasal.mapWasalToLibskStatus(wasalStatus);
+
+      const boutiqueOrderRef = db.collection("boutiques").doc(map.boutiqueId)
+        .collection("orders").doc(map.boutiqueOrderId);
+      const userOrderRef = map.customerUid && map.sourceUserOrderId
+        ? db.collection("users").doc(map.customerUid)
+            .collection("orders").doc(map.sourceUserOrderId)
+        : null;
+      const globalOrderRef = map.sourceUserOrderId
+        ? db.collection("global_orders").doc(map.sourceUserOrderId)
+        : null;
+
+      await db.runTransaction(async (tx) => {
+        const globalSnap = globalOrderRef ? await tx.get(globalOrderRef) : null;
+
+        // Boutique sub-order: always mirror the Wasal status; advance the
+        // LIBSK status when the delivery has physically progressed.
+        tx.set(boutiqueOrderRef, {
+          wasalStatus,
+          wasalStatusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          ...(libskStatus ? { status: libskStatus } : {}),
+        }, { merge: true });
+
+        // Customer-facing order docs: per-delivery status map + aggregated
+        // status. "On the Way" as soon as any delivery moves; "Delivered"
+        // only when EVERY delivery in the order is delivered.
+        if (globalSnap && globalSnap.exists && userOrderRef) {
+          const globalData = globalSnap.data() || {};
+          const statuses = { ...(globalData.wasalStatuses || {}), [wasalOrderId]: wasalStatus };
+          const allDelivered = wasal.overallDeliveryStatus(statuses) === "Delivered";
+          const advance =
+            libskStatus === "Delivered" ? (allDelivered ? "Delivered" : "On the Way")
+            : libskStatus; // "On the Way" or null
+          const update = {
+            [`wasalStatuses.${wasalOrderId}`]: wasalStatus,
+            ...(advance && globalData.status !== "Cancelled" ? { status: advance } : {}),
+          };
+          tx.set(globalOrderRef, update, { merge: true });
+          tx.set(userOrderRef, update, { merge: true });
+        }
+      });
+
+      res.status(200).send("OK");
+    } catch (error) {
+      logger.error("wasalWebhook failed", error);
+      // 500 → Wasal may retry; that is safe (handler is idempotent).
+      res.status(500).send("Internal error");
+    }
   },
 );

@@ -5650,6 +5650,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This account hasn\'t verified its email yet. Ask the owner to complete verification before onboarding.'**
   String get ownerMustVerifyEmailFirst;
+
+  /// No description provided for @readyForPickup.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready for Pickup'**
+  String get readyForPickup;
+
+  /// No description provided for @deliveryRequested.
+  ///
+  /// In en, this message translates to:
+  /// **'Driver requested'**
+  String get deliveryRequested;
+
+  /// No description provided for @courierStatusLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Courier'**
+  String get courierStatusLabel;
+
+  /// No description provided for @deliveryDispatchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not request a driver. Please try again.'**
+  String get deliveryDispatchFailed;
+
+  /// No description provided for @wasalStatusPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Finding a driver'**
+  String get wasalStatusPending;
+
+  /// No description provided for @wasalStatusAssigned.
+  ///
+  /// In en, this message translates to:
+  /// **'Driver assigned'**
+  String get wasalStatusAssigned;
+
+  /// No description provided for @wasalStatusOnWayToMerchant.
+  ///
+  /// In en, this message translates to:
+  /// **'Driver heading to boutique'**
+  String get wasalStatusOnWayToMerchant;
+
+  /// No description provided for @wasalStatusPickedUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Picked up'**
+  String get wasalStatusPickedUp;
+
+  /// No description provided for @wasalStatusInTransit.
+  ///
+  /// In en, this message translates to:
+  /// **'On the way to customer'**
+  String get wasalStatusInTransit;
+
+  /// No description provided for @wasalStatusDelivered.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivered'**
+  String get wasalStatusDelivered;
+
+  /// No description provided for @wasalStatusFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery failed'**
+  String get wasalStatusFailed;
+
+  /// No description provided for @wasalStatusReturned.
+  ///
+  /// In en, this message translates to:
+  /// **'Returned to boutique'**
+  String get wasalStatusReturned;
+
+  /// No description provided for @wasalStatusCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery cancelled'**
+  String get wasalStatusCancelled;
+
+  /// No description provided for @wasalBranchCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Wasal branch code'**
+  String get wasalBranchCode;
+
+  /// No description provided for @wasalBranchCodeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. MAIN — from the Wasal merchant dashboard'**
+  String get wasalBranchCodeHint;
+
+  /// No description provided for @wasalBranchCodeSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Branch code saved'**
+  String get wasalBranchCodeSaved;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

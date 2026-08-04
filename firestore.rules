@@ -222,9 +222,12 @@ service cloud.firestore {
         // via the admin homepage tool); boutique owners may NOT — otherwise an
         // owner could grant themselves a paid placement for free. The paid path
         // writes them from a Cloud Function (admin SDK bypasses rules).
+        // wasalBranchCode routes driver pickups for this boutique — admin-set
+        // only, so an owner can't point deliveries at another branch.
         (isAdmin() ||
           !request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(['isVisibleOnHome', 'homeExpiresAt', 'homeOrder']));
+            .hasAny(['isVisibleOnHome', 'homeExpiresAt', 'homeOrder',
+                     'wasalBranchCode']));
       allow delete: if isSuperAdmin();
 
       match /products/{productId} {

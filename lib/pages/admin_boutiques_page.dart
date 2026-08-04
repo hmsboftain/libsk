@@ -25,6 +25,70 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
     _boutiquesStream = FirestoreService.getAllBoutiquesStream();
   }
 
+  Future<void> _editWasalBranchCode(
+    String boutiqueId,
+    String boutiqueName,
+    String currentCode,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final controller = TextEditingController(text: currentCode);
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.background,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        title: Text(boutiqueName, style: AppTextStyles.headingSmall),
+        content: TextField(
+          controller: controller,
+          textCapitalization: TextCapitalization.characters,
+          decoration: InputDecoration(
+            labelText: l10n.wasalBranchCode,
+            hintText: l10n.wasalBranchCodeHint,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel, style: AppTextStyles.labelLarge),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.deepAccent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.zero,
+              ),
+            ),
+            child: Text(l10n.save, style: AppTextStyles.button),
+          ),
+        ],
+      ),
+    );
+
+    if (saved != true) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('boutiques')
+          .doc(boutiqueId)
+          .update({'wasalBranchCode': controller.text.trim()});
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.wasalBranchCodeSaved),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.somethingWentWrong)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -85,17 +149,28 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
                       final boutiqueName =
                           data['name']?.toString() ?? l10n.boutique;
 
-                      return BoutiquesCard(
-                        imageUrl: imageUrl,
-                        boutiqueName: boutiqueName,
-                        isLiked: false,
-                        onLikeTap: () {},
-                        showLikeButton: false,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                BoutiqueOversightPage(boutiqueId: boutiqueId),
+                      // Long-press: set the boutique's Wasal branch code
+                      // (created in the Wasal merchant dashboard first).
+                      // Deliveries can't be dispatched for a boutique
+                      // without one.
+                      return GestureDetector(
+                        onLongPress: () => _editWasalBranchCode(
+                          boutiqueId,
+                          boutiqueName,
+                          data['wasalBranchCode']?.toString() ?? '',
+                        ),
+                        child: BoutiquesCard(
+                          imageUrl: imageUrl,
+                          boutiqueName: boutiqueName,
+                          isLiked: false,
+                          onLikeTap: () {},
+                          showLikeButton: false,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  BoutiqueOversightPage(boutiqueId: boutiqueId),
+                            ),
                           ),
                         ),
                       );

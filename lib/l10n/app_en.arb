@@ -1008,5 +1008,21 @@
   "startOverConfirm": "Start over",
   "verificationRequiredToContinue": "Verify your email to continue.",
   "couldNotSendCode": "Could not send the code. Please try again.",
-  "ownerMustVerifyEmailFirst": "This account hasn't verified its email yet. Ask the owner to complete verification before onboarding."
+  "ownerMustVerifyEmailFirst": "This account hasn't verified its email yet. Ask the owner to complete verification before onboarding.",
+  "readyForPickup": "Ready for Pickup",
+  "deliveryRequested": "Driver requested",
+  "courierStatusLabel": "Courier",
+  "deliveryDispatchFailed": "Could not request a driver. Please try again.",
+  "wasalStatusPending": "Finding a driver",
+  "wasalStatusAssigned": "Driver assigned",
+  "wasalStatusOnWayToMerchant": "Driver heading to boutique",
+  "wasalStatusPickedUp": "Picked up",
+  "wasalStatusInTransit": "On the way to customer",
+  "wasalStatusDelivered": "Delivered",
+  "wasalStatusFailed": "Delivery failed",
+  "wasalStatusReturned": "Returned to boutique",
+  "wasalStatusCancelled": "Delivery cancelled",
+  "wasalBranchCode": "Wasal branch code",
+  "wasalBranchCodeHint": "e.g. MAIN — from the Wasal merchant dashboard",
+  "wasalBranchCodeSaved": "Branch code saved"
 }

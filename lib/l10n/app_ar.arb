@@ -987,5 +987,21 @@
   "startOverConfirm": "ابدأ من جديد",
   "verificationRequiredToContinue": "أكّد بريدك الإلكتروني للمتابعة.",
   "couldNotSendCode": "تعذّر إرسال الرمز. حاول مرة أخرى.",
-  "ownerMustVerifyEmailFirst": "لم يتم تأكيد البريد الإلكتروني لهذا الحساب بعد. اطلب من المالك إكمال التحقق قبل التسجيل."
+  "ownerMustVerifyEmailFirst": "لم يتم تأكيد البريد الإلكتروني لهذا الحساب بعد. اطلب من المالك إكمال التحقق قبل التسجيل.",
+  "readyForPickup": "جاهز للاستلام",
+  "deliveryRequested": "تم طلب المندوب",
+  "courierStatusLabel": "المندوب",
+  "deliveryDispatchFailed": "تعذّر طلب المندوب. حاول مرة أخرى.",
+  "wasalStatusPending": "جاري البحث عن مندوب",
+  "wasalStatusAssigned": "تم تعيين المندوب",
+  "wasalStatusOnWayToMerchant": "المندوب في الطريق إلى المتجر",
+  "wasalStatusPickedUp": "تم استلام الطلب من المتجر",
+  "wasalStatusInTransit": "في الطريق إلى العميل",
+  "wasalStatusDelivered": "تم التوصيل",
+  "wasalStatusFailed": "فشل التوصيل",
+  "wasalStatusReturned": "أُعيد إلى المتجر",
+  "wasalStatusCancelled": "أُلغي التوصيل",
+  "wasalBranchCode": "رمز فرع وصل",
+  "wasalBranchCodeHint": "مثال: MAIN — من لوحة تحكم وصل",
+  "wasalBranchCodeSaved": "تم حفظ رمز الفرع"
 }

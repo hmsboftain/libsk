@@ -15,6 +15,7 @@ import 'add_address_page.dart';
 import 'payzah_payment_page.dart';
 import '../widgets/cart_item.dart';
 import '../services/firestore_service.dart';
+import '../services/wasal_service.dart';
 import '../widgets/theme.dart';
 
 // ── Branded snackbar ──────────────────────────────────────────────────────────
@@ -57,6 +58,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
   String _longestMtoTimeframe = '';
 
   // ── Discount code ──────────────────────────────────────────────────────────
+  // ── Wasal area-based delivery fee ──────────────────────────────────────────
+  // Live quote for the customer's delivery area (per boutique pickup). null →
+  // flat legacy fee, matching the server-side fallback in createOrder. Keyed
+  // by the address doc it was quoted for so address changes refetch.
+  double? _wasalAreaFee;
+  String? _wasalFeeAddressKey;
+
   String? _discountCodeId;
   double _discountAmount = 0;
   String? _appliedCode;
@@ -102,6 +110,36 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return service.format(kwd, country.currencySymbol, country.currency);
   }
 
+  // ── Wasal live delivery fee ────────────────────────────────────────────────
+  // The order ships from the newest saved address (createOrder uses the same
+  // orderBy-createdAt-desc rule), so the fee is quoted for that address. Runs
+  // once per address; failures leave the flat fee in place.
+  void _maybeFetchWasalFee(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> addressDocs,
+  ) {
+    if (addressDocs.isEmpty) return;
+    final latest = addressDocs.first;
+    final data = latest.data();
+    final governorateId = data['wasalGovernorateId']?.toString() ?? '';
+    final neighborhoodId = data['wasalNeighborhoodId']?.toString() ?? '';
+    if (governorateId.isEmpty || neighborhoodId.isEmpty) return;
+    if (_wasalFeeAddressKey == latest.id) return;
+    _wasalFeeAddressKey = latest.id;
+
+    WasalService.instance
+        .getDeliveryFee(
+          governorateId: governorateId,
+          neighborhoodId: neighborhoodId,
+        )
+        .then((fee) {
+          if (!mounted || fee == null) return;
+          setState(() {
+            _wasalAreaFee = fee;
+            if (deliveryMethod != 'Made to Order') deliveryCost = fee;
+          });
+        });
+  }
+
   // ── Auto-detect MTO from cart items ────────────────────────────────────────
   // Called on every rebuild. Reads product docs to get the longest timeframe.
 
@@ -124,7 +162,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             deliveryMethod = isKuwait
                 ? 'Same Day Delivery'
                 : 'Regular Delivery';
-            deliveryCost = isKuwait ? 5 : 3;
+            deliveryCost = _wasalAreaFee ?? (isKuwait ? 5 : 3);
           }
         });
 
@@ -409,9 +447,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 ),
               ),
               const Divider(color: AppColors.border, thickness: 0.5, height: 0.5),
-              option('Regular Delivery', l10n.regularDelivery, 3),
+              // Area-based Wasal fee when quoted; flat legacy fee otherwise.
+              option('Regular Delivery', l10n.regularDelivery, _wasalAreaFee ?? 3),
               if (isKuwait)
-                option('Same Day Delivery', l10n.sameDayDelivery, 5),
+                option('Same Day Delivery', l10n.sameDayDelivery, _wasalAreaFee ?? 5),
               const SizedBox(height: 8),
             ],
           ),
@@ -572,6 +611,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 builder: (context, addressSnapshot) {
                   final addressDocs = addressSnapshot.data?.docs ?? [];
                   final hasAddress = addressDocs.isNotEmpty;
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _maybeFetchWasalFee(addressDocs),
+                  );
 
                   return Column(
                     children: [

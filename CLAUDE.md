@@ -91,7 +91,18 @@ The company is registered as **"LIBSK Commission Agency and Trading Company"** (
    declining in sandbox, under investigation; Apple Pay (Transit) not yet
    scoped — Stripe fully removed (client + Cloud Functions); refunds are
    manual via Payzah dashboard + superadmin "Mark as Refunded"
-2. Delivery API integration
+2. Delivery API integration — Wasal: code complete (functions/wasal.js +
+   callables getWasalAreas / getWasalDeliveryFee / markReadyForPickup +
+   wasalWebhook receiver; area dropdowns in address form; live area fee at
+   checkout; owner "Ready for Pickup" dispatch; courier status on order
+   tracking). Model: one LIBSK Wasal merchant account, one branch per boutique
+   (boutiques/{id}.wasalBranchCode, admin-set via long-press in All Boutiques).
+   Delivery fee is area-based, charged per boutique pickup; flat 3/5 KWD
+   fallback when no Wasal pricing. Remaining: set WASAL_API_KEY /
+   WASAL_WEBHOOK_SECRET secrets, WASAL_ENABLED=true, create branches in the
+   Wasal dashboard, register the webhook, run functions/scripts/wasal-sandbox-e2e.js,
+   run `flutter gen-l10n`. NOTE: Wasal sandbox never fires webhooks — webhook
+   receiver is verified with locally signed payloads or in production.
 3. Apple Developer enrollment (Organization, DUNS requested — blocked Apple-side)
 4. Firebase Crashlytics — integration incomplete, do not treat as active
 

@@ -2953,4 +2953,52 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get ownerMustVerifyEmailFirst => 'لم يتم تأكيد البريد الإلكتروني لهذا الحساب بعد. اطلب من المالك إكمال التحقق قبل التسجيل.';
+
+  @override
+  String get readyForPickup => 'جاهز للاستلام';
+
+  @override
+  String get deliveryRequested => 'تم طلب المندوب';
+
+  @override
+  String get courierStatusLabel => 'المندوب';
+
+  @override
+  String get deliveryDispatchFailed => 'تعذّر طلب المندوب. حاول مرة أخرى.';
+
+  @override
+  String get wasalStatusPending => 'جاري البحث عن مندوب';
+
+  @override
+  String get wasalStatusAssigned => 'تم تعيين المندوب';
+
+  @override
+  String get wasalStatusOnWayToMerchant => 'المندوب في الطريق إلى المتجر';
+
+  @override
+  String get wasalStatusPickedUp => 'تم استلام الطلب من المتجر';
+
+  @override
+  String get wasalStatusInTransit => 'في الطريق إلى العميل';
+
+  @override
+  String get wasalStatusDelivered => 'تم التوصيل';
+
+  @override
+  String get wasalStatusFailed => 'فشل التوصيل';
+
+  @override
+  String get wasalStatusReturned => 'أُعيد إلى المتجر';
+
+  @override
+  String get wasalStatusCancelled => 'أُلغي التوصيل';
+
+  @override
+  String get wasalBranchCode => 'رمز فرع وصل';
+
+  @override
+  String get wasalBranchCodeHint => 'مثال: MAIN — من لوحة تحكم وصل';
+
+  @override
+  String get wasalBranchCodeSaved => 'تم حفظ رمز الفرع';
 }

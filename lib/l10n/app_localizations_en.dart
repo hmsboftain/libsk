@@ -2949,4 +2949,52 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ownerMustVerifyEmailFirst => 'This account hasn\'t verified its email yet. Ask the owner to complete verification before onboarding.';
+
+  @override
+  String get readyForPickup => 'Ready for Pickup';
+
+  @override
+  String get deliveryRequested => 'Driver requested';
+
+  @override
+  String get courierStatusLabel => 'Courier';
+
+  @override
+  String get deliveryDispatchFailed => 'Could not request a driver. Please try again.';
+
+  @override
+  String get wasalStatusPending => 'Finding a driver';
+
+  @override
+  String get wasalStatusAssigned => 'Driver assigned';
+
+  @override
+  String get wasalStatusOnWayToMerchant => 'Driver heading to boutique';
+
+  @override
+  String get wasalStatusPickedUp => 'Picked up';
+
+  @override
+  String get wasalStatusInTransit => 'On the way to customer';
+
+  @override
+  String get wasalStatusDelivered => 'Delivered';
+
+  @override
+  String get wasalStatusFailed => 'Delivery failed';
+
+  @override
+  String get wasalStatusReturned => 'Returned to boutique';
+
+  @override
+  String get wasalStatusCancelled => 'Delivery cancelled';
+
+  @override
+  String get wasalBranchCode => 'Wasal branch code';
+
+  @override
+  String get wasalBranchCodeHint => 'e.g. MAIN — from the Wasal merchant dashboard';
+
+  @override
+  String get wasalBranchCodeSaved => 'Branch code saved';
 }
