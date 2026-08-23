@@ -1638,6 +1638,15 @@ function getResend() {
   return new Resend(resendApiKey.value());
 }
 
+// React Email templates, compiled to a plain-CJS bundle by `npm run build:emails`.
+// Required lazily so a missing/stale build can only affect the email senders,
+// never the whole functions codebase at load.
+let _emailRenderers = null;
+function emailRenderers() {
+  if (!_emailRenderers) _emailRenderers = require("./emails/dist/render.cjs");
+  return _emailRenderers;
+}
+
 async function sendOrderEmail(to, subject, html) {
   try {
     const resend = getResend();
@@ -1797,6 +1806,67 @@ exports.sendOrderStatusEmail = onDocumentUpdated(
         deliveryMethod: after.deliveryMethod,
       }),
     );
+  },
+);
+
+// Welcome email — sent once when a new account's email is first verified. This
+// reacts only to the profile doc (it does NOT touch the OTP flow): both paths
+// land emailVerified=true here as an update — password signups via
+// verifyEmailOtp, social signups via mirrorEmailVerifiedOnProfileCreate — so
+// the false->true transition catches everyone exactly once. `welcomeSent`
+// guards against re-sends (setting it re-triggers this, but the guard returns).
+exports.sendWelcomeEmail = onDocumentUpdated(
+  { document: "users/{uid}", secrets: [resendApiKey] },
+  async (event) => {
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+    if (!before || !after) return;
+    if (after.emailVerified !== true) return;      // only once verified
+    if (before.emailVerified === true) return;     // only on the transition
+    if (after.welcomeSent === true) return;        // idempotency guard
+
+    const uid = event.params.uid;
+
+    // Name from the profile; email from the profile, falling back to Auth
+    // (always present) so a missing profile.email never drops the welcome.
+    let email = after.email;
+    let name = after.fullName || after.firstName || "";
+    try {
+      const authUser = await admin.auth().getUser(uid);
+      email = email || authUser.email;
+      if (!name) name = authUser.displayName || "";
+    } catch (err) {
+      logger.error("Welcome: failed to load auth user", { uid, err: err.message });
+    }
+    if (!email) return;
+
+    const { renderWelcome } = emailRenderers();
+    const { html, text } = await renderWelcome({
+      customerName: name || undefined,
+      // ctaUrl intentionally omitted — no confirmed web/app-deeplink store URL
+      // yet, so the template renders without the "Start exploring" button.
+    });
+
+    try {
+      const resend = getResend();
+      await resend.emails.send({
+        from: "LIBSK <hello@libsk.com>",
+        to: email,
+        subject: "Welcome to LIBSK",
+        html,
+        text,
+      });
+      await event.data.after.ref.set(
+        {
+          welcomeSent: true,
+          welcomeSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      logger.info("Welcome email sent", { uid });
+    } catch (err) {
+      logger.error("Failed to send welcome email", { uid, err: err.message });
+    }
   },
 );
 
