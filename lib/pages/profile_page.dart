@@ -14,6 +14,7 @@ import 'owner_dashboard_page.dart';
 import 'saved_addresses_page.dart';
 import 'saved_boutiques_page.dart';
 import 'saved_items_page.dart';
+import 'notifications_page.dart';
 import 'super_admin_dashboard_page.dart';
 import 'your_account_page.dart';
 
@@ -66,13 +67,6 @@ Future<void> _launchUrl(String url) async {
   if (await canLaunchUrl(uri)) {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
-}
-
-// ── Country flag helper ──────────────────────────────────────────────────────
-
-String _countryFlag(String countryCode) {
-  final cc = countryCode.toUpperCase();
-  return String.fromCharCodes(cc.codeUnits.map((c) => 0x1F1E6 - 0x41 + c));
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -191,11 +185,6 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                           child: Row(
                             children: [
-                              Text(
-                                _countryFlag(country.code),
-                                style: const TextStyle(fontSize: 22),
-                              ),
-                              const SizedBox(width: 14),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,6 +338,16 @@ class _ProfilePageState extends State<ProfilePage> {
                       },
                     ),
                     _buildTile(
+                      icon: Icons.notifications_none,
+                      title: l10n.notifications,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsPage(),
+                        ),
+                      ),
+                    ),
+                    _buildTile(
                       icon: Icons.favorite,
                       title: l10n.savedItems,
                       onTap: () => Navigator.push(
@@ -439,14 +438,12 @@ class _ProfilePageState extends State<ProfilePage> {
                     _buildTile(
                       icon: Icons.language,
                       title: isArabic ? 'العربية' : 'English',
-                      trailing: isArabic ? '🇰🇼' : '🇬🇧',
                       onTap: _toggleLanguage,
                     ),
                     _buildTile(
                       icon: Icons.public,
                       title: l10n.countryRegion,
-                      trailing:
-                          '${_countryFlag(currentCountry.code)} $countryLabel',
+                      trailing: countryLabel,
                       onTap: _showCountryPicker,
                     ),
 

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../firebase_options.dart';
 import '../main.dart' show navigatorKey;
 import '../pages/disputes_page.dart';
@@ -76,7 +77,7 @@ class NotificationService {
 
       // App opened by tapping notification from background
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        _handleNotificationTap(message.data);
+        handleNotificationTap(message.data);
       });
 
       // App opened by tapping notification from terminated state
@@ -84,7 +85,7 @@ class NotificationService {
           await _messaging.getInitialMessage();
 
       if (initialMessage != null) {
-        _handleNotificationTap(initialMessage.data);
+        handleNotificationTap(initialMessage.data);
       }
     } catch (e) {
       debugPrint('Notification service error: $e');
@@ -138,7 +139,7 @@ class NotificationService {
   // Routes the user to the most relevant page based on the `type` field that
   // every server-sent notification now includes. Missing/unknown types are
   // silently ignored so we just land on the current screen.
-  Future<void> _handleNotificationTap(Map<String, dynamic> data) async {
+  Future<void> handleNotificationTap(Map<String, dynamic> data) async {
     final navigator = navigatorKey.currentState;
     if (navigator == null) return;
 
@@ -183,7 +184,21 @@ class NotificationService {
           .collection('orders')
           .doc(orderId)
           .get();
-      if (!doc.exists) return;
+      if (!doc.exists) {
+        // The order was removed since the notification was created — tell the
+        // user rather than navigating to a broken page. `ctx` is a local
+        // BuildContext (the global navigator's), used after an await, so guard
+        // on `ctx.mounted` right before touching it.
+        final ctx = navigatorKey.currentContext;
+        if (ctx == null || !ctx.mounted) return;
+        ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(SnackBar(
+          content: Text(
+            AppLocalizations.of(ctx)?.notificationOrderUnavailable ??
+                'This order is no longer available',
+          ),
+        ));
+        return;
+      }
       final order = OrderItem.fromFirestore(doc.id, doc.data() ?? {});
       navigator.push(
         MaterialPageRoute(builder: (_) => OrderDetailsPage(order: order)),

@@ -1357,6 +1357,59 @@ class FirestoreService {
     }
     await batch.commit();
   }
+
+  /// Unread count for the header bell badge. `.limit(21)` caps the realtime
+  /// listener regardless of how many unread the user has (the UI shows "20+"
+  /// at the ceiling), keeping it as cheap as the cart-count stream. No orderBy,
+  /// so it needs only the automatic single-field index on `isRead`. Returns a
+  /// 0 stream when signed out so the badge never touches `_uid` (which throws).
+  static Stream<int> getUnreadNotificationCountStream() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return Stream<int>.value(0);
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .where('isRead', isEqualTo: false)
+        .limit(21)
+        .snapshots()
+        .map((s) => s.size);
+  }
+
+  /// The most recent [limit] notifications, newest first — the live window the
+  /// notifications page renders. Bounded, so the listener cost stays fixed.
+  static Stream<QuerySnapshot<Map<String, dynamic>>> getRecentNotificationsStream({
+    int limit = 50,
+  }) {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      return Stream<QuerySnapshot<Map<String, dynamic>>>.empty();
+    }
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots();
+  }
+
+  /// One page of older notifications for the "Load older" control, fetched once
+  /// (not streamed) starting after [lastDoc]. Older notifications don't change,
+  /// so a static page below the live window is correct.
+  static Future<QuerySnapshot<Map<String, dynamic>>> fetchNotificationsBefore(
+    DocumentSnapshot<Map<String, dynamic>> lastDoc, {
+    int limit = 50,
+  }) {
+    return _firestore
+        .collection('users')
+        .doc(_uid)
+        .collection('notifications')
+        .orderBy('createdAt', descending: true)
+        .startAfterDocument(lastDoc)
+        .limit(limit)
+        .get();
+  }
 }
 
 /// Result of the createOrder Cloud Function. [paymentAttemptId] identifies
