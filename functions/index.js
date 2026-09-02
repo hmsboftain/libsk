@@ -5253,16 +5253,19 @@ exports.wasalWebhook = onRequest(
 // the API key never reaches the app.
 //
 // Per delivery we return:
-//   - status + agentLocation { lat, lng, lastSeen } + agentPhone — from the
-//     PUBLIC track endpoint (GET /order/track/:orderNumber), keyed by the public
+//   - status + agentLocation { lat, lng, lastSeen } — from the PUBLIC track
+//     endpoint (GET /order/track/:orderNumber), keyed by the public
 //     wasalOrderNumber. The endpoint is public + non-sensitive, but we still gate
-//     it behind the ownership check so a driver's phone/location is never exposed
-//     to a non-owner who guesses an order number.
+//     it behind the ownership check so a driver's location is never exposed to a
+//     non-owner who guesses an order number.
 //   - statusHistory[] — from the AUTHENTICATED history endpoint, for the timeline
 //     (the public track endpoint does not include history).
 //
-// agentPhone is returned but the client deliberately does NOT surface it yet —
-// exposing a driver's personal number to customers is a separate decision.
+// The Wasal track endpoint ALSO returns agentPhone (the courier's personal
+// number), but we deliberately DROP it server-side so it never leaves this
+// function — surfacing a driver's number to customers is an explicit product
+// decision, not a default. Re-add it to the payload only if/when that call is
+// made.
 //
 // NOTE: in the sandbox, webhooks never fire, so the Firestore wasalStatuses are
 // frozen after dispatch — the live status the customer sees comes entirely from
@@ -5322,7 +5325,8 @@ async function fetchWasalDeliveryTracking(client, wasalOrderId, wasalOrderNumber
     wasalOrderNumber: wasalOrderNumber || "",
     status,
     agentLocation,
-    agentPhone: (track && track.agentPhone) || null, // returned, NOT shown by client
+    // agentPhone (courier's personal number) is intentionally omitted — see the
+    // header note. Never placed in the payload, so it never reaches the app.
     statusHistory,
     isActiveDelivery: WASAL_ACTIVE_DELIVERY_STATUSES.includes(status),
   };
@@ -5366,7 +5370,6 @@ exports.getWasalTracking = onCall({ secrets: [wasalApiKey] }, async (request) =>
         wasalOrderNumber: "",
         status: String(wasalStatuses[id] || ""),
         agentLocation: null,
-        agentPhone: null,
         statusHistory: [],
         isActiveDelivery: false,
       })),
