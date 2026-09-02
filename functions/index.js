@@ -127,6 +127,13 @@ async function isSuperAdminUser(uid) {
   return adminData.isApproved === true && adminData.role === "super_admin";
 }
 
+// Notifications carry a 90-day TTL stamp from creation. The Firestore TTL
+// policy on `expiresAt` is NOT enabled yet, but stamping from the start means
+// that when it is enabled it applies cleanly to everything written from today —
+// docs written before the field existed would otherwise be permanently
+// un-expirable.
+const NOTIFICATION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
 async function saveNotificationToUser(uid, title, body, type, extraData = {}) {
   await db
     .collection("users")
@@ -139,6 +146,7 @@ async function saveNotificationToUser(uid, title, body, type, extraData = {}) {
       data: extraData,
       isRead: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + NOTIFICATION_TTL_MS),
     });
 }
 
@@ -246,9 +254,12 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
   const paymentIntentId = data.paymentIntentId || "";
   const discountCodeId  = data.discountCodeId  || null;
   const estimatedDays   = Number(data.estimatedDays) || null;
-  // "stripe" is the live path; "payzah" is scaffolding for the direct
-  // (redirect-based) integration and stays gated behind PAYZAH_DIRECT_ENABLED.
-  const paymentProvider = data.paymentProvider || "stripe";
+  // Payzah is the ONLY payment provider. The legacy "stripe" value created the
+  // order already-Placed and the payment_attempt already-"paid" with NO
+  // server-side verification (Stripe is gone — there was nothing left to verify
+  // against), so a hand-crafted call could obtain free goods. Every order now
+  // goes through the Payzah verify flow; any other provider is rejected below.
+  const paymentProvider = data.paymentProvider || "payzah";
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw new HttpsError("invalid-argument", "Items must be a non-empty array.");
@@ -269,21 +280,22 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
   if (typeof paymentIntentId !== "string" || paymentIntentId.length > 200) {
     throw new HttpsError("invalid-argument", "Invalid paymentIntentId.");
   }
-  if (!["stripe", "payzah"].includes(paymentProvider)) {
-    throw new HttpsError("invalid-argument", "Invalid payment provider.");
+  // Payzah is the only accepted provider. Rejecting everything else closes the
+  // legacy "stripe" path that created a paid order with no gateway confirmation.
+  if (paymentProvider !== "payzah") {
+    throw new HttpsError("invalid-argument", "Unsupported payment provider.");
   }
-  if (paymentProvider === "payzah" && payzahDirectEnabled.value() !== "true") {
+  if (payzahDirectEnabled.value() !== "true") {
     throw new HttpsError("failed-precondition", "Payzah direct checkout is not enabled.");
   }
-  if (["KNET", "Apple Pay"].includes(paymentMethod) && paymentProvider !== "payzah") {
-    throw new HttpsError("invalid-argument", `${paymentMethod} is only available via Payzah.`);
-  }
 
-  // Payzah orders are created BEFORE the customer pays (redirect flow), so
-  // they start as Pending Payment and reconcilePayzahPayments flips them to
-  // Placed or Cancelled. Stripe orders are only created after the payment
-  // sheet has already succeeded, so they start as Placed, unchanged.
-  const initialOrderStatus = paymentProvider === "payzah" ? "Pending Payment" : "Placed";
+  // Every order is created BEFORE the customer pays (Payzah redirect flow), so
+  // it ALWAYS starts as Pending Payment. It becomes Placed only once a CAPTURED
+  // gateway status is confirmed server-side — payzahRedirect,
+  // checkPayzahPaymentStatus, or reconcilePayzahPayments call
+  // setOrderStatusFromAttempt(attempt, "Placed"). Hardcoded (not a per-provider
+  // branch) so no future edit can reintroduce a Placed-at-creation path.
+  const initialOrderStatus = "Pending Payment";
 
   const counterRef = db.collection("metadata").doc("order_counter");
   const orderNumber = await db.runTransaction(async (tx) => {
@@ -606,9 +618,9 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
     }
 
     // Payment attempt record — one per checkout, created atomically with the
-    // order. Stripe attempts are recorded already-paid (the payment sheet
-    // resolved before createOrder is called); Payzah attempts start pending
-    // and are resolved by reconcilePayzahPayments.
+    // order. ALWAYS starts pending; only a CAPTURED Payzah status resolves it
+    // to "paid" (see resolvePaymentAttempt), which is also what flips the order
+    // to Placed. Never recorded paid at creation time.
     tx.set(paymentAttemptRef, {
       orderId: userOrderRef.id,
       orderNumber,
@@ -626,7 +638,7 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
       // reconciliation distinguish "never heard anything" (expire + cancel)
       // from HOST TIMEOUT / NOT CAPTURED (outcome uncertain → under review).
       lastGatewayStatus: null,
-      status: paymentProvider === "payzah" ? "pending" : "paid",
+      status: "pending",
       amount: total,
       currency: "KWD",
       checkAttempts: 0,
@@ -1591,6 +1603,23 @@ exports.notifyOrderPlaced = onDocumentCreated(
   },
 );
 
+// True when a global_orders update flipped a per-delivery Wasal status to
+// picked_up or delivered — i.e. a transition that notifyWasalDeliveryStatus
+// notifies on. The webhook writes wasalStatuses.{id} and the aggregated status
+// in the SAME update, so this is exactly the set of status changes the
+// per-delivery trigger covers. Manual status changes (updateOrderStatus) never
+// touch wasalStatuses, so this stays false for them — they keep their generic
+// push. Used to suppress the generic push for ONLY the Wasal-driven pickup/
+// delivery transitions, never leaving a status change unnotified.
+function wasalDeliveryTransitionInUpdate(beforeData, afterData) {
+  const b = (beforeData && beforeData.wasalStatuses) || {};
+  const a = (afterData && afterData.wasalStatuses) || {};
+  for (const key of Object.keys(a)) {
+    if (a[key] !== b[key] && (a[key] === "picked_up" || a[key] === "delivered")) return true;
+  }
+  return false;
+}
+
 exports.notifyOrderStatusChanged = onDocumentUpdated(
   "global_orders/{orderId}",
   async (event) => {
@@ -1603,6 +1632,17 @@ exports.notifyOrderStatusChanged = onDocumentUpdated(
     const oldStatus = beforeData.status;
     const newStatus = afterData.status;
     if (oldStatus === newStatus) return;
+
+    // Wasal pickup/delivery transitions are notified per-delivery by
+    // notifyWasalDeliveryStatus (boutique-named copy, correct owner). Suppress
+    // the generic push for exactly those — identified by a wasalStatuses entry
+    // flipping to picked_up/delivered in THIS update — so the customer gets one
+    // notification, not two. Everything else (incl. manual status changes and
+    // non-Wasal orders) still notifies here.
+    if ((newStatus === "On the Way" || newStatus === "Delivered") &&
+        wasalDeliveryTransitionInUpdate(beforeData, afterData)) {
+      return;
+    }
 
     const customerUid = afterData.customerUid;
     const orderNumber = afterData.orderNumber || orderId;
@@ -1627,6 +1667,111 @@ exports.notifyOrderStatusChanged = onDocumentUpdated(
         { type: "order_status", orderId, orderNumber, boutiqueId, oldStatus, newStatus },
       ),
     ));
+  },
+);
+
+// ── notifyWasalDeliveryStatus — per-delivery courier push (picked_up/delivered)
+//
+// Fires on a boutique sub-order when its Wasal courier status transitions INTO
+// picked_up or delivered, notifying the customer and THAT boutique's owner. It
+// runs as its own Firestore trigger, entirely independent of the wasalWebhook
+// HTTP handler, so it can never threaten Wasal's 8-second ACK window — the
+// webhook just writes the status and returns; this reacts to that write.
+//
+// Idempotency IS the transition guard: we act only when before.wasalStatus !==
+// after.wasalStatus. "delivered" arriving twice (order.delivered AND
+// order.status_changed) — or any redelivery — re-writes the same wasalStatus,
+// so the second write is delivered→delivered and is skipped. The generic
+// order-status push (notifyOrderStatusChanged) suppresses these exact
+// transitions, so the customer gets exactly one notification per milestone.
+//
+// English only — matching the existing notification copy; there is no stored
+// per-user language preference to localize against.
+exports.notifyWasalDeliveryStatus = onDocumentUpdated(
+  "boutiques/{boutiqueId}/orders/{orderId}",
+  async (event) => {
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+    if (!before || !after) return;
+
+    const newWasalStatus = after.wasalStatus;
+    // Only a real transition INTO one of the two milestones we notify on.
+    if (before.wasalStatus === newWasalStatus) return;
+    if (newWasalStatus !== "picked_up" && newWasalStatus !== "delivered") return;
+
+    const boutiqueId = event.params.boutiqueId;
+    const customerUid = after.customerUid || "";
+    const sourceUserOrderId = after.sourceUserOrderId || "";
+    const orderNumber = after.orderNumber || sourceUserOrderId || event.params.orderId;
+
+    // Boutique name for the customer copy (the owner already knows their own).
+    let boutiqueName = "";
+    try {
+      const boutiqueSnap = await db.collection("boutiques").doc(boutiqueId).get();
+      boutiqueName = boutiqueSnap.exists ? String(boutiqueSnap.data().name || "") : "";
+    } catch (err) {
+      logger.warn("notifyWasalDeliveryStatus: boutique name lookup failed",
+        { boutiqueId, err: err.message });
+    }
+    const from = boutiqueName ? ` from ${boutiqueName}` : "";
+
+    const type = newWasalStatus === "picked_up"
+      ? "wasal_delivery_picked_up"
+      : "wasal_delivery_delivered";
+    const extraData = {
+      type: "order_status",
+      orderId: sourceUserOrderId,
+      orderNumber,
+      boutiqueId,
+      wasalStatus: newWasalStatus,
+    };
+
+    const tasks = [];
+    if (newWasalStatus === "picked_up") {
+      if (customerUid) {
+        tasks.push(sendNotificationToUser(
+          customerUid,
+          "Your order is on its way",
+          `Order #${orderNumber}${from} has been picked up and is on its way to you.`,
+          type,
+          extraData,
+        ));
+      }
+      tasks.push(sendNotificationToBoutiqueOwners(
+        boutiqueId,
+        "Order picked up",
+        `Order #${orderNumber} has been collected by the Wasal courier.`,
+        type,
+        extraData,
+      ));
+    } else { // delivered
+      if (customerUid) {
+        tasks.push(sendNotificationToUser(
+          customerUid,
+          "Order delivered",
+          `Order #${orderNumber}${from} has been delivered.`,
+          type,
+          extraData,
+        ));
+      }
+      tasks.push(sendNotificationToBoutiqueOwners(
+        boutiqueId,
+        "Order delivered",
+        `Order #${orderNumber} has been delivered to the customer.`,
+        type,
+        extraData,
+      ));
+    }
+
+    try {
+      await Promise.all(tasks);
+    } catch (err) {
+      // Never rethrow — a notification failure must not retry the trigger and
+      // risk duplicate pushes. sendNotificationToUser already swallows its own
+      // send errors; this is a final backstop.
+      logger.error("notifyWasalDeliveryStatus failed",
+        { orderId: event.params.orderId, err: err.message });
+    }
   },
 );
 
@@ -2434,7 +2579,7 @@ const PROMO_HOLD_MINUTES = 5;
 const KUWAIT_OFFSET_MS = 3 * 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
-// ⚠️ ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
 // TEMPORARY TEST-ONLY OVERRIDE — MUST BE false IN PRODUCTION / BEFORE LAUNCH.
 // ---------------------------------------------------------------------------
 // Normally the bookable week is the NEXT full Sun–Sat. When this is true,
@@ -2446,12 +2591,12 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 //                          createPromoBooking.
 //   • REVERT after testing: set back to false, then redeploy those two.
 // DO NOT SHIP OR LAUNCH WITH THIS true.
-// ⚠️ ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
 const PROMO_TEST_BOOK_CURRENT_WEEK = false;
 
 if (PROMO_TEST_BOOK_CURRENT_WEEK) {
   logger.warn(
-    "⚠️ PROMO_TEST_BOOK_CURRENT_WEEK is ON — the CURRENT week is bookable for " +
+    "PROMO_TEST_BOOK_CURRENT_WEEK is ON — the CURRENT week is bookable for " +
     "testing. This MUST be false before launch.");
 }
 
@@ -5182,3 +5327,150 @@ exports.wasalWebhook = onRequest(
     }
   },
 );
+
+// ── getWasalTracking — customer-facing live delivery tracking ────────────────
+//
+// Powers the customer order page's delivery timeline + driver-location map.
+// Ownership is enforced BY CONSTRUCTION: we only ever read the order from the
+// CALLER's own users/{uid}/orders/{orderId} path, so a caller can never fetch
+// tracking for an order that is not theirs. All Wasal access stays server-side —
+// the API key never reaches the app.
+//
+// Per delivery we return:
+//   - status + agentLocation { lat, lng, lastSeen } + agentPhone — from the
+//     PUBLIC track endpoint (GET /order/track/:orderNumber), keyed by the public
+//     wasalOrderNumber. The endpoint is public + non-sensitive, but we still gate
+//     it behind the ownership check so a driver's phone/location is never exposed
+//     to a non-owner who guesses an order number.
+//   - statusHistory[] — from the AUTHENTICATED history endpoint, for the timeline
+//     (the public track endpoint does not include history).
+//
+// agentPhone is returned but the client deliberately does NOT surface it yet —
+// exposing a driver's personal number to customers is a separate decision.
+//
+// NOTE: in the sandbox, webhooks never fire, so the Firestore wasalStatuses are
+// frozen after dispatch — the live status the customer sees comes entirely from
+// this callable hitting Wasal directly. That is also what makes the whole
+// feature testable in sandbox (advance an order via the advance-status endpoint
+// and this callable reflects each transition).
+
+// Short in-memory cache so many customers watching the same order — or one
+// customer polling every ~30s — don't multiply Wasal calls against the shared
+// 600-req / 15-min key. Keyed by wasalOrderId; lives while the instance is warm.
+const WASAL_TRACKING_CACHE_TTL_MS = 15 * 1000;
+const wasalTrackingCache = new Map(); // wasalOrderId -> { at: ms, payload }
+const WASAL_ACTIVE_DELIVERY_STATUSES =
+  ["assigned", "on_way_to_merchant", "picked_up", "in_transit"];
+
+/** Fetch one delivery's live status + location + timeline, with a 15s cache. */
+async function fetchWasalDeliveryTracking(client, wasalOrderId, wasalOrderNumber) {
+  const cached = wasalTrackingCache.get(wasalOrderId);
+  if (cached && (Date.now() - cached.at) < WASAL_TRACKING_CACHE_TTL_MS) {
+    return cached.payload;
+  }
+  // Public track (status + live location) and authenticated history (timeline)
+  // in parallel; either failing degrades that part rather than failing the call.
+  const [track, history] = await Promise.all([
+    wasalOrderNumber
+      ? client.trackOrder(wasalOrderNumber).catch((e) => {
+        logger.warn("Wasal track failed", { wasalOrderId, err: e.message });
+        return null;
+      })
+      : Promise.resolve(null),
+    client.getOrderHistory(wasalOrderId).catch((e) => {
+      logger.warn("Wasal history failed", { wasalOrderId, err: e.message });
+      return null;
+    }),
+  ]);
+
+  const status = String((track && track.status) || "");
+  const loc = track && track.agentLocation;
+  const agentLocation =
+    loc && typeof loc.lat === "number" && typeof loc.lng === "number"
+      ? { lat: loc.lat, lng: loc.lng, lastSeen: loc.lastSeen || null }
+      : null;
+
+  // statusHistory shape isn't fully pinned in the docs (status/timestamp/note +
+  // an unnamed actor field) — parse tolerantly and keep only what the UI needs.
+  const rawHistory = (history && (history.statusHistory || history.list)) ||
+    (Array.isArray(history) ? history : []);
+  const statusHistory = (Array.isArray(rawHistory) ? rawHistory : [])
+    .map((h) => ({
+      status: String((h && h.status) || ""),
+      timestamp: (h && (h.timestamp || h.at || h.createdAt)) || null,
+      note: (h && h.note) || null,
+    }))
+    .filter((h) => h.status);
+
+  const payload = {
+    wasalOrderNumber: wasalOrderNumber || "",
+    status,
+    agentLocation,
+    agentPhone: (track && track.agentPhone) || null, // returned, NOT shown by client
+    statusHistory,
+    isActiveDelivery: WASAL_ACTIVE_DELIVERY_STATUSES.includes(status),
+  };
+  wasalTrackingCache.set(wasalOrderId, { at: Date.now(), payload });
+  return payload;
+}
+
+exports.getWasalTracking = onCall({ secrets: [wasalApiKey] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const uid = request.auth.uid;
+  // Generous per-user cap (client polls ~30s only while a delivery is active).
+  const rateOk = await checkRateLimit(`wasal_track_${uid}`, 300, 3600);
+  if (!rateOk) {
+    throw new HttpsError("resource-exhausted", "Too many requests. Please try again later.");
+  }
+
+  const orderId = request.data?.orderId;
+  if (typeof orderId !== "string" || !orderId || orderId.length > 200) {
+    throw new HttpsError("invalid-argument", "A valid orderId is required.");
+  }
+
+  // Ownership: read ONLY the caller's own copy of the order. Missing → the
+  // caller doesn't own an order with this id (or it doesn't exist).
+  const orderSnap = await db.collection("users").doc(uid)
+    .collection("orders").doc(orderId).get();
+  if (!orderSnap.exists) {
+    throw new HttpsError("not-found", "Order not found.");
+  }
+  const orderData = orderSnap.data() || {};
+  const wasalStatuses = orderData.wasalStatuses || {};
+  const wasalOrderIds = Object.keys(wasalStatuses);
+  // No delivery dispatched yet — nothing to track.
+  if (wasalOrderIds.length === 0) return { deliveries: [] };
+
+  // Delivery integration off — return last-known statuses without calling Wasal.
+  if (wasalEnabled.value() !== "true") {
+    return {
+      deliveries: wasalOrderIds.map((id) => ({
+        wasalOrderNumber: "",
+        status: String(wasalStatuses[id] || ""),
+        agentLocation: null,
+        agentPhone: null,
+        statusHistory: [],
+        isActiveDelivery: false,
+      })),
+    };
+  }
+
+  const client = wasal.createWasalClient(wasalApiKey.value());
+  try {
+    const deliveries = await Promise.all(wasalOrderIds.map(async (wasalOrderId) => {
+      // wasalOrderNumber isn't stored on the customer doc — resolve it from the
+      // wasal_orders mapping (admin SDK read; the customer never sees this doc).
+      const mapSnap = await db.collection("wasal_orders").doc(wasalOrderId).get();
+      const wasalOrderNumber = mapSnap.exists
+        ? String(mapSnap.data().wasalOrderNumber || "")
+        : "";
+      return fetchWasalDeliveryTracking(client, wasalOrderId, wasalOrderNumber);
+    }));
+    return { deliveries };
+  } catch (error) {
+    logger.error("getWasalTracking failed", error);
+    throw new HttpsError("unavailable", "Could not load delivery tracking. Please try again.");
+  }
+});
