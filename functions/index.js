@@ -38,7 +38,7 @@ const {
 } = require("./promo_analytics");
 const { defineString, defineSecret } = require("firebase-functions/params");
 const algoliaAppId = defineString("ALGOLIA_APP_ID");
-const algoliaAdminKey = defineString("ALGOLIA_ADMIN_KEY");
+const algoliaAdminKey = defineSecret("ALGOLIA_ADMIN_KEY");
 // Resend is a managed secret, not a plain param. The .env copy was leaked and
 // revoked (see "Remove leaked env file from tracking"), so defineString was
 // reading a dead key and every transactional email was failing at send. The
@@ -1807,10 +1807,19 @@ async function sendOrderEmail(to, subject, html) {
 }
 
 function orderEmailHtml({ title, orderNumber, date, customerName, items, subtotal, deliveryCost, total, deliveryMethod }) {
+  // HTML-escape ONLY the values that trace back to user or boutique input, since
+  // this email is delivered to the customer's inbox:
+  //   • customerName — profile fullName (user-set, not length/CSS-validated)
+  //   • item.title   — boutique-set product title
+  //   • item.size    — client-supplied cart value (not re-verified server-side)
+  // Everything else is intentionally left raw because it cannot carry markup:
+  // orderNumber and date are built server-side, deliveryMethod is validated
+  // against a fixed allowlist in createOrder, and quantities/prices/totals are
+  // numbers. Not escaping them keeps the escaped (dangerous) fields easy to spot.
   const rows = items.map(item => `
     <tr>
-      <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;">${item.title}</td>
-      <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:center;">${item.size || "—"}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;">${escapeHtml(item.title)}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:center;">${escapeHtml(item.size || "—")}</td>
       <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:center;">${item.quantity}</td>
       <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:right;">${item.price.toFixed(0)} KWD</td>
     </tr>
@@ -1828,7 +1837,7 @@ function orderEmailHtml({ title, orderNumber, date, customerName, items, subtota
         </td></tr>
         <tr><td style="padding:36px 40px;">
           <p style="margin:0 0 6px;font-family:Georgia,serif;font-size:20px;color:#2C2925;">${title}</p>
-          <p style="margin:0 0 28px;font-family:Arial,sans-serif;font-size:13px;color:#8E877D;">Hello ${customerName},</p>
+          <p style="margin:0 0 28px;font-family:Arial,sans-serif;font-size:13px;color:#8E877D;">Hello ${escapeHtml(customerName)},</p>
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
             <tr>
               <td style="font-family:Arial,sans-serif;font-size:12px;color:#8E877D;text-transform:uppercase;letter-spacing:1px;">Order</td>
@@ -2317,7 +2326,7 @@ exports.sendManualNotification = onCall({ maxInstances: 2 }, async (request) => 
 // ================= ALGOLIA SEARCH SYNC =================
 
 exports.algoliaProductCreated = onDocumentCreated(
-  "boutiques/{boutiqueId}/products/{productId}",
+  { document: "boutiques/{boutiqueId}/products/{productId}", secrets: [algoliaAdminKey] },
   async (event) => {
     const data = event.data.data();
     const { boutiqueId, productId } = event.params;
@@ -2335,7 +2344,7 @@ exports.algoliaProductCreated = onDocumentCreated(
 );
 
 exports.algoliaProductUpdated = onDocumentUpdated(
-  "boutiques/{boutiqueId}/products/{productId}",
+  { document: "boutiques/{boutiqueId}/products/{productId}", secrets: [algoliaAdminKey] },
   async (event) => {
     const data = event.data.after.data();
     const { boutiqueId, productId } = event.params;
@@ -2353,14 +2362,14 @@ exports.algoliaProductUpdated = onDocumentUpdated(
 );
 
 exports.algoliaProductDeleted = onDocumentDeleted(
-  "boutiques/{boutiqueId}/products/{productId}",
+  { document: "boutiques/{boutiqueId}/products/{productId}", secrets: [algoliaAdminKey] },
   async (event) => {
     await deleteAlgoliaObject(PRODUCTS_INDEX, event.params.productId);
   }
 );
 
 exports.algoliaBoutiqueCreated = onDocumentCreated(
-  "boutiques/{boutiqueId}",
+  { document: "boutiques/{boutiqueId}", secrets: [algoliaAdminKey] },
   async (event) => {
     const data = event.data.data();
     const { boutiqueId } = event.params;
@@ -2375,7 +2384,7 @@ exports.algoliaBoutiqueCreated = onDocumentCreated(
 );
 
 exports.algoliaBoutiqueUpdated = onDocumentUpdated(
-  "boutiques/{boutiqueId}",
+  { document: "boutiques/{boutiqueId}", secrets: [algoliaAdminKey] },
   async (event) => {
     const data = event.data.after.data();
     const { boutiqueId } = event.params;
@@ -2390,13 +2399,13 @@ exports.algoliaBoutiqueUpdated = onDocumentUpdated(
 );
 
 exports.algoliaBoutiqueDeleted = onDocumentDeleted(
-  "boutiques/{boutiqueId}",
+  { document: "boutiques/{boutiqueId}", secrets: [algoliaAdminKey] },
   async (event) => {
     await deleteAlgoliaObject(BOUTIQUES_INDEX, event.params.boutiqueId);
   }
 );
 
-exports.algoliaReindex = onCall({ maxInstances: 2 }, async (request) => {
+exports.algoliaReindex = onCall({ maxInstances: 2, secrets: [algoliaAdminKey] }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be logged in.");
 
   const reindexRateOk = await checkRateLimit(`reindex_${request.auth.uid}`, 1, 600);
