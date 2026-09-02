@@ -292,12 +292,13 @@ class _SignUpPageState extends State<SignUpPage> {
       String message = l10n.signUpFailed;
       if (e.code == 'email-already-in-use') {
         message = l10n.emailAlreadyInUse;
-      } else if (e.code == 'invalid-email')
+      } else if (e.code == 'invalid-email') {
         message = l10n.invalidEmailAddress;
-      else if (e.code == 'weak-password')
+      } else if (e.code == 'weak-password') {
         message = l10n.passwordTooWeak;
-      else if (e.message != null)
+      } else if (e.message != null) {
         message = e.message!;
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(

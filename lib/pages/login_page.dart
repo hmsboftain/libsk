@@ -398,7 +398,8 @@ class _LoginPageState extends State<LoginPage> {
                           context,
                           MaterialPageRoute(builder: (_) => const SignUpPage()),
                         );
-                        if (result == true && mounted) {
+                        if (result == true) {
+                          if (!context.mounted) return;
                           Navigator.pop(context, true);
                         }
                       },

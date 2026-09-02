@@ -42,6 +42,12 @@ dependencies:
   sign_in_with_apple: ^8.0.0
   flutter_image_compress: ^2.4.0
   path_provider: ^2.1.5
+  path: ^1.9.1
+  # Live delivery-tracking map (customer order page). OSM tiles — no billed key
+  # or native setup; see the TileLayer note in order_details_page.dart for the
+  # google_maps_flutter upgrade path if delivery volume grows.
+  flutter_map: ^8.0.0
+  latlong2: ">=0.9.1 <0.11.0"
 
 dev_dependencies:
   flutter_test:
