@@ -1490,6 +1490,15 @@ exports.validateDiscountCode = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
 
+  // Enumeration guard. A shopper validates a code only a few times per checkout,
+  // so 10/hour per uid is generous for real use while making a namespace sweep
+  // impractical — one tier above `order` (5/hr), below `promo_book`/`payzah_init`
+  // (20/hr), since this is a probe-prone read, not a repeated checkout action.
+  const rateOk = await checkRateLimit(`discount_validate_${request.auth.uid}`, 10, 3600);
+  if (!rateOk) {
+    throw new HttpsError("resource-exhausted", "Too many attempts. Please try again later.");
+  }
+
   const { code, subtotal, boutiqueIds } = request.data || {};
 
   if (!code || typeof code !== "string" || code.length > 50) {
@@ -1502,8 +1511,12 @@ exports.validateDiscountCode = onCall(async (request) => {
     .limit(1)
     .get();
 
+  // Anti-enumeration: nonexistent, expired, and usage-exhausted codes all return
+  // the IDENTICAL error (same code + message) so a caller can't tell a real-but-
+  // unusable code from a fake one. "Already used" and "wrong boutique" below stay
+  // specific on purpose — high-value UX, and only reachable for live codes.
   if (snap.empty) {
-    throw new HttpsError("not-found", "Invalid or expired discount code.");
+    throw new HttpsError("not-found", "This discount code isn't valid.");
   }
 
   const docData = snap.docs[0].data();
@@ -1511,13 +1524,13 @@ exports.validateDiscountCode = onCall(async (request) => {
   const now = new Date();
 
   if (docData.expiresAt && docData.expiresAt.toDate() < now) {
-    throw new HttpsError("failed-precondition", "This code has expired.");
+    throw new HttpsError("not-found", "This discount code isn't valid.");
   }
 
   const usageLimit = docData.usageLimit || null;
   const usageCount = docData.usageCount || 0;
   if (usageLimit !== null && usageCount >= usageLimit) {
-    throw new HttpsError("failed-precondition", "This code has reached its usage limit.");
+    throw new HttpsError("not-found", "This discount code isn't valid.");
   }
 
   const uid = request.auth.uid;
