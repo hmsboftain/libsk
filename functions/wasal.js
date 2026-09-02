@@ -107,6 +107,14 @@ function createWasalClient(apiKey) {
     getOrder: (orderId) => wasalRequest(apiKey, "GET", `/order/${orderId}`),
     cancelOrder: (orderId) => wasalRequest(apiKey, "PUT", `/order/${orderId}/cancel`),
     getOrderHistory: (orderId) => wasalRequest(apiKey, "GET", `/order/${orderId}/history`),
+    // Public order tracking (NO key): live status + agent location + agentPhone,
+    // keyed by the human-readable orderNumber (e.g. "MAIN-000123"). The endpoint
+    // deliberately exposes only non-sensitive fields — status, agentLocation
+    // { lat, lng, lastSeen }, agentPhone, updatedAt. Used by getWasalTracking to
+    // power the customer's live delivery map; the timeline still comes from the
+    // authenticated getOrderHistory above.
+    trackOrder: (orderNumber) =>
+      wasalRequest(null, "GET", `/order/track/${encodeURIComponent(orderNumber)}`),
 
     // Webhook management
     registerWebhook: ({ url, events }) =>

@@ -8,7 +8,12 @@ import '../widgets/theme.dart';
 import 'add_address_page.dart';
 
 class SavedAddressesPage extends StatefulWidget {
-  const SavedAddressesPage({super.key});
+  /// When true the page acts as a picker: tapping an address pops the route
+  /// with that address's document id. When false (the default) it's the
+  /// account management screen, where cards are read-only.
+  final bool selectable;
+
+  const SavedAddressesPage({super.key, this.selectable = false});
 
   @override
   State<SavedAddressesPage> createState() => _SavedAddressesPageState();
@@ -122,6 +127,11 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                         doc: docs[index],
                         l10n: l10n,
                         onDelete: _deleteAddress,
+                        // In picker mode, tapping a card returns its id so the
+                        // caller (checkout) can set it as the shipping address.
+                        onSelect: widget.selectable
+                            ? () => Navigator.pop(context, docs[index].id)
+                            : null,
                       ),
                     ),
                   );
@@ -163,11 +173,14 @@ class _AddressCard extends StatelessWidget {
   final QueryDocumentSnapshot<Map<String, dynamic>> doc;
   final AppLocalizations l10n;
   final Future<void> Function(String docId) onDelete;
+  // Non-null only in picker mode — tapping the card selects this address.
+  final VoidCallback? onSelect;
 
   const _AddressCard({
     required this.doc,
     required this.l10n,
     required this.onDelete,
+    this.onSelect,
   });
 
   @override
@@ -176,7 +189,7 @@ class _AddressCard extends StatelessWidget {
     final floor = address['floor']?.toString() ?? '';
     final apartment = address['apartment']?.toString() ?? '';
 
-    return Container(
+    final card = Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -200,6 +213,12 @@ class _AddressCard extends StatelessWidget {
                 onPressed: () => onDelete(doc.id),
                 icon: const Icon(Icons.delete_outline),
               ),
+              if (onSelect != null)
+                const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.secondaryText,
+                  size: 22,
+                ),
             ],
           ),
           const SizedBox(height: 8),
@@ -232,6 +251,13 @@ class _AddressCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    if (onSelect == null) return card;
+    return GestureDetector(
+      onTap: onSelect,
+      behavior: HitTestBehavior.opaque,
+      child: card,
     );
   }
 }

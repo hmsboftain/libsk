@@ -240,6 +240,18 @@ class FirestoreService {
     await _savedAddressesRef.doc(addressId).delete();
   }
 
+  /// Marks [addressId] as the customer's active shipping address. Both this
+  /// checkout and the createOrder Cloud Function ship to — and quote the Wasal
+  /// fee for — the newest saved address (orderBy createdAt desc, limit 1), so
+  /// "selecting" an address means re-stamping its createdAt to bump it to the
+  /// top of that list. The partial update keeps every other field, so the
+  /// merged doc still satisfies the saved_addresses validation rule.
+  static Future<void> markAddressSelected(String addressId) async {
+    await _savedAddressesRef.doc(addressId).update({
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   static Stream<QuerySnapshot<Map<String, dynamic>>> getSavedAddressesStream() {
     return _savedAddressesRef
         .orderBy('createdAt', descending: true)
