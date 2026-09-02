@@ -502,6 +502,33 @@ class FirestoreService {
     await cartDocRef.delete();
   }
 
+  /// Returns the display name of an existing cart for a boutique *other* than
+  /// [boutiqueId], or null if the cart is empty or only holds [boutiqueId].
+  /// Backs the "one boutique at a time" guard: each boutique ships as its own
+  /// Wasal delivery, so the cart is limited to a single boutique. When a legacy
+  /// cart spans several boutiques, this returns the first other one found.
+  static Future<String?> conflictingCartBoutiqueName(String boutiqueId) async {
+    final carts = await _cartsRef.get();
+    for (final doc in carts.docs) {
+      if (doc.id == boutiqueId) continue;
+      final count = (doc.data()['itemCount'] as num?)?.toInt() ?? 0;
+      if (count <= 0) continue;
+      return (doc.data()['boutiqueName'] ?? '').toString();
+    }
+    return null;
+  }
+
+  /// Empties every boutique cart except [keepBoutiqueId]. Used by the guard's
+  /// "Clear cart & add" path; correctly collapses a legacy multi-boutique cart
+  /// down to the single boutique being added.
+  static Future<void> clearOtherBoutiqueCarts(String keepBoutiqueId) async {
+    final carts = await _cartsRef.get();
+    for (final doc in carts.docs) {
+      if (doc.id == keepBoutiqueId) continue;
+      await clearBoutiqueCart(doc.id);
+    }
+  }
+
   static Future<void> mergeGuestCartToUser() async {
     final user = _auth.currentUser;
     if (user == null) return;

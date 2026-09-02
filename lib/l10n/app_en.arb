@@ -1013,6 +1013,9 @@
   "deliveryRequested": "Driver requested",
   "courierStatusLabel": "Courier",
   "deliveryDispatchFailed": "Could not request a driver. Please try again.",
+  "deliverySelectAreaHint": "Add your area to your delivery address to get exact delivery pricing.",
+  "deliveryCostAfterAddress": "Delivery cost will be calculated once you choose an address.",
+  "deliveryFeeUnavailable": "Unable to calculate delivery cost. Tap to try again.",
   "wasalStatusPending": "Finding a driver",
   "wasalStatusAssigned": "Driver assigned",
   "wasalStatusOnWayToMerchant": "Driver heading to boutique",
@@ -1024,5 +1027,14 @@
   "wasalStatusCancelled": "Delivery cancelled",
   "wasalBranchCode": "Wasal branch code",
   "wasalBranchCodeHint": "e.g. MAIN — from the Wasal merchant dashboard",
-  "wasalBranchCodeSaved": "Branch code saved"
+  "wasalBranchCodeSaved": "Branch code saved",
+  "deliveryTrackingTitle": "Delivery tracking",
+  "deliveryDriverLocationUnavailable": "Driver location not available yet",
+  "cartOneBoutiqueTitle": "One boutique at a time",
+  "cartOneBoutiqueMessage": "Your cart has items from another boutique. Clear it to add this?",
+  "cartClearAndAdd": "Clear cart & add",
+  "notificationsEmpty": "No notifications yet",
+  "markAllRead": "Mark all as read",
+  "notificationOrderUnavailable": "This order is no longer available",
+  "loadOlder": "Load older"
 }

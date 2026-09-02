@@ -7,6 +7,7 @@ import '../core/constants/countries.dart';
 import '../services/currency_service.dart';
 import '../services/firestore_service.dart';
 import '../widgets/added_to_cart_sheet.dart';
+import '../widgets/cart_conflict_dialog.dart';
 import '../widgets/error_state_widget.dart';
 import '../widgets/theme.dart';
 import 'cart_page.dart';
@@ -465,6 +466,16 @@ class _ProductPageState extends State<ProductPage> {
       );
       return;
     }
+
+    // One boutique at a time: if the cart holds a different boutique, prompt to
+    // clear it before adding. Cancelling leaves the cart untouched.
+    if (!await CartConflictGuard.ensureSingleBoutiqueCart(
+      context,
+      widget.boutiqueId,
+    )) {
+      return;
+    }
+    if (!mounted) return;
 
     setState(() => _isAddingToCart = true);
     var added = false;

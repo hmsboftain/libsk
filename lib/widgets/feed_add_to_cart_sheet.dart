@@ -5,6 +5,7 @@ import '../core/constants/countries.dart';
 import '../models/product.dart';
 import '../services/currency_service.dart';
 import '../services/firestore_service.dart';
+import 'cart_conflict_dialog.dart';
 import 'theme.dart';
 
 String _fmt(double kwd) {
@@ -84,6 +85,16 @@ class _FeedAddToCartSheetState extends State<FeedAddToCartSheet> {
       _snack(l10n.pleaseSelectAColour);
       return;
     }
+
+    // One boutique at a time: if the cart holds a different boutique, prompt to
+    // clear it before adding. Cancelling leaves the cart untouched.
+    if (!await CartConflictGuard.ensureSingleBoutiqueCart(
+      context,
+      _product.boutiqueId,
+    )) {
+      return;
+    }
+    if (!mounted) return;
 
     setState(() => _isAdding = true);
     try {
