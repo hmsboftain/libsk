@@ -45,7 +45,6 @@ const algoliaAdminKey = defineString("ALGOLIA_ADMIN_KEY");
 // live key lives in Secret Manager — same pattern as PAYZAH_PRIVATE_KEY.
 // Every function that calls getResend() must list it in `secrets:`.
 const resendApiKey = defineSecret("RESEND_API_KEY");
-const myFatoorahApiKey = defineString("MYFATOORAH_API_KEY");
 // Server-side gate for the Payzah direct (redirect-based) checkout scaffolding.
 // Stays "false" until the real Payzah API integration lands, so no client can
 // create unpaid Pending Payment orders in the meantime.
@@ -3892,111 +3891,6 @@ exports.adjustPromoCredit = onCall({ maxInstances: 2 }, async (request) => {
 
   logger.info("Promo-credit adjusted", { boutiqueId, requested: amountKwd, ...result });
   return result;
-});
-
-// ================= PROMO SLOTS (legacy — superseded by promo_bookings) =======
-// NOTE: initiatePromoSlotPayment / promoSlotPaymentWebhook target MyFatoorah and
-// are replaced by createPromoBooking + the Payzah engine (Step 3+). Retired in
-// Steps 5/8 once the client no longer calls them. Left in place for now so the
-// deploy stays green.
-
-exports.initiatePromoSlotPayment = onCall({ maxInstances: 2 }, async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
-
-  const { promoSlotId } = request.data || {};
-  if (!promoSlotId || typeof promoSlotId !== "string") {
-    throw new HttpsError("invalid-argument", "promoSlotId is required.");
-  }
-
-  const slotDoc = await db.collection("promo_slots").doc(promoSlotId).get();
-  if (!slotDoc.exists) throw new HttpsError("not-found", "Promo slot not found.");
-
-  const slotData = slotDoc.data();
-  const ownerDoc = await db.collection("boutique_owners").doc(request.auth.uid).get();
-  if (!ownerDoc.exists || ownerDoc.data().boutiqueId !== slotData.boutiqueId) {
-    throw new HttpsError("permission-denied", "Not your promo slot.");
-  }
-  if (slotData.paymentStatus === "paid") {
-    throw new HttpsError("failed-precondition", "Slot is already paid.");
-  }
-
-  // Uncomment when MyFatoorah API key is ready:
-  // const axios = require("axios");
-  // const response = await axios.post(`https://api.myfatoorah.com/v2/InitiatePayment`, {
-  //   InvoiceAmount: slotData.priceKwd, CurrencyIso: "KWD",
-  // }, { headers: { Authorization: `Bearer ${myFatoorahApiKey.value()}`, "Content-Type": "application/json" } });
-  // await db.collection("promo_slots").doc(promoSlotId).update({
-  //   myFatoorahInvoiceId: response.data.Data.InvoiceId,
-  //   paymentInitiatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  // });
-  // return { paymentUrl: response.data.Data.PaymentURL };
-
-  throw new HttpsError("unimplemented", "MyFatoorah API key not configured yet.");
-});
-
-exports.promoSlotPaymentWebhook = require("firebase-functions/v2/https").onRequest(async (req, res) => {
-  try {
-    const invoiceId = req.body?.InvoiceId || req.body?.invoiceId;
-    if (!invoiceId) { res.status(400).send("Missing InvoiceId"); return; }
-
-    const snap = await db.collection("promo_slots")
-      .where("myFatoorahInvoiceId", "==", String(invoiceId))
-      .limit(1).get();
-
-    if (snap.empty) { res.status(200).send("OK"); return; }
-
-    const slotDoc = snap.docs[0];
-    if (slotDoc.data().paymentStatus === "paid") { res.status(200).send("OK"); return; }
-
-    const durationDays = slotDoc.data().durationDays || 7;
-    const expiresAt = new Date(Date.now() + durationDays * 86400000);
-
-    await slotDoc.ref.update({
-      status: "active", paymentStatus: "paid",
-      activatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
-    });
-
-    res.status(200).send("OK");
-  } catch (err) {
-    logger.error("Webhook error", err);
-    res.status(200).send("OK");
-  }
-});
-
-exports.expirePromoSlots = onSchedule(
-  { schedule: "every 1 hours", maxInstances: 1 },
-  async () => {
-  const now = admin.firestore.Timestamp.now();
-  const snap = await db.collection("promo_slots")
-    .where("status", "==", "active").where("expiresAt", "<", now).limit(200).get();
-  const batch = db.batch();
-  snap.docs.forEach(doc => batch.update(doc.ref, { status: "expired" }));
-  if (snap.docs.length > 0) await batch.commit();
-});
-
-exports.adminActivatePromoSlot = onCall({ maxInstances: 2 }, async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "Must be logged in.");
-  if (!await isSuperAdminUser(request.auth.uid)) {
-    throw new HttpsError("permission-denied", "Super admins only.");
-  }
-
-  const { promoSlotId } = request.data || {};
-  if (!promoSlotId) throw new HttpsError("invalid-argument", "promoSlotId required.");
-
-  const slotDoc = await db.collection("promo_slots").doc(promoSlotId).get();
-  if (!slotDoc.exists) throw new HttpsError("not-found", "Slot not found.");
-
-  const durationDays = slotDoc.data().durationDays || 7;
-  const expiresAt = new Date(Date.now() + durationDays * 86400000);
-
-  await slotDoc.ref.update({
-    status: "active", paymentStatus: "paid",
-    activatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
-  });
-
-  return { success: true };
 });
 
 // ================= PROMO ADS: CLICK TRACKING & SALES ATTRIBUTION =================

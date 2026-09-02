@@ -773,86 +773,11 @@ class FirestoreService {
 
   // ── Promo slots (feature #5) ───────────────────────────────────────────────
 
-  /// Available slot types and their display labels.
-  static const Map<String, String> promoSlotTypes = {
-    'home_banner': 'Home Banner',
-    'featured_product': 'Featured Product',
-    'category_sponsored': 'Sponsored in Category',
-    'feed_sponsored': 'Sponsored in Feed',
-    'boutique_featured': 'Featured Boutique',
-  };
-
   /// Fetches active promo slot listings (prices and durations) from Firestore.
   /// The super admin manages these documents in `promo_slot_config/{slotType}`.
   static Future<List<Map<String, dynamic>>> getPromoSlotConfig() async {
     final snap = await _firestore.collection('promo_slot_config').get();
     return snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
-  }
-
-  /// Returns the stream of promo slot bookings for the current boutique owner.
-  static Future<Stream<QuerySnapshot<Map<String, dynamic>>>?>
-  getOwnerPromoSlotsStream() async {
-    final boutiqueId = await getCurrentOwnerBoutiqueId();
-    if (boutiqueId == null) return null;
-
-    return _firestore
-        .collection('promo_slots')
-        .where('boutiqueId', isEqualTo: boutiqueId)
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-  }
-
-  /// Books a promo slot for the current boutique owner.
-  ///
-  /// This creates a pending booking document. Payment via MyFatoorah is
-  /// initiated separately — call [initiatePromoSlotPayment] after this.
-  /// Once payment is confirmed the slot becomes active.
-  static Future<String> bookPromoSlot({
-    required String slotType,
-    required int durationDays,
-    required double priceKwd,
-  }) async {
-    final boutiqueId = await getCurrentOwnerBoutiqueId();
-    if (boutiqueId == null) throw Exception('No boutique found');
-
-    final boutiqueData = await getOwnerBoutiqueData(boutiqueId: boutiqueId);
-    final boutiqueName = boutiqueData?['name']?.toString() ?? '';
-
-    final docRef = await _firestore.collection('promo_slots').add({
-      'boutiqueId': boutiqueId,
-      'boutiqueName': boutiqueName,
-      'slotType': slotType,
-      'slotLabel': promoSlotTypes[slotType] ?? slotType,
-      'durationDays': durationDays,
-      'priceKwd': priceKwd,
-      'status': 'pending_payment', // → 'active' after payment confirmed
-      'paymentStatus': 'unpaid',
-      'paymentMethod': 'myfatoorah',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-
-    return docRef.id;
-  }
-
-  /// Initiates a MyFatoorah payment for a promo slot booking.
-  ///
-  /// Calls the [initiatePromoSlotPayment] Cloud Function which creates a
-  /// MyFatoorah invoice and returns the payment URL. The owner is then
-  /// redirected to that URL to complete payment.
-  ///
-  /// NOTE: Wire this up once you have your MyFatoorah API key. The Cloud
-  /// Function stub is in index.js — search for initiatePromoSlotPayment.
-  static Future<String> initiatePromoSlotPayment({
-    required String promoSlotId,
-  }) async {
-    final callable = _functions.httpsCallable('initiatePromoSlotPayment');
-    final result = await callable.call({'promoSlotId': promoSlotId});
-    final data = Map<String, dynamic>.from(result.data as Map);
-    final paymentUrl = data['paymentUrl']?.toString();
-    if (paymentUrl == null || paymentUrl.isEmpty) {
-      throw Exception('Payment URL missing from server response');
-    }
-    return paymentUrl;
   }
 
   /// Books a weekly promo placement via the `createPromoBooking` Cloud Function.
@@ -998,36 +923,6 @@ class FirestoreService {
       applied: (data['applied'] as num?)?.toDouble() ?? 0,
       newBalance: (data['newBalance'] as num?)?.toDouble() ?? 0,
     );
-  }
-
-  /// Called by the admin to manually activate a promo slot after payment is
-  /// confirmed (fallback before MyFatoorah webhook is wired up).
-  static Future<void> activatePromoSlot(String promoSlotId) async {
-    final now = DateTime.now();
-    final doc = await _firestore
-        .collection('promo_slots')
-        .doc(promoSlotId)
-        .get();
-    if (!doc.exists) throw Exception('Promo slot not found');
-
-    final data = doc.data()!;
-    final durationDays = (data['durationDays'] as num?)?.toInt() ?? 7;
-    final expiresAt = Timestamp.fromDate(now.add(Duration(days: durationDays)));
-
-    await _firestore.collection('promo_slots').doc(promoSlotId).update({
-      'status': 'active',
-      'paymentStatus': 'paid',
-      'activatedAt': FieldValue.serverTimestamp(),
-      'expiresAt': expiresAt,
-    });
-  }
-
-  /// Returns a stream of all promo slots for admin view.
-  static Stream<QuerySnapshot<Map<String, dynamic>>> getAllPromoSlotsStream() {
-    return _firestore
-        .collection('promo_slots')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
   }
 
   // ── Owner side ─────────────────────────────────────────────────────────────
