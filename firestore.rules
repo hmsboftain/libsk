@@ -54,6 +54,35 @@ service cloud.firestore {
              !d.keys().hasAny(['verificationExempt', 'verificationExemptAt']);
     }
 
+    // Client updates to a user's OWN profile. Two guards:
+    //  1) affectedKeys().hasOnly(...) — only these keys may CHANGE, so a client
+    //     can't add arbitrary/oversized junk fields, and (because it lists only
+    //     changed keys) server-written fields carried forward unchanged
+    //     (emailVerified, welcomeSent, verificationExempt, ...) need no listing.
+    //     role and the verification flags are deliberately absent → still
+    //     server-owned (also enforced explicitly in the update rule below).
+    //  2) present-only size caps — a field is checked only if the write touches
+    //     it, so partial updates (just fcmToken, or presence flags) still pass.
+    //     fullName is capped here too — it flows into order emails and Wasal and
+    //     was previously unbounded on update. 120 covers firstName+lastName (max
+    //     50+1+50) plus a social displayName.
+    function isValidUserUpdate() {
+      let d = request.resource.data;
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+               'firstName', 'lastName', 'fullName', 'email', 'phone',
+               'isActive', 'isOnline', 'lastLoginAt', 'lastSeenAt',
+               'fcmToken', 'fcmTokenUpdatedAt',
+             ]) &&
+             (!('firstName' in d) || (d.firstName is string && d.firstName.size() <= 50)) &&
+             (!('lastName'  in d) || (d.lastName  is string && d.lastName.size()  <= 50)) &&
+             (!('fullName'  in d) || (d.fullName  is string && d.fullName.size()  <= 120)) &&
+             (!('phone'     in d) || (d.phone     is string && d.phone.size()     <= 20)) &&
+             (!('email'     in d) || (d.email     is string && d.email.size()     <= 100)) &&
+             (!('fcmToken'  in d) || (d.fcmToken  is string && d.fcmToken.size()  <= 4096)) &&
+             (!('isActive'  in d) || d.isActive is bool) &&
+             (!('isOnline'  in d) || d.isOnline is bool);
+    }
+
     function isValidAddress() {
       let d = request.resource.data;
       return d.firstName    is string && d.firstName.size()    <= 50 &&
@@ -145,7 +174,8 @@ service cloud.firestore {
       allow update: if (isOwner(userId) &&
         !request.resource.data.diff(resource.data).affectedKeys()
           .hasAny(['role', 'emailVerified', 'phoneVerified',
-                   'verificationExempt', 'verificationExemptAt'])) || isAdmin();
+                   'verificationExempt', 'verificationExemptAt']) &&
+        isValidUserUpdate()) || isAdmin();
       allow delete: if isSuperAdmin();
 
       match /saved_items/{itemId} {
