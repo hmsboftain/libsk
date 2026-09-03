@@ -1,18 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 
-import '../core/constants/countries.dart';
 import '../models/product.dart';
-import '../services/currency_service.dart';
 import '../services/firestore_service.dart';
 import 'cart_conflict_dialog.dart';
+import 'product_badges.dart';
 import 'theme.dart';
-
-String _fmt(double kwd) {
-  final service = CurrencyService.instance;
-  final country = countryByCode(service.selectedCountryCode);
-  return service.format(kwd, country.currencySymbol, country.currency);
-}
 
 /// Quick-pick bottom sheet for adding a feed product to the cart without
 /// leaving the feed. Mirrors the size/colour selection and validation in
@@ -106,7 +99,9 @@ class _FeedAddToCartSheetState extends State<FeedAddToCartSheet> {
         description: _product.description,
         size: _selectedSize,
         color: hasColors ? _selectedColor : '',
-        price: _product.price,
+        // Charge the sale price when a genuine sale is active; the server
+        // re-verifies this in createOrder so the cart and charge agree.
+        price: _product.effectiveSalePrice ?? _product.price,
         specialRequest: _specialRequestController.text,
       );
       if (!mounted) return;
@@ -198,9 +193,10 @@ class _FeedAddToCartSheetState extends State<FeedAddToCartSheet> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  _fmt(_product.price),
-                  style: AppTextStyles.labelLarge,
+                ProductPriceText(
+                  price: _product.price,
+                  salePrice: _product.salePrice,
+                  saleBadgeLabel: l10n.saleBadge,
                 ),
               ],
             ),
