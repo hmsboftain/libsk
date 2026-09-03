@@ -4914,6 +4914,9 @@ exports.markReadyForPickup = onCall({ secrets: [wasalApiKey] }, async (request) 
   // Hoisted above the try so the catch can release a committed dispatch claim (B1).
   let boutiqueOrderRef = null;
   let claimed = false;
+  // Set the instant client.createOrder returns (wallet charged). The catch uses
+  // it to decide whether releasing the claim is safe — see there.
+  let createdWasalOrderId = null;
   try {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
@@ -5087,10 +5090,18 @@ exports.markReadyForPickup = onCall({ secrets: [wasalApiKey] }, async (request) 
       merchantNotes: `LIBSK order #${orderData.orderNumber}`,
     });
     const wasalOrder = created.order;
+    const wasalOrderId = String(wasalOrder._id);
+    createdWasalOrderId = wasalOrderId; // wallet is now charged
 
-    // 4. Record the mapping + stamp the order docs.
-    const batch = db.batch();
-    batch.set(db.collection("wasal_orders").doc(String(wasalOrder._id)), {
+    // ── B2: persist the delivery id + routing mapping ATOMICALLY, before any
+    // other write, so a later failure can never cause a SECOND dispatch ─────────
+    // This one commit records (1) wasalOrderId + a non-terminal wasalStatus on the
+    // boutique order — which arms the B1 re-dispatch guard, so any retry bails with
+    // "already in progress" instead of charging the wallet again — and (2) the
+    // wasal_orders mapping the webhook needs to route status. Both commit together;
+    // if it fails, neither is written and the claim is left to hold (see the catch).
+    const idBatch = db.batch();
+    idBatch.set(db.collection("wasal_orders").doc(wasalOrderId), {
       wasalOrderNumber: wasalOrder.orderNumber || "",
       boutiqueId,
       boutiqueOrderId,
@@ -5099,43 +5110,64 @@ exports.markReadyForPickup = onCall({ secrets: [wasalApiKey] }, async (request) 
       orderNumber: orderData.orderNumber || "",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    const wasalFields = {
-      wasalOrderId: String(wasalOrder._id),
+    idBatch.update(boutiqueOrderRef, {
+      wasalOrderId,
       wasalOrderNumber: wasalOrder.orderNumber || "",
       wasalStatus: wasalOrder.status || "pending",
       wasalDispatchedAt: admin.firestore.FieldValue.serverTimestamp(),
-      wasalDispatchClaimed: false, // dispatch completed — release the B1 claim
-    };
-    batch.update(boutiqueOrderRef, wasalFields);
+      wasalDispatchClaimed: false, // durable guard (a) has taken over from the claim
+    });
+    await idBatch.commit();
+    claimed = false; // wasalOrderId persisted; guard (a) now blocks re-dispatch
+
+    // Customer-facing status fan-out — best-effort. The delivery already exists
+    // and is recorded on the boutique order (guard (a) is armed), so a failure
+    // here must NOT fail the call or re-dispatch. Recovery of a missed fan-out is
+    // NOT automatic: Wasal currently sends order.created but not reliable
+    // status-change webhooks, so it depends on a future status webhook OR a
+    // reconciliation poller. Until one runs, this customer's tracking for the
+    // delivery may stay empty. Logged so the gap is visible.
     const sourceUserOrderId = orderData.sourceUserOrderId || "";
     const customerUid = orderData.customerUid || "";
     if (customerUid && sourceUserOrderId) {
-      batch.set(
-        db.collection("users").doc(customerUid)
-          .collection("orders").doc(sourceUserOrderId),
-        { [`wasalStatuses.${wasalOrder._id}`]: wasalOrder.status || "pending" },
-        { merge: true },
-      );
-      batch.set(
-        db.collection("global_orders").doc(sourceUserOrderId),
-        { [`wasalStatuses.${wasalOrder._id}`]: wasalOrder.status || "pending" },
-        { merge: true },
-      );
+      try {
+        const fanout = db.batch();
+        fanout.set(
+          db.collection("users").doc(customerUid)
+            .collection("orders").doc(sourceUserOrderId),
+          { [`wasalStatuses.${wasalOrderId}`]: wasalOrder.status || "pending" },
+          { merge: true },
+        );
+        fanout.set(
+          db.collection("global_orders").doc(sourceUserOrderId),
+          { [`wasalStatuses.${wasalOrderId}`]: wasalOrder.status || "pending" },
+          { merge: true },
+        );
+        await fanout.commit();
+      } catch (err) {
+        logger.warn("Wasal status fan-out failed — customer tracking may be empty "
+          + "until a status webhook or reconciliation poller records it",
+          { boutiqueOrderId, wasalOrderId, err: err.message });
+      }
     }
-    await batch.commit();
-    claimed = false; // released as part of the success batch above
 
     return {
       success: true,
-      wasalOrderId: String(wasalOrder._id),
+      wasalOrderId,
       wasalOrderNumber: wasalOrder.orderNumber || "",
       status: wasalOrder.status || "pending",
     };
   } catch (error) {
-    // B1: a claim was committed but the dispatch didn't complete — release it
-    // so the owner can retry right away (the stale window is only a backstop
-    // for a hard crash before this runs).
-    if (claimed && boutiqueOrderRef) {
+    // Release the claim ONLY when no Wasal order was created (failure at/before
+    // createOrder — nothing charged, so an immediate retry is safe). If a Wasal
+    // order WAS created but its id failed to persist (the narrow B2 window), do
+    // NOT release: leave the fresh-claim guard holding so a retry can't double-
+    // charge, and log the orphaned id for manual reconciliation.
+    if (createdWasalOrderId) {
+      logger.error("Wasal order created but id not persisted — claim left set to "
+        + "block re-dispatch; reconcile this wasalOrderId manually",
+        { boutiqueOrderId: boutiqueOrderRef?.id, wasalOrderId: createdWasalOrderId });
+    } else if (claimed && boutiqueOrderRef) {
       await boutiqueOrderRef.update({ wasalDispatchClaimed: false })
         .catch((e) => logger.warn("Failed to release Wasal dispatch claim",
           { boutiqueOrderId: boutiqueOrderRef.id, err: e.message }));
