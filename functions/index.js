@@ -1002,9 +1002,21 @@ async function resolvePaymentAttempt(attemptRef, attempt, outcome) {
   if (outcome === "paid") {
     // Same destination as the old Stripe success path: the order becomes
     // Placed, which fires the existing status-change notification triggers.
-    // TODO: once live, also send the order confirmation email here — it is
-    // suppressed at creation time for Pending Payment orders.
     await setOrderStatusFromAttempt(attempt, "Placed");
+    // Payment confirmed — send the order confirmation email now. The create
+    // trigger suppresses it for Pending Payment orders and, being a create
+    // trigger, never re-fires on the Placed transition. The transaction above
+    // guarantees this branch runs exactly once per attempt (losers no-op), so
+    // there is no double-send. Wrapped so a read/mail failure can never block
+    // resolution (sendOrderEmail already swallows its own send errors).
+    try {
+      const orderSnap = await db.collection("global_orders").doc(attempt.orderId).get();
+      if (orderSnap.exists) await sendOrderConfirmationForOrder(orderSnap.data());
+    } catch (err) {
+      logger.error("Failed to send confirmation email on paid", {
+        attemptId: attemptRef.id, orderId: attempt.orderId, error: String(err),
+      });
+    }
   } else if (outcome === "under_review") {
     // HOST TIMEOUT / NOT CAPTURED at the retry cap: the gateway could not say
     // whether funds moved, so this is NOT a clean failure. Keep the stock
@@ -1124,7 +1136,7 @@ async function settlePaidPromoBooking(ref, bookingId) {
 }
 
 exports.reconcilePayzahPayments = onSchedule(
-  { schedule: "every 3 minutes", secrets: [payzahPrivateKey], maxInstances: 1 },
+  { schedule: "every 3 minutes", secrets: [payzahPrivateKey, resendApiKey], maxInstances: 1 },
   async () => {
   const graceCutoff = admin.firestore.Timestamp.fromMillis(
     Date.now() - PAYMENT_ATTEMPT_GRACE_MS,
@@ -1318,7 +1330,7 @@ exports.initializePayzahPayment = onCall(
 // explicit that only get-payment-details confirms an outcome.
 
 exports.payzahRedirect = onRequest(
-  { secrets: [payzahPrivateKey] },
+  { secrets: [payzahPrivateKey, resendApiKey] },
   async (req, res) => {
     // Payzah delivers the result as a form POST (application/x-www-form-
     // urlencoded) to success_url / error_url — confirmed from a live sandbox
@@ -1424,7 +1436,7 @@ exports.payzahRedirect = onRequest(
 // attempt exactly like the redirect or reconciliation would.
 
 exports.checkPayzahPaymentStatus = onCall(
-  { secrets: [payzahPrivateKey] },
+  { secrets: [payzahPrivateKey, resendApiKey] },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
@@ -1896,40 +1908,50 @@ function orderEmailHtml({ title, orderNumber, date, customerName, items, subtota
 </html>`;
 }
 
+// Build and send the "Order Confirmed" email for a confirmed order. Shared by
+// the create trigger (for any order NOT created as Pending Payment) and the
+// Payzah paid-transition path in resolvePaymentAttempt — Payzah orders are
+// created Pending Payment, so the create trigger skips them and, being a create
+// trigger, never re-fires when they later flip to Placed. sendOrderEmail
+// swallows its own send errors, so a mail failure never blocks the caller.
+async function sendOrderConfirmationForOrder(order) {
+  if (!order || !order.customerEmail) return;
+
+  const items = order.items || [];
+  // Prefer the fee stored on the order (area-based Wasal pricing); fall back
+  // to the legacy flat fee for orders created before deliveryCost existed.
+  const deliveryCost = typeof order.deliveryCost === "number"
+    ? order.deliveryCost
+    : order.deliveryMethod === "Same Day Delivery" ? 5
+    : order.deliveryMethod === "Made to Order" ? 0 : 3;
+  const subtotal = items.reduce((s, i) => s + (i.price * i.quantity), 0);
+
+  await sendOrderEmail(
+    order.customerEmail,
+    `Your LIBSK order #${order.orderNumber} is confirmed`,
+    orderEmailHtml({
+      title: "Order Confirmed",
+      orderNumber: order.orderNumber,
+      date: order.date,
+      customerName: order.customerName || "Customer",
+      items,
+      subtotal,
+      deliveryCost,
+      total: order.total,
+      deliveryMethod: order.deliveryMethod,
+    }),
+  );
+}
+
 exports.sendOrderConfirmationEmail = onDocumentCreated(
   { document: "global_orders/{orderId}", secrets: [resendApiKey] },
   async (event) => {
     const order = event.data.data();
-    if (!order || !order.customerEmail) return;
-
-    // Payzah redirect orders start as Pending Payment — don't send the
-    // confirmation email until the payment is actually confirmed.
-    if (order.status === "Pending Payment") return;
-
-    const items = order.items || [];
-    // Prefer the fee stored on the order (area-based Wasal pricing); fall back
-    // to the legacy flat fee for orders created before deliveryCost existed.
-    const deliveryCost = typeof order.deliveryCost === "number"
-      ? order.deliveryCost
-      : order.deliveryMethod === "Same Day Delivery" ? 5
-      : order.deliveryMethod === "Made to Order" ? 0 : 3;
-    const subtotal = items.reduce((s, i) => s + (i.price * i.quantity), 0);
-
-    await sendOrderEmail(
-      order.customerEmail,
-      `Your LIBSK order #${order.orderNumber} is confirmed`,
-      orderEmailHtml({
-        title: "Order Confirmed",
-        orderNumber: order.orderNumber,
-        date: order.date,
-        customerName: order.customerName || "Customer",
-        items,
-        subtotal,
-        deliveryCost,
-        total: order.total,
-        deliveryMethod: order.deliveryMethod,
-      }),
-    );
+    // Payzah orders start Pending Payment — the confirmation is sent from the
+    // paid transition (resolvePaymentAttempt) once payment is confirmed, not
+    // here. Any order created in a non-pending state still confirms at creation.
+    if (order && order.status === "Pending Payment") return;
+    await sendOrderConfirmationForOrder(order);
   },
 );
 
