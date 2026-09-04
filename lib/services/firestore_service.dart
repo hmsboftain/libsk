@@ -240,6 +240,18 @@ class FirestoreService {
     await _savedAddressesRef.doc(addressId).delete();
   }
 
+  /// Marks [addressId] as the customer's active shipping address. Both this
+  /// checkout and the createOrder Cloud Function ship to — and quote the Wasal
+  /// fee for — the newest saved address (orderBy createdAt desc, limit 1), so
+  /// "selecting" an address means re-stamping its createdAt to bump it to the
+  /// top of that list. The partial update keeps every other field, so the
+  /// merged doc still satisfies the saved_addresses validation rule.
+  static Future<void> markAddressSelected(String addressId) async {
+    await _savedAddressesRef.doc(addressId).update({
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   static Stream<QuerySnapshot<Map<String, dynamic>>> getSavedAddressesStream() {
     return _savedAddressesRef
         .orderBy('createdAt', descending: true)
@@ -500,6 +512,33 @@ class FirestoreService {
       await doc.reference.delete();
     }
     await cartDocRef.delete();
+  }
+
+  /// Returns the display name of an existing cart for a boutique *other* than
+  /// [boutiqueId], or null if the cart is empty or only holds [boutiqueId].
+  /// Backs the "one boutique at a time" guard: each boutique ships as its own
+  /// Wasal delivery, so the cart is limited to a single boutique. When a legacy
+  /// cart spans several boutiques, this returns the first other one found.
+  static Future<String?> conflictingCartBoutiqueName(String boutiqueId) async {
+    final carts = await _cartsRef.get();
+    for (final doc in carts.docs) {
+      if (doc.id == boutiqueId) continue;
+      final count = (doc.data()['itemCount'] as num?)?.toInt() ?? 0;
+      if (count <= 0) continue;
+      return (doc.data()['boutiqueName'] ?? '').toString();
+    }
+    return null;
+  }
+
+  /// Empties every boutique cart except [keepBoutiqueId]. Used by the guard's
+  /// "Clear cart & add" path; correctly collapses a legacy multi-boutique cart
+  /// down to the single boutique being added.
+  static Future<void> clearOtherBoutiqueCarts(String keepBoutiqueId) async {
+    final carts = await _cartsRef.get();
+    for (final doc in carts.docs) {
+      if (doc.id == keepBoutiqueId) continue;
+      await clearBoutiqueCart(doc.id);
+    }
   }
 
   static Future<void> mergeGuestCartToUser() async {
@@ -773,86 +812,11 @@ class FirestoreService {
 
   // ── Promo slots (feature #5) ───────────────────────────────────────────────
 
-  /// Available slot types and their display labels.
-  static const Map<String, String> promoSlotTypes = {
-    'home_banner': 'Home Banner',
-    'featured_product': 'Featured Product',
-    'category_sponsored': 'Sponsored in Category',
-    'feed_sponsored': 'Sponsored in Feed',
-    'boutique_featured': 'Featured Boutique',
-  };
-
   /// Fetches active promo slot listings (prices and durations) from Firestore.
   /// The super admin manages these documents in `promo_slot_config/{slotType}`.
   static Future<List<Map<String, dynamic>>> getPromoSlotConfig() async {
     final snap = await _firestore.collection('promo_slot_config').get();
     return snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
-  }
-
-  /// Returns the stream of promo slot bookings for the current boutique owner.
-  static Future<Stream<QuerySnapshot<Map<String, dynamic>>>?>
-  getOwnerPromoSlotsStream() async {
-    final boutiqueId = await getCurrentOwnerBoutiqueId();
-    if (boutiqueId == null) return null;
-
-    return _firestore
-        .collection('promo_slots')
-        .where('boutiqueId', isEqualTo: boutiqueId)
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-  }
-
-  /// Books a promo slot for the current boutique owner.
-  ///
-  /// This creates a pending booking document. Payment via MyFatoorah is
-  /// initiated separately — call [initiatePromoSlotPayment] after this.
-  /// Once payment is confirmed the slot becomes active.
-  static Future<String> bookPromoSlot({
-    required String slotType,
-    required int durationDays,
-    required double priceKwd,
-  }) async {
-    final boutiqueId = await getCurrentOwnerBoutiqueId();
-    if (boutiqueId == null) throw Exception('No boutique found');
-
-    final boutiqueData = await getOwnerBoutiqueData(boutiqueId: boutiqueId);
-    final boutiqueName = boutiqueData?['name']?.toString() ?? '';
-
-    final docRef = await _firestore.collection('promo_slots').add({
-      'boutiqueId': boutiqueId,
-      'boutiqueName': boutiqueName,
-      'slotType': slotType,
-      'slotLabel': promoSlotTypes[slotType] ?? slotType,
-      'durationDays': durationDays,
-      'priceKwd': priceKwd,
-      'status': 'pending_payment', // → 'active' after payment confirmed
-      'paymentStatus': 'unpaid',
-      'paymentMethod': 'myfatoorah',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-
-    return docRef.id;
-  }
-
-  /// Initiates a MyFatoorah payment for a promo slot booking.
-  ///
-  /// Calls the [initiatePromoSlotPayment] Cloud Function which creates a
-  /// MyFatoorah invoice and returns the payment URL. The owner is then
-  /// redirected to that URL to complete payment.
-  ///
-  /// NOTE: Wire this up once you have your MyFatoorah API key. The Cloud
-  /// Function stub is in index.js — search for initiatePromoSlotPayment.
-  static Future<String> initiatePromoSlotPayment({
-    required String promoSlotId,
-  }) async {
-    final callable = _functions.httpsCallable('initiatePromoSlotPayment');
-    final result = await callable.call({'promoSlotId': promoSlotId});
-    final data = Map<String, dynamic>.from(result.data as Map);
-    final paymentUrl = data['paymentUrl']?.toString();
-    if (paymentUrl == null || paymentUrl.isEmpty) {
-      throw Exception('Payment URL missing from server response');
-    }
-    return paymentUrl;
   }
 
   /// Books a weekly promo placement via the `createPromoBooking` Cloud Function.
@@ -998,36 +962,6 @@ class FirestoreService {
       applied: (data['applied'] as num?)?.toDouble() ?? 0,
       newBalance: (data['newBalance'] as num?)?.toDouble() ?? 0,
     );
-  }
-
-  /// Called by the admin to manually activate a promo slot after payment is
-  /// confirmed (fallback before MyFatoorah webhook is wired up).
-  static Future<void> activatePromoSlot(String promoSlotId) async {
-    final now = DateTime.now();
-    final doc = await _firestore
-        .collection('promo_slots')
-        .doc(promoSlotId)
-        .get();
-    if (!doc.exists) throw Exception('Promo slot not found');
-
-    final data = doc.data()!;
-    final durationDays = (data['durationDays'] as num?)?.toInt() ?? 7;
-    final expiresAt = Timestamp.fromDate(now.add(Duration(days: durationDays)));
-
-    await _firestore.collection('promo_slots').doc(promoSlotId).update({
-      'status': 'active',
-      'paymentStatus': 'paid',
-      'activatedAt': FieldValue.serverTimestamp(),
-      'expiresAt': expiresAt,
-    });
-  }
-
-  /// Returns a stream of all promo slots for admin view.
-  static Stream<QuerySnapshot<Map<String, dynamic>>> getAllPromoSlotsStream() {
-    return _firestore
-        .collection('promo_slots')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
   }
 
   // ── Owner side ─────────────────────────────────────────────────────────────
@@ -1434,6 +1368,59 @@ class FirestoreService {
       });
     }
     await batch.commit();
+  }
+
+  /// Unread count for the header bell badge. `.limit(21)` caps the realtime
+  /// listener regardless of how many unread the user has (the UI shows "20+"
+  /// at the ceiling), keeping it as cheap as the cart-count stream. No orderBy,
+  /// so it needs only the automatic single-field index on `isRead`. Returns a
+  /// 0 stream when signed out so the badge never touches `_uid` (which throws).
+  static Stream<int> getUnreadNotificationCountStream() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return Stream<int>.value(0);
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .where('isRead', isEqualTo: false)
+        .limit(21)
+        .snapshots()
+        .map((s) => s.size);
+  }
+
+  /// The most recent [limit] notifications, newest first — the live window the
+  /// notifications page renders. Bounded, so the listener cost stays fixed.
+  static Stream<QuerySnapshot<Map<String, dynamic>>> getRecentNotificationsStream({
+    int limit = 50,
+  }) {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      return Stream<QuerySnapshot<Map<String, dynamic>>>.empty();
+    }
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots();
+  }
+
+  /// One page of older notifications for the "Load older" control, fetched once
+  /// (not streamed) starting after [lastDoc]. Older notifications don't change,
+  /// so a static page below the live window is correct.
+  static Future<QuerySnapshot<Map<String, dynamic>>> fetchNotificationsBefore(
+    DocumentSnapshot<Map<String, dynamic>> lastDoc, {
+    int limit = 50,
+  }) {
+    return _firestore
+        .collection('users')
+        .doc(_uid)
+        .collection('notifications')
+        .orderBy('createdAt', descending: true)
+        .startAfterDocument(lastDoc)
+        .limit(limit)
+        .get();
   }
 }
 

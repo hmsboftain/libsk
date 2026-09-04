@@ -994,6 +994,9 @@
   "deliveryRequested": "تم طلب المندوب",
   "courierStatusLabel": "المندوب",
   "deliveryDispatchFailed": "تعذّر طلب المندوب. حاول مرة أخرى.",
+  "deliverySelectAreaHint": "أضف منطقتك إلى عنوان التوصيل للحصول على سعر التوصيل الدقيق.",
+  "deliveryCostAfterAddress": "سيتم احتساب سعر التوصيل بعد اختيار عنوانك.",
+  "deliveryFeeUnavailable": "تعذّر احتساب تكلفة التوصيل. اضغط للمحاولة مرة أخرى.",
   "wasalStatusPending": "جاري البحث عن مندوب",
   "wasalStatusAssigned": "تم تعيين المندوب",
   "wasalStatusOnWayToMerchant": "المندوب في الطريق إلى المتجر",
@@ -1005,5 +1008,14 @@
   "wasalStatusCancelled": "أُلغي التوصيل",
   "wasalBranchCode": "رمز فرع وصل",
   "wasalBranchCodeHint": "مثال: MAIN — من لوحة تحكم وصل",
-  "wasalBranchCodeSaved": "تم حفظ رمز الفرع"
+  "wasalBranchCodeSaved": "تم حفظ رمز الفرع",
+  "deliveryTrackingTitle": "تتبع التوصيل",
+  "deliveryDriverLocationUnavailable": "موقع المندوب غير متاح بعد",
+  "cartOneBoutiqueTitle": "متجر واحد في كل طلب",
+  "cartOneBoutiqueMessage": "سلتك تحتوي على منتجات من متجر آخر. هل تريد إفراغها لإضافة هذا؟",
+  "cartClearAndAdd": "إفراغ السلة والإضافة",
+  "notificationsEmpty": "لا توجد إشعارات بعد",
+  "markAllRead": "تعليم الكل كمقروء",
+  "notificationOrderUnavailable": "هذا الطلب لم يعد متاحاً",
+  "loadOlder": "تحميل الإشعارات الأقدم"
 }

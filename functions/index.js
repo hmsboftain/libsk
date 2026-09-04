@@ -38,14 +38,13 @@ const {
 } = require("./promo_analytics");
 const { defineString, defineSecret } = require("firebase-functions/params");
 const algoliaAppId = defineString("ALGOLIA_APP_ID");
-const algoliaAdminKey = defineString("ALGOLIA_ADMIN_KEY");
+const algoliaAdminKey = defineSecret("ALGOLIA_ADMIN_KEY");
 // Resend is a managed secret, not a plain param. The .env copy was leaked and
 // revoked (see "Remove leaked env file from tracking"), so defineString was
 // reading a dead key and every transactional email was failing at send. The
 // live key lives in Secret Manager — same pattern as PAYZAH_PRIVATE_KEY.
 // Every function that calls getResend() must list it in `secrets:`.
 const resendApiKey = defineSecret("RESEND_API_KEY");
-const myFatoorahApiKey = defineString("MYFATOORAH_API_KEY");
 // Server-side gate for the Payzah direct (redirect-based) checkout scaffolding.
 // Stays "false" until the real Payzah API integration lands, so no client can
 // create unpaid Pending Payment orders in the meantime.
@@ -127,6 +126,13 @@ async function isSuperAdminUser(uid) {
   return adminData.isApproved === true && adminData.role === "super_admin";
 }
 
+// Notifications carry a 90-day TTL stamp from creation. The Firestore TTL
+// policy on `expiresAt` is NOT enabled yet, but stamping from the start means
+// that when it is enabled it applies cleanly to everything written from today —
+// docs written before the field existed would otherwise be permanently
+// un-expirable.
+const NOTIFICATION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
 async function saveNotificationToUser(uid, title, body, type, extraData = {}) {
   await db
     .collection("users")
@@ -139,6 +145,7 @@ async function saveNotificationToUser(uid, title, body, type, extraData = {}) {
       data: extraData,
       isRead: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + NOTIFICATION_TTL_MS),
     });
 }
 
@@ -252,9 +259,12 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
   const paymentIntentId = data.paymentIntentId || "";
   const discountCodeId  = data.discountCodeId  || null;
   const estimatedDays   = Number(data.estimatedDays) || null;
-  // "stripe" is the live path; "payzah" is scaffolding for the direct
-  // (redirect-based) integration and stays gated behind PAYZAH_DIRECT_ENABLED.
-  const paymentProvider = data.paymentProvider || "stripe";
+  // Payzah is the ONLY payment provider. The legacy "stripe" value created the
+  // order already-Placed and the payment_attempt already-"paid" with NO
+  // server-side verification (Stripe is gone — there was nothing left to verify
+  // against), so a hand-crafted call could obtain free goods. Every order now
+  // goes through the Payzah verify flow; any other provider is rejected below.
+  const paymentProvider = data.paymentProvider || "payzah";
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw new HttpsError("invalid-argument", "Items must be a non-empty array.");
@@ -275,21 +285,22 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
   if (typeof paymentIntentId !== "string" || paymentIntentId.length > 200) {
     throw new HttpsError("invalid-argument", "Invalid paymentIntentId.");
   }
-  if (!["stripe", "payzah"].includes(paymentProvider)) {
-    throw new HttpsError("invalid-argument", "Invalid payment provider.");
+  // Payzah is the only accepted provider. Rejecting everything else closes the
+  // legacy "stripe" path that created a paid order with no gateway confirmation.
+  if (paymentProvider !== "payzah") {
+    throw new HttpsError("invalid-argument", "Unsupported payment provider.");
   }
-  if (paymentProvider === "payzah" && payzahDirectEnabled.value() !== "true") {
+  if (payzahDirectEnabled.value() !== "true") {
     throw new HttpsError("failed-precondition", "Payzah direct checkout is not enabled.");
   }
-  if (["KNET", "Apple Pay"].includes(paymentMethod) && paymentProvider !== "payzah") {
-    throw new HttpsError("invalid-argument", `${paymentMethod} is only available via Payzah.`);
-  }
 
-  // Payzah orders are created BEFORE the customer pays (redirect flow), so
-  // they start as Pending Payment and reconcilePayzahPayments flips them to
-  // Placed or Cancelled. Stripe orders are only created after the payment
-  // sheet has already succeeded, so they start as Placed, unchanged.
-  const initialOrderStatus = paymentProvider === "payzah" ? "Pending Payment" : "Placed";
+  // Every order is created BEFORE the customer pays (Payzah redirect flow), so
+  // it ALWAYS starts as Pending Payment. It becomes Placed only once a CAPTURED
+  // gateway status is confirmed server-side — payzahRedirect,
+  // checkPayzahPaymentStatus, or reconcilePayzahPayments call
+  // setOrderStatusFromAttempt(attempt, "Placed"). Hardcoded (not a per-provider
+  // branch) so no future edit can reintroduce a Placed-at-creation path.
+  const initialOrderStatus = "Pending Payment";
 
   const counterRef = db.collection("metadata").doc("order_counter");
   const orderNumber = await db.runTransaction(async (tx) => {
@@ -612,9 +623,9 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
     }
 
     // Payment attempt record — one per checkout, created atomically with the
-    // order. Stripe attempts are recorded already-paid (the payment sheet
-    // resolved before createOrder is called); Payzah attempts start pending
-    // and are resolved by reconcilePayzahPayments.
+    // order. ALWAYS starts pending; only a CAPTURED Payzah status resolves it
+    // to "paid" (see resolvePaymentAttempt), which is also what flips the order
+    // to Placed. Never recorded paid at creation time.
     tx.set(paymentAttemptRef, {
       orderId: userOrderRef.id,
       orderNumber,
@@ -632,7 +643,7 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
       // reconciliation distinguish "never heard anything" (expire + cancel)
       // from HOST TIMEOUT / NOT CAPTURED (outcome uncertain → under review).
       lastGatewayStatus: null,
-      status: paymentProvider === "payzah" ? "pending" : "paid",
+      status: "pending",
       amount: total,
       currency: "KWD",
       checkAttempts: 0,
@@ -743,6 +754,8 @@ exports.updateOrderStatus = onCall({ secrets: [wasalApiKey] }, async (request) =
         await boutiqueOrderRef.update({
           wasalStatus: "cancelled",
           wasalStatusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          // Terminal delivery — stop the reconciliation poller from selecting it.
+          wasalDeliveryOpen: false,
         });
       } catch (err) {
         logger.warn("Wasal delivery cancel failed — cancel manually in dashboard",
@@ -852,8 +865,11 @@ function mapPayzahStatus(gatewayStatus) {
 async function fetchPayzahStatus(attempt) {
   // Local/emulator testing hook: set `mockStatus` ("paid" | "failed" |
   // "pending" | "unclear") on a payment_attempts doc and the next check
-  // behaves as if Payzah returned that status.
-  if (attempt && ["paid", "failed", "pending", "unclear"].includes(attempt.mockStatus)) {
+  // behaves as if Payzah returned that status. NEVER honored in production — it
+  // would let a payment_attempts doc self-report "paid" with no real gateway
+  // capture (writes are already denied to clients, but this is defense in depth).
+  if (payzahEnv.value() !== "production" &&
+      attempt && ["paid", "failed", "pending", "unclear"].includes(attempt.mockStatus)) {
     return {
       result: attempt.mockStatus,
       gatewayStatus: attempt.mockStatus === "unclear" ? "HOST TIMEOUT" : null,
@@ -997,9 +1013,21 @@ async function resolvePaymentAttempt(attemptRef, attempt, outcome) {
   if (outcome === "paid") {
     // Same destination as the old Stripe success path: the order becomes
     // Placed, which fires the existing status-change notification triggers.
-    // TODO: once live, also send the order confirmation email here — it is
-    // suppressed at creation time for Pending Payment orders.
     await setOrderStatusFromAttempt(attempt, "Placed");
+    // Payment confirmed — send the order confirmation email now. The create
+    // trigger suppresses it for Pending Payment orders and, being a create
+    // trigger, never re-fires on the Placed transition. The transaction above
+    // guarantees this branch runs exactly once per attempt (losers no-op), so
+    // there is no double-send. Wrapped so a read/mail failure can never block
+    // resolution (sendOrderEmail already swallows its own send errors).
+    try {
+      const orderSnap = await db.collection("global_orders").doc(attempt.orderId).get();
+      if (orderSnap.exists) await sendOrderConfirmationForOrder(orderSnap.data());
+    } catch (err) {
+      logger.error("Failed to send confirmation email on paid", {
+        attemptId: attemptRef.id, orderId: attempt.orderId, error: String(err),
+      });
+    }
   } else if (outcome === "under_review") {
     // HOST TIMEOUT / NOT CAPTURED at the retry cap: the gateway could not say
     // whether funds moved, so this is NOT a clean failure. Keep the stock
@@ -1119,7 +1147,7 @@ async function settlePaidPromoBooking(ref, bookingId) {
 }
 
 exports.reconcilePayzahPayments = onSchedule(
-  { schedule: "every 3 minutes", secrets: [payzahPrivateKey], maxInstances: 1 },
+  { schedule: "every 3 minutes", secrets: [payzahPrivateKey, resendApiKey], maxInstances: 1 },
   async () => {
   const graceCutoff = admin.firestore.Timestamp.fromMillis(
     Date.now() - PAYMENT_ATTEMPT_GRACE_MS,
@@ -1313,7 +1341,7 @@ exports.initializePayzahPayment = onCall(
 // explicit that only get-payment-details confirms an outcome.
 
 exports.payzahRedirect = onRequest(
-  { secrets: [payzahPrivateKey] },
+  { secrets: [payzahPrivateKey, resendApiKey] },
   async (req, res) => {
     // Payzah delivers the result as a form POST (application/x-www-form-
     // urlencoded) to success_url / error_url — confirmed from a live sandbox
@@ -1419,7 +1447,7 @@ exports.payzahRedirect = onRequest(
 // attempt exactly like the redirect or reconciliation would.
 
 exports.checkPayzahPaymentStatus = onCall(
-  { secrets: [payzahPrivateKey] },
+  { secrets: [payzahPrivateKey, resendApiKey] },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
@@ -1485,6 +1513,15 @@ exports.validateDiscountCode = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "You must be logged in.");
   }
 
+  // Enumeration guard. A shopper validates a code only a few times per checkout,
+  // so 10/hour per uid is generous for real use while making a namespace sweep
+  // impractical — one tier above `order` (5/hr), below `promo_book`/`payzah_init`
+  // (20/hr), since this is a probe-prone read, not a repeated checkout action.
+  const rateOk = await checkRateLimit(`discount_validate_${request.auth.uid}`, 10, 3600);
+  if (!rateOk) {
+    throw new HttpsError("resource-exhausted", "Too many attempts. Please try again later.");
+  }
+
   const { code, subtotal, boutiqueIds } = request.data || {};
 
   if (!code || typeof code !== "string" || code.length > 50) {
@@ -1497,8 +1534,12 @@ exports.validateDiscountCode = onCall(async (request) => {
     .limit(1)
     .get();
 
+  // Anti-enumeration: nonexistent, expired, and usage-exhausted codes all return
+  // the IDENTICAL error (same code + message) so a caller can't tell a real-but-
+  // unusable code from a fake one. "Already used" and "wrong boutique" below stay
+  // specific on purpose — high-value UX, and only reachable for live codes.
   if (snap.empty) {
-    throw new HttpsError("not-found", "Invalid or expired discount code.");
+    throw new HttpsError("not-found", "This discount code isn't valid.");
   }
 
   const docData = snap.docs[0].data();
@@ -1506,13 +1547,13 @@ exports.validateDiscountCode = onCall(async (request) => {
   const now = new Date();
 
   if (docData.expiresAt && docData.expiresAt.toDate() < now) {
-    throw new HttpsError("failed-precondition", "This code has expired.");
+    throw new HttpsError("not-found", "This discount code isn't valid.");
   }
 
   const usageLimit = docData.usageLimit || null;
   const usageCount = docData.usageCount || 0;
   if (usageLimit !== null && usageCount >= usageLimit) {
-    throw new HttpsError("failed-precondition", "This code has reached its usage limit.");
+    throw new HttpsError("not-found", "This discount code isn't valid.");
   }
 
   const uid = request.auth.uid;
@@ -1597,6 +1638,23 @@ exports.notifyOrderPlaced = onDocumentCreated(
   },
 );
 
+// True when a global_orders update flipped a per-delivery Wasal status to
+// picked_up or delivered — i.e. a transition that notifyWasalDeliveryStatus
+// notifies on. The webhook writes wasalStatuses.{id} and the aggregated status
+// in the SAME update, so this is exactly the set of status changes the
+// per-delivery trigger covers. Manual status changes (updateOrderStatus) never
+// touch wasalStatuses, so this stays false for them — they keep their generic
+// push. Used to suppress the generic push for ONLY the Wasal-driven pickup/
+// delivery transitions, never leaving a status change unnotified.
+function wasalDeliveryTransitionInUpdate(beforeData, afterData) {
+  const b = (beforeData && beforeData.wasalStatuses) || {};
+  const a = (afterData && afterData.wasalStatuses) || {};
+  for (const key of Object.keys(a)) {
+    if (a[key] !== b[key] && (a[key] === "picked_up" || a[key] === "delivered")) return true;
+  }
+  return false;
+}
+
 exports.notifyOrderStatusChanged = onDocumentUpdated(
   "global_orders/{orderId}",
   async (event) => {
@@ -1609,6 +1667,17 @@ exports.notifyOrderStatusChanged = onDocumentUpdated(
     const oldStatus = beforeData.status;
     const newStatus = afterData.status;
     if (oldStatus === newStatus) return;
+
+    // Wasal pickup/delivery transitions are notified per-delivery by
+    // notifyWasalDeliveryStatus (boutique-named copy, correct owner). Suppress
+    // the generic push for exactly those — identified by a wasalStatuses entry
+    // flipping to picked_up/delivered in THIS update — so the customer gets one
+    // notification, not two. Everything else (incl. manual status changes and
+    // non-Wasal orders) still notifies here.
+    if ((newStatus === "On the Way" || newStatus === "Delivered") &&
+        wasalDeliveryTransitionInUpdate(beforeData, afterData)) {
+      return;
+    }
 
     const customerUid = afterData.customerUid;
     const orderNumber = afterData.orderNumber || orderId;
@@ -1636,12 +1705,135 @@ exports.notifyOrderStatusChanged = onDocumentUpdated(
   },
 );
 
+// ── notifyWasalDeliveryStatus — per-delivery courier push (picked_up/delivered)
+//
+// Fires on a boutique sub-order when its Wasal courier status transitions INTO
+// picked_up or delivered, notifying the customer and THAT boutique's owner. It
+// runs as its own Firestore trigger, entirely independent of the wasalWebhook
+// HTTP handler, so it can never threaten Wasal's 8-second ACK window — the
+// webhook just writes the status and returns; this reacts to that write.
+//
+// Idempotency IS the transition guard: we act only when before.wasalStatus !==
+// after.wasalStatus. "delivered" arriving twice (order.delivered AND
+// order.status_changed) — or any redelivery — re-writes the same wasalStatus,
+// so the second write is delivered→delivered and is skipped. The generic
+// order-status push (notifyOrderStatusChanged) suppresses these exact
+// transitions, so the customer gets exactly one notification per milestone.
+//
+// English only — matching the existing notification copy; there is no stored
+// per-user language preference to localize against.
+exports.notifyWasalDeliveryStatus = onDocumentUpdated(
+  "boutiques/{boutiqueId}/orders/{orderId}",
+  async (event) => {
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+    if (!before || !after) return;
+
+    const newWasalStatus = after.wasalStatus;
+    // Only a real transition INTO one of the two milestones we notify on.
+    if (before.wasalStatus === newWasalStatus) return;
+    if (newWasalStatus !== "picked_up" && newWasalStatus !== "delivered") return;
+
+    const boutiqueId = event.params.boutiqueId;
+    const customerUid = after.customerUid || "";
+    const sourceUserOrderId = after.sourceUserOrderId || "";
+    const orderNumber = after.orderNumber || sourceUserOrderId || event.params.orderId;
+
+    // Boutique name for the customer copy (the owner already knows their own).
+    let boutiqueName = "";
+    try {
+      const boutiqueSnap = await db.collection("boutiques").doc(boutiqueId).get();
+      boutiqueName = boutiqueSnap.exists ? String(boutiqueSnap.data().name || "") : "";
+    } catch (err) {
+      logger.warn("notifyWasalDeliveryStatus: boutique name lookup failed",
+        { boutiqueId, err: err.message });
+    }
+    const from = boutiqueName ? ` from ${boutiqueName}` : "";
+
+    const type = newWasalStatus === "picked_up"
+      ? "wasal_delivery_picked_up"
+      : "wasal_delivery_delivered";
+    const extraData = {
+      type: "order_status",
+      orderId: sourceUserOrderId,
+      orderNumber,
+      boutiqueId,
+      wasalStatus: newWasalStatus,
+    };
+
+    const tasks = [];
+    if (newWasalStatus === "picked_up") {
+      if (customerUid) {
+        tasks.push(sendNotificationToUser(
+          customerUid,
+          "Your order is on its way",
+          `Order #${orderNumber}${from} has been picked up and is on its way to you.`,
+          type,
+          extraData,
+        ));
+      }
+      tasks.push(sendNotificationToBoutiqueOwners(
+        boutiqueId,
+        "Order picked up",
+        `Order #${orderNumber} has been collected by the Wasal courier.`,
+        type,
+        extraData,
+      ));
+    } else { // delivered
+      if (customerUid) {
+        tasks.push(sendNotificationToUser(
+          customerUid,
+          "Order delivered",
+          `Order #${orderNumber}${from} has been delivered.`,
+          type,
+          extraData,
+        ));
+      }
+      tasks.push(sendNotificationToBoutiqueOwners(
+        boutiqueId,
+        "Order delivered",
+        `Order #${orderNumber} has been delivered to the customer.`,
+        type,
+        extraData,
+      ));
+    }
+
+    try {
+      await Promise.all(tasks);
+    } catch (err) {
+      // Never rethrow — a notification failure must not retry the trigger and
+      // risk duplicate pushes. sendNotificationToUser already swallows its own
+      // send errors; this is a final backstop.
+      logger.error("notifyWasalDeliveryStatus failed",
+        { orderId: event.params.orderId, err: err.message });
+    }
+  },
+);
+
 // ================= EMAIL NOTIFICATIONS (RESEND) =================
 
 const { Resend } = require("resend");
 
 function getResend() {
   return new Resend(resendApiKey.value());
+}
+
+// React Email templates, compiled to a plain-CJS bundle by `npm run build:emails`.
+// Required lazily so a missing/stale build can only affect the email senders,
+// never the whole functions codebase at load.
+let _emailRenderers = null;
+function emailRenderers() {
+  if (!_emailRenderers) _emailRenderers = require("./emails/dist/render.cjs");
+  return _emailRenderers;
+}
+
+// Redact an email for logs — keep the first character and the domain, mask the
+// rest (e.g. "hussain@gmail.com" -> "h***@gmail.com"). Keeps enough to debug
+// delivery without writing customer PII to Cloud Logging.
+function redactEmail(email) {
+  if (!email || typeof email !== "string" || !email.includes("@")) return "<redacted>";
+  const [local, domain] = email.split("@");
+  return `${local.slice(0, 1)}***@${domain}`;
 }
 
 async function sendOrderEmail(to, subject, html) {
@@ -1653,17 +1845,26 @@ async function sendOrderEmail(to, subject, html) {
       subject,
       html,
     });
-    logger.info("Order email sent", { to, subject });
+    logger.info("Order email sent", { to: redactEmail(to), subject });
   } catch (err) {
-    logger.error("Failed to send order email", { to, err });
+    logger.error("Failed to send order email", { to: redactEmail(to), err });
   }
 }
 
 function orderEmailHtml({ title, orderNumber, date, customerName, items, subtotal, deliveryCost, total, deliveryMethod }) {
+  // HTML-escape ONLY the values that trace back to user or boutique input, since
+  // this email is delivered to the customer's inbox:
+  //   • customerName — profile fullName (user-set, not length/CSS-validated)
+  //   • item.title   — boutique-set product title
+  //   • item.size    — client-supplied cart value (not re-verified server-side)
+  // Everything else is intentionally left raw because it cannot carry markup:
+  // orderNumber and date are built server-side, deliveryMethod is validated
+  // against a fixed allowlist in createOrder, and quantities/prices/totals are
+  // numbers. Not escaping them keeps the escaped (dangerous) fields easy to spot.
   const rows = items.map(item => `
     <tr>
-      <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;">${item.title}</td>
-      <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:center;">${item.size || "—"}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;">${escapeHtml(item.title)}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:center;">${escapeHtml(item.size || "—")}</td>
       <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:center;">${item.quantity}</td>
       <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:right;">${item.price.toFixed(0)} KWD</td>
     </tr>
@@ -1681,7 +1882,7 @@ function orderEmailHtml({ title, orderNumber, date, customerName, items, subtota
         </td></tr>
         <tr><td style="padding:36px 40px;">
           <p style="margin:0 0 6px;font-family:Georgia,serif;font-size:20px;color:#2C2925;">${title}</p>
-          <p style="margin:0 0 28px;font-family:Arial,sans-serif;font-size:13px;color:#8E877D;">Hello ${customerName},</p>
+          <p style="margin:0 0 28px;font-family:Arial,sans-serif;font-size:13px;color:#8E877D;">Hello ${escapeHtml(customerName)},</p>
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
             <tr>
               <td style="font-family:Arial,sans-serif;font-size:12px;color:#8E877D;text-transform:uppercase;letter-spacing:1px;">Order</td>
@@ -1727,40 +1928,50 @@ function orderEmailHtml({ title, orderNumber, date, customerName, items, subtota
 </html>`;
 }
 
+// Build and send the "Order Confirmed" email for a confirmed order. Shared by
+// the create trigger (for any order NOT created as Pending Payment) and the
+// Payzah paid-transition path in resolvePaymentAttempt — Payzah orders are
+// created Pending Payment, so the create trigger skips them and, being a create
+// trigger, never re-fires when they later flip to Placed. sendOrderEmail
+// swallows its own send errors, so a mail failure never blocks the caller.
+async function sendOrderConfirmationForOrder(order) {
+  if (!order || !order.customerEmail) return;
+
+  const items = order.items || [];
+  // Prefer the fee stored on the order (area-based Wasal pricing); fall back
+  // to the legacy flat fee for orders created before deliveryCost existed.
+  const deliveryCost = typeof order.deliveryCost === "number"
+    ? order.deliveryCost
+    : order.deliveryMethod === "Same Day Delivery" ? 5
+    : order.deliveryMethod === "Made to Order" ? 0 : 3;
+  const subtotal = items.reduce((s, i) => s + (i.price * i.quantity), 0);
+
+  await sendOrderEmail(
+    order.customerEmail,
+    `Your LIBSK order #${order.orderNumber} is confirmed`,
+    orderEmailHtml({
+      title: "Order Confirmed",
+      orderNumber: order.orderNumber,
+      date: order.date,
+      customerName: order.customerName || "Customer",
+      items,
+      subtotal,
+      deliveryCost,
+      total: order.total,
+      deliveryMethod: order.deliveryMethod,
+    }),
+  );
+}
+
 exports.sendOrderConfirmationEmail = onDocumentCreated(
   { document: "global_orders/{orderId}", secrets: [resendApiKey] },
   async (event) => {
     const order = event.data.data();
-    if (!order || !order.customerEmail) return;
-
-    // Payzah redirect orders start as Pending Payment — don't send the
-    // confirmation email until the payment is actually confirmed.
-    if (order.status === "Pending Payment") return;
-
-    const items = order.items || [];
-    // Prefer the fee stored on the order (area-based Wasal pricing); fall back
-    // to the legacy flat fee for orders created before deliveryCost existed.
-    const deliveryCost = typeof order.deliveryCost === "number"
-      ? order.deliveryCost
-      : order.deliveryMethod === "Same Day Delivery" ? 5
-      : order.deliveryMethod === "Made to Order" ? 0 : 3;
-    const subtotal = items.reduce((s, i) => s + (i.price * i.quantity), 0);
-
-    await sendOrderEmail(
-      order.customerEmail,
-      `Your LIBSK order #${order.orderNumber} is confirmed`,
-      orderEmailHtml({
-        title: "Order Confirmed",
-        orderNumber: order.orderNumber,
-        date: order.date,
-        customerName: order.customerName || "Customer",
-        items,
-        subtotal,
-        deliveryCost,
-        total: order.total,
-        deliveryMethod: order.deliveryMethod,
-      }),
-    );
+    // Payzah orders start Pending Payment — the confirmation is sent from the
+    // paid transition (resolvePaymentAttempt) once payment is confirmed, not
+    // here. Any order created in a non-pending state still confirms at creation.
+    if (order && order.status === "Pending Payment") return;
+    await sendOrderConfirmationForOrder(order);
   },
 );
 
@@ -1803,6 +2014,67 @@ exports.sendOrderStatusEmail = onDocumentUpdated(
         deliveryMethod: after.deliveryMethod,
       }),
     );
+  },
+);
+
+// Welcome email — sent once when a new account's email is first verified. This
+// reacts only to the profile doc (it does NOT touch the OTP flow): both paths
+// land emailVerified=true here as an update — password signups via
+// verifyEmailOtp, social signups via mirrorEmailVerifiedOnProfileCreate — so
+// the false->true transition catches everyone exactly once. `welcomeSent`
+// guards against re-sends (setting it re-triggers this, but the guard returns).
+exports.sendWelcomeEmail = onDocumentUpdated(
+  { document: "users/{uid}", secrets: [resendApiKey] },
+  async (event) => {
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+    if (!before || !after) return;
+    if (after.emailVerified !== true) return;      // only once verified
+    if (before.emailVerified === true) return;     // only on the transition
+    if (after.welcomeSent === true) return;        // idempotency guard
+
+    const uid = event.params.uid;
+
+    // Name from the profile; email from the profile, falling back to Auth
+    // (always present) so a missing profile.email never drops the welcome.
+    let email = after.email;
+    let name = after.fullName || after.firstName || "";
+    try {
+      const authUser = await admin.auth().getUser(uid);
+      email = email || authUser.email;
+      if (!name) name = authUser.displayName || "";
+    } catch (err) {
+      logger.error("Welcome: failed to load auth user", { uid, err: err.message });
+    }
+    if (!email) return;
+
+    const { renderWelcome } = emailRenderers();
+    const { html, text } = await renderWelcome({
+      customerName: name || undefined,
+      // ctaUrl intentionally omitted — no confirmed web/app-deeplink store URL
+      // yet, so the template renders without the "Start exploring" button.
+    });
+
+    try {
+      const resend = getResend();
+      await resend.emails.send({
+        from: "LIBSK <hello@libsk.com>",
+        to: email,
+        subject: "Welcome to LIBSK",
+        html,
+        text,
+      });
+      await event.data.after.ref.set(
+        {
+          welcomeSent: true,
+          welcomeSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      logger.info("Welcome email sent", { uid });
+    } catch (err) {
+      logger.error("Failed to send welcome email", { uid, err: err.message });
+    }
   },
 );
 
@@ -2123,7 +2395,7 @@ exports.sendManualNotification = onCall({ maxInstances: 2 }, async (request) => 
 // ================= ALGOLIA SEARCH SYNC =================
 
 exports.algoliaProductCreated = onDocumentCreated(
-  "boutiques/{boutiqueId}/products/{productId}",
+  { document: "boutiques/{boutiqueId}/products/{productId}", secrets: [algoliaAdminKey] },
   async (event) => {
     const data = event.data.data();
     const { boutiqueId, productId } = event.params;
@@ -2141,7 +2413,7 @@ exports.algoliaProductCreated = onDocumentCreated(
 );
 
 exports.algoliaProductUpdated = onDocumentUpdated(
-  "boutiques/{boutiqueId}/products/{productId}",
+  { document: "boutiques/{boutiqueId}/products/{productId}", secrets: [algoliaAdminKey] },
   async (event) => {
     const data = event.data.after.data();
     const { boutiqueId, productId } = event.params;
@@ -2159,14 +2431,14 @@ exports.algoliaProductUpdated = onDocumentUpdated(
 );
 
 exports.algoliaProductDeleted = onDocumentDeleted(
-  "boutiques/{boutiqueId}/products/{productId}",
+  { document: "boutiques/{boutiqueId}/products/{productId}", secrets: [algoliaAdminKey] },
   async (event) => {
     await deleteAlgoliaObject(PRODUCTS_INDEX, event.params.productId);
   }
 );
 
 exports.algoliaBoutiqueCreated = onDocumentCreated(
-  "boutiques/{boutiqueId}",
+  { document: "boutiques/{boutiqueId}", secrets: [algoliaAdminKey] },
   async (event) => {
     const data = event.data.data();
     const { boutiqueId } = event.params;
@@ -2181,7 +2453,7 @@ exports.algoliaBoutiqueCreated = onDocumentCreated(
 );
 
 exports.algoliaBoutiqueUpdated = onDocumentUpdated(
-  "boutiques/{boutiqueId}",
+  { document: "boutiques/{boutiqueId}", secrets: [algoliaAdminKey] },
   async (event) => {
     const data = event.data.after.data();
     const { boutiqueId } = event.params;
@@ -2196,13 +2468,13 @@ exports.algoliaBoutiqueUpdated = onDocumentUpdated(
 );
 
 exports.algoliaBoutiqueDeleted = onDocumentDeleted(
-  "boutiques/{boutiqueId}",
+  { document: "boutiques/{boutiqueId}", secrets: [algoliaAdminKey] },
   async (event) => {
     await deleteAlgoliaObject(BOUTIQUES_INDEX, event.params.boutiqueId);
   }
 );
 
-exports.algoliaReindex = onCall({ maxInstances: 2 }, async (request) => {
+exports.algoliaReindex = onCall({ maxInstances: 2, secrets: [algoliaAdminKey] }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be logged in.");
 
   const reindexRateOk = await checkRateLimit(`reindex_${request.auth.uid}`, 1, 600);
@@ -2263,10 +2535,23 @@ exports.cleanupGuestCarts = onSchedule(
     .get();
 
   for (const userDoc of guestUsersSnap.docs) {
-    const cartSnap = await userDoc.ref.collection("cart_items").where("createdAt", "<", cutoff).get();
+    // Carts live at users/{guestId}/carts/{boutiqueId}/items — not a flat
+    // cart_items collection — so the old query never matched and guest carts
+    // were never purged. Walk each boutique cart, delete stale line items, and
+    // drop any summary doc left with no fresh items.
+    const cartsSnap = await userDoc.ref.collection("carts").get();
     const batch = db.batch();
-    cartSnap.docs.forEach(doc => batch.delete(doc.ref));
-    if (cartSnap.docs.length > 0) await batch.commit();
+    let ops = 0;
+    for (const cartDoc of cartsSnap.docs) {
+      const staleItems = await cartDoc.ref.collection("items")
+        .where("createdAt", "<", cutoff).get();
+      if (staleItems.empty) continue;
+      staleItems.docs.forEach((doc) => { batch.delete(doc.ref); ops++; });
+      const fresh = await cartDoc.ref.collection("items")
+        .where("createdAt", ">=", cutoff).limit(1).get();
+      if (fresh.empty) { batch.delete(cartDoc.ref); ops++; }
+    }
+    if (ops > 0) await batch.commit();
   }
 });
 
@@ -2384,7 +2669,7 @@ const PROMO_HOLD_MINUTES = 5;
 const KUWAIT_OFFSET_MS = 3 * 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
-// ⚠️ ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
 // TEMPORARY TEST-ONLY OVERRIDE — MUST BE false IN PRODUCTION / BEFORE LAUNCH.
 // ---------------------------------------------------------------------------
 // Normally the bookable week is the NEXT full Sun–Sat. When this is true,
@@ -2396,12 +2681,12 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 //                          createPromoBooking.
 //   • REVERT after testing: set back to false, then redeploy those two.
 // DO NOT SHIP OR LAUNCH WITH THIS true.
-// ⚠️ ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
 const PROMO_TEST_BOOK_CURRENT_WEEK = false;
 
 if (PROMO_TEST_BOOK_CURRENT_WEEK) {
   logger.warn(
-    "⚠️ PROMO_TEST_BOOK_CURRENT_WEEK is ON — the CURRENT week is bookable for " +
+    "PROMO_TEST_BOOK_CURRENT_WEEK is ON — the CURRENT week is bookable for " +
     "testing. This MUST be false before launch.");
 }
 
@@ -3699,111 +3984,6 @@ exports.adjustPromoCredit = onCall({ maxInstances: 2 }, async (request) => {
   return result;
 });
 
-// ================= PROMO SLOTS (legacy — superseded by promo_bookings) =======
-// NOTE: initiatePromoSlotPayment / promoSlotPaymentWebhook target MyFatoorah and
-// are replaced by createPromoBooking + the Payzah engine (Step 3+). Retired in
-// Steps 5/8 once the client no longer calls them. Left in place for now so the
-// deploy stays green.
-
-exports.initiatePromoSlotPayment = onCall({ maxInstances: 2 }, async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "You must be logged in.");
-
-  const { promoSlotId } = request.data || {};
-  if (!promoSlotId || typeof promoSlotId !== "string") {
-    throw new HttpsError("invalid-argument", "promoSlotId is required.");
-  }
-
-  const slotDoc = await db.collection("promo_slots").doc(promoSlotId).get();
-  if (!slotDoc.exists) throw new HttpsError("not-found", "Promo slot not found.");
-
-  const slotData = slotDoc.data();
-  const ownerDoc = await db.collection("boutique_owners").doc(request.auth.uid).get();
-  if (!ownerDoc.exists || ownerDoc.data().boutiqueId !== slotData.boutiqueId) {
-    throw new HttpsError("permission-denied", "Not your promo slot.");
-  }
-  if (slotData.paymentStatus === "paid") {
-    throw new HttpsError("failed-precondition", "Slot is already paid.");
-  }
-
-  // Uncomment when MyFatoorah API key is ready:
-  // const axios = require("axios");
-  // const response = await axios.post(`https://api.myfatoorah.com/v2/InitiatePayment`, {
-  //   InvoiceAmount: slotData.priceKwd, CurrencyIso: "KWD",
-  // }, { headers: { Authorization: `Bearer ${myFatoorahApiKey.value()}`, "Content-Type": "application/json" } });
-  // await db.collection("promo_slots").doc(promoSlotId).update({
-  //   myFatoorahInvoiceId: response.data.Data.InvoiceId,
-  //   paymentInitiatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  // });
-  // return { paymentUrl: response.data.Data.PaymentURL };
-
-  throw new HttpsError("unimplemented", "MyFatoorah API key not configured yet.");
-});
-
-exports.promoSlotPaymentWebhook = require("firebase-functions/v2/https").onRequest(async (req, res) => {
-  try {
-    const invoiceId = req.body?.InvoiceId || req.body?.invoiceId;
-    if (!invoiceId) { res.status(400).send("Missing InvoiceId"); return; }
-
-    const snap = await db.collection("promo_slots")
-      .where("myFatoorahInvoiceId", "==", String(invoiceId))
-      .limit(1).get();
-
-    if (snap.empty) { res.status(200).send("OK"); return; }
-
-    const slotDoc = snap.docs[0];
-    if (slotDoc.data().paymentStatus === "paid") { res.status(200).send("OK"); return; }
-
-    const durationDays = slotDoc.data().durationDays || 7;
-    const expiresAt = new Date(Date.now() + durationDays * 86400000);
-
-    await slotDoc.ref.update({
-      status: "active", paymentStatus: "paid",
-      activatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
-    });
-
-    res.status(200).send("OK");
-  } catch (err) {
-    logger.error("Webhook error", err);
-    res.status(200).send("OK");
-  }
-});
-
-exports.expirePromoSlots = onSchedule(
-  { schedule: "every 1 hours", maxInstances: 1 },
-  async () => {
-  const now = admin.firestore.Timestamp.now();
-  const snap = await db.collection("promo_slots")
-    .where("status", "==", "active").where("expiresAt", "<", now).limit(200).get();
-  const batch = db.batch();
-  snap.docs.forEach(doc => batch.update(doc.ref, { status: "expired" }));
-  if (snap.docs.length > 0) await batch.commit();
-});
-
-exports.adminActivatePromoSlot = onCall({ maxInstances: 2 }, async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "Must be logged in.");
-  if (!await isSuperAdminUser(request.auth.uid)) {
-    throw new HttpsError("permission-denied", "Super admins only.");
-  }
-
-  const { promoSlotId } = request.data || {};
-  if (!promoSlotId) throw new HttpsError("invalid-argument", "promoSlotId required.");
-
-  const slotDoc = await db.collection("promo_slots").doc(promoSlotId).get();
-  if (!slotDoc.exists) throw new HttpsError("not-found", "Slot not found.");
-
-  const durationDays = slotDoc.data().durationDays || 7;
-  const expiresAt = new Date(Date.now() + durationDays * 86400000);
-
-  await slotDoc.ref.update({
-    status: "active", paymentStatus: "paid",
-    activatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
-  });
-
-  return { success: true };
-});
-
 // ================= PROMO ADS: CLICK TRACKING & SALES ATTRIBUTION =================
 //
 // Boutique owners buy placements; this measures whether they worked. Two numbers
@@ -4405,7 +4585,7 @@ async function sendOtpEmail(to, code, locale) {
     subject: locale === "ar" ? "رمز التحقق — LIBSK" : "Your LIBSK verification code",
     html: otpEmailHtml(code, locale),
   });
-  logger.info("OTP email sent", { to });
+  logger.info("OTP email sent", { to: redactEmail(to) });
 }
 
 exports.sendEmailOtp = onCall({ secrets: [resendApiKey] }, async (request) => {
@@ -4803,6 +4983,9 @@ exports.markReadyForPickup = onCall({ secrets: [wasalApiKey] }, async (request) 
   // Hoisted above the try so the catch can release a committed dispatch claim (B1).
   let boutiqueOrderRef = null;
   let claimed = false;
+  // Set the instant client.createOrder returns (wallet charged). The catch uses
+  // it to decide whether releasing the claim is safe — see there.
+  let createdWasalOrderId = null;
   try {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "You must be logged in.");
@@ -4976,10 +5159,18 @@ exports.markReadyForPickup = onCall({ secrets: [wasalApiKey] }, async (request) 
       merchantNotes: `LIBSK order #${orderData.orderNumber}`,
     });
     const wasalOrder = created.order;
+    const wasalOrderId = String(wasalOrder._id);
+    createdWasalOrderId = wasalOrderId; // wallet is now charged
 
-    // 4. Record the mapping + stamp the order docs.
-    const batch = db.batch();
-    batch.set(db.collection("wasal_orders").doc(String(wasalOrder._id)), {
+    // ── B2: persist the delivery id + routing mapping ATOMICALLY, before any
+    // other write, so a later failure can never cause a SECOND dispatch ─────────
+    // This one commit records (1) wasalOrderId + a non-terminal wasalStatus on the
+    // boutique order — which arms the B1 re-dispatch guard, so any retry bails with
+    // "already in progress" instead of charging the wallet again — and (2) the
+    // wasal_orders mapping the webhook needs to route status. Both commit together;
+    // if it fails, neither is written and the claim is left to hold (see the catch).
+    const idBatch = db.batch();
+    idBatch.set(db.collection("wasal_orders").doc(wasalOrderId), {
       wasalOrderNumber: wasalOrder.orderNumber || "",
       boutiqueId,
       boutiqueOrderId,
@@ -4988,43 +5179,68 @@ exports.markReadyForPickup = onCall({ secrets: [wasalApiKey] }, async (request) 
       orderNumber: orderData.orderNumber || "",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    const wasalFields = {
-      wasalOrderId: String(wasalOrder._id),
+    idBatch.update(boutiqueOrderRef, {
+      wasalOrderId,
       wasalOrderNumber: wasalOrder.orderNumber || "",
       wasalStatus: wasalOrder.status || "pending",
       wasalDispatchedAt: admin.firestore.FieldValue.serverTimestamp(),
-      wasalDispatchClaimed: false, // dispatch completed — release the B1 claim
-    };
-    batch.update(boutiqueOrderRef, wasalFields);
+      wasalDispatchClaimed: false, // durable guard (a) has taken over from the claim
+      // Reconciliation-poller fields: mark the delivery open, and seed the
+      // last-polled stamp so reconcileWasalDeliveries' orderBy includes it.
+      wasalDeliveryOpen: true,
+      wasalLastPolledAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await idBatch.commit();
+    claimed = false; // wasalOrderId persisted; guard (a) now blocks re-dispatch
+
+    // Customer-facing status fan-out — best-effort. The delivery already exists
+    // and is recorded on the boutique order (guard (a) is armed), so a failure
+    // here must NOT fail the call or re-dispatch. Recovery of a missed fan-out is
+    // NOT automatic: Wasal currently sends order.created but not reliable
+    // status-change webhooks, so it depends on a future status webhook OR a
+    // reconciliation poller. Until one runs, this customer's tracking for the
+    // delivery may stay empty. Logged so the gap is visible.
     const sourceUserOrderId = orderData.sourceUserOrderId || "";
     const customerUid = orderData.customerUid || "";
     if (customerUid && sourceUserOrderId) {
-      batch.set(
-        db.collection("users").doc(customerUid)
-          .collection("orders").doc(sourceUserOrderId),
-        { [`wasalStatuses.${wasalOrder._id}`]: wasalOrder.status || "pending" },
-        { merge: true },
-      );
-      batch.set(
-        db.collection("global_orders").doc(sourceUserOrderId),
-        { [`wasalStatuses.${wasalOrder._id}`]: wasalOrder.status || "pending" },
-        { merge: true },
-      );
+      try {
+        const fanout = db.batch();
+        fanout.set(
+          db.collection("users").doc(customerUid)
+            .collection("orders").doc(sourceUserOrderId),
+          { [`wasalStatuses.${wasalOrderId}`]: wasalOrder.status || "pending" },
+          { merge: true },
+        );
+        fanout.set(
+          db.collection("global_orders").doc(sourceUserOrderId),
+          { [`wasalStatuses.${wasalOrderId}`]: wasalOrder.status || "pending" },
+          { merge: true },
+        );
+        await fanout.commit();
+      } catch (err) {
+        logger.warn("Wasal status fan-out failed — customer tracking may be empty "
+          + "until a status webhook or reconciliation poller records it",
+          { boutiqueOrderId, wasalOrderId, err: err.message });
+      }
     }
-    await batch.commit();
-    claimed = false; // released as part of the success batch above
 
     return {
       success: true,
-      wasalOrderId: String(wasalOrder._id),
+      wasalOrderId,
       wasalOrderNumber: wasalOrder.orderNumber || "",
       status: wasalOrder.status || "pending",
     };
   } catch (error) {
-    // B1: a claim was committed but the dispatch didn't complete — release it
-    // so the owner can retry right away (the stale window is only a backstop
-    // for a hard crash before this runs).
-    if (claimed && boutiqueOrderRef) {
+    // Release the claim ONLY when no Wasal order was created (failure at/before
+    // createOrder — nothing charged, so an immediate retry is safe). If a Wasal
+    // order WAS created but its id failed to persist (the narrow B2 window), do
+    // NOT release: leave the fresh-claim guard holding so a retry can't double-
+    // charge, and log the orphaned id for manual reconciliation.
+    if (createdWasalOrderId) {
+      logger.error("Wasal order created but id not persisted — claim left set to "
+        + "block re-dispatch; reconcile this wasalOrderId manually",
+        { boutiqueOrderId: boutiqueOrderRef?.id, wasalOrderId: createdWasalOrderId });
+    } else if (claimed && boutiqueOrderRef) {
       await boutiqueOrderRef.update({ wasalDispatchClaimed: false })
         .catch((e) => logger.warn("Failed to release Wasal dispatch claim",
           { boutiqueOrderId: boutiqueOrderRef.id, err: e.message }));
@@ -5037,6 +5253,75 @@ exports.markReadyForPickup = onCall({ secrets: [wasalApiKey] }, async (request) 
     throw new HttpsError("internal", "Failed to dispatch delivery.");
   }
 });
+
+// Apply one Wasal delivery status to the boutique sub-order and fan it out to
+// the customer + global order. The SINGLE write path shared by wasalWebhook and
+// reconcileWasalDeliveries, so advance/notify logic lives in one place.
+//
+// The write block below is byte-for-byte the webhook's previous transaction,
+// with TWO additions: (1) a read-skip — if the boutique sub-order already carries
+// this exact wasalStatus, nothing is written (idempotent; a genuine transition is
+// never skipped, so notifyWasalDeliveryStatus still fires once per milestone);
+// (2) it clears wasalDeliveryOpen when the status is terminal, so the poller stops
+// selecting a delivery this path already finished. Because the boutique write and
+// the customer/global fan-out commit in ONE transaction, the boutique wasalStatus
+// is a faithful marker that the whole apply happened — the skip can never drop a
+// fan-out a prior apply left unwritten.
+//
+// map: { boutiqueId, boutiqueOrderId, customerUid, sourceUserOrderId }. Returns
+// true when a change was applied, false when the status was already current.
+async function applyWasalDeliveryStatus(wasalOrderId, wasalStatus, map) {
+  const boutiqueOrderRef = db.collection("boutiques").doc(map.boutiqueId)
+    .collection("orders").doc(map.boutiqueOrderId);
+  const userOrderRef = map.customerUid && map.sourceUserOrderId
+    ? db.collection("users").doc(map.customerUid)
+        .collection("orders").doc(map.sourceUserOrderId)
+    : null;
+  const globalOrderRef = map.sourceUserOrderId
+    ? db.collection("global_orders").doc(map.sourceUserOrderId)
+    : null;
+  const libskStatus = wasal.mapWasalToLibskStatus(wasalStatus);
+  const isTerminal = wasal.WASAL_TERMINAL_STATUSES.includes(wasalStatus);
+
+  return await db.runTransaction(async (tx) => {
+    const boutiqueSnap = await tx.get(boutiqueOrderRef);
+    const globalSnap = globalOrderRef ? await tx.get(globalOrderRef) : null;
+
+    // Idempotent read-skip: already at this status → nothing to do.
+    if (boutiqueSnap.exists && boutiqueSnap.data().wasalStatus === wasalStatus) {
+      return false;
+    }
+
+    // Boutique sub-order: always mirror the Wasal status; advance the LIBSK
+    // status when the delivery has physically progressed; close the delivery
+    // for the reconciliation poller once it reaches a terminal status.
+    tx.set(boutiqueOrderRef, {
+      wasalStatus,
+      wasalStatusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...(libskStatus ? { status: libskStatus } : {}),
+      ...(isTerminal ? { wasalDeliveryOpen: false } : {}),
+    }, { merge: true });
+
+    // Customer-facing order docs: per-delivery status map + aggregated status.
+    // "On the Way" as soon as any delivery moves; "Delivered" only when EVERY
+    // delivery in the order is delivered.
+    if (globalSnap && globalSnap.exists && userOrderRef) {
+      const globalData = globalSnap.data() || {};
+      const statuses = { ...(globalData.wasalStatuses || {}), [wasalOrderId]: wasalStatus };
+      const allDelivered = wasal.overallDeliveryStatus(statuses) === "Delivered";
+      const advance =
+        libskStatus === "Delivered" ? (allDelivered ? "Delivered" : "On the Way")
+        : libskStatus; // "On the Way" or null
+      const update = {
+        [`wasalStatuses.${wasalOrderId}`]: wasalStatus,
+        ...(advance && globalData.status !== "Cancelled" ? { status: advance } : {}),
+      };
+      tx.set(globalOrderRef, update, { merge: true });
+      tx.set(userOrderRef, update, { merge: true });
+    }
+    return true;
+  });
+}
 
 // ── wasalWebhook — signed status pushes from Wasal ───────────────────────────
 //
@@ -5082,47 +5367,8 @@ exports.wasalWebhook = onRequest(
         return;
       }
       const map = mapSnap.data();
-      const libskStatus = wasal.mapWasalToLibskStatus(wasalStatus);
-
-      const boutiqueOrderRef = db.collection("boutiques").doc(map.boutiqueId)
-        .collection("orders").doc(map.boutiqueOrderId);
-      const userOrderRef = map.customerUid && map.sourceUserOrderId
-        ? db.collection("users").doc(map.customerUid)
-            .collection("orders").doc(map.sourceUserOrderId)
-        : null;
-      const globalOrderRef = map.sourceUserOrderId
-        ? db.collection("global_orders").doc(map.sourceUserOrderId)
-        : null;
-
-      await db.runTransaction(async (tx) => {
-        const globalSnap = globalOrderRef ? await tx.get(globalOrderRef) : null;
-
-        // Boutique sub-order: always mirror the Wasal status; advance the
-        // LIBSK status when the delivery has physically progressed.
-        tx.set(boutiqueOrderRef, {
-          wasalStatus,
-          wasalStatusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          ...(libskStatus ? { status: libskStatus } : {}),
-        }, { merge: true });
-
-        // Customer-facing order docs: per-delivery status map + aggregated
-        // status. "On the Way" as soon as any delivery moves; "Delivered"
-        // only when EVERY delivery in the order is delivered.
-        if (globalSnap && globalSnap.exists && userOrderRef) {
-          const globalData = globalSnap.data() || {};
-          const statuses = { ...(globalData.wasalStatuses || {}), [wasalOrderId]: wasalStatus };
-          const allDelivered = wasal.overallDeliveryStatus(statuses) === "Delivered";
-          const advance =
-            libskStatus === "Delivered" ? (allDelivered ? "Delivered" : "On the Way")
-            : libskStatus; // "On the Way" or null
-          const update = {
-            [`wasalStatuses.${wasalOrderId}`]: wasalStatus,
-            ...(advance && globalData.status !== "Cancelled" ? { status: advance } : {}),
-          };
-          tx.set(globalOrderRef, update, { merge: true });
-          tx.set(userOrderRef, update, { merge: true });
-        }
-      });
+      // Same transaction as before, now shared with the reconciliation poller.
+      await applyWasalDeliveryStatus(wasalOrderId, wasalStatus, map);
 
       res.status(200).send("OK");
     } catch (error) {
@@ -5132,3 +5378,230 @@ exports.wasalWebhook = onRequest(
     }
   },
 );
+
+// ── reconcileWasalDeliveries — backstop poller for missed Wasal status webhooks
+//
+// Wasal webhooks are single-attempt with an 8s timeout and no retry queue, and
+// are currently not fired for demo-driver status changes — so a transition can
+// be lost. This polls open deliveries and re-applies their live status through
+// the SAME path as the webhook (applyWasalDeliveryStatus), so
+// notifyWasalDeliveryStatus fires exactly once per milestone regardless of which
+// observed it first. Budget: keyed getOrder is 1 call/delivery against Wasal's
+// 600-req/15-min key; 5-min interval x 50/batch = 150/15min = 25% of budget.
+const WASAL_RECONCILE_MAX_CHECKS = 5; // stop polling a delivery Wasal can't resolve
+
+exports.reconcileWasalDeliveries = onSchedule(
+  { schedule: "every 5 minutes", maxInstances: 1, timeoutSeconds: 120, secrets: [wasalApiKey] },
+  async () => {
+    if (wasalEnabled.value() !== "true") return;
+
+    const snap = await db.collectionGroup("orders")
+      .where("wasalDeliveryOpen", "==", true)
+      .orderBy("wasalLastPolledAt", "asc") // least-recently-checked first
+      .limit(50)
+      .get();
+    if (snap.empty) return;
+
+    const client = wasal.createWasalClient(wasalApiKey.value());
+
+    for (const doc of snap.docs) {
+      const order = doc.data();
+      const boutiqueId = doc.ref.parent.parent ? doc.ref.parent.parent.id : "";
+      const wasalOrderId = String(order.wasalOrderId || "");
+      if (!wasalOrderId || !boutiqueId) {
+        logger.warn("reconcileWasalDeliveries: open delivery missing ids — closing",
+          { path: doc.ref.path });
+        await doc.ref.update({ wasalDeliveryOpen: false }).catch(() => {});
+        continue;
+      }
+      try {
+        const res = await client.getOrder(wasalOrderId);
+        // getOrder returns the `data` envelope; this project nests the order
+        // under data.order (like createOrder→.order, getCustomer→.customer), so
+        // the status is at res.order.status. Flat res.status is a defensive
+        // fallback. Empty → log, never silently no-op (a shape change must surface).
+        const live = String(
+          (res && res.order && res.order.status) || (res && res.status) || "");
+        if (!live) {
+          logger.warn("reconcileWasalDeliveries: no status in getOrder response",
+            { wasalOrderId, keys: res ? Object.keys(res) : null });
+          await doc.ref.update({
+            wasalLastPolledAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          continue;
+        }
+        await applyWasalDeliveryStatus(wasalOrderId, live, {
+          boutiqueId,
+          boutiqueOrderId: doc.id,
+          customerUid: order.customerUid || "",
+          sourceUserOrderId: order.sourceUserOrderId || "",
+        });
+        // Rotate the batch (applyWasalDeliveryStatus clears wasalDeliveryOpen
+        // itself on a terminal status).
+        await doc.ref.update({
+          wasalLastPolledAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (err) {
+        const checks = (Number(order.wasalReconcileChecks) || 0) + 1;
+        const giveUp = checks >= WASAL_RECONCILE_MAX_CHECKS;
+        logger.warn("reconcileWasalDeliveries: getOrder failed",
+          { wasalOrderId, checks, giveUp, err: err.message });
+        await doc.ref.update({
+          wasalLastPolledAt: admin.firestore.FieldValue.serverTimestamp(),
+          wasalReconcileChecks: checks,
+          ...(giveUp ? { wasalDeliveryOpen: false, wasalReconcileGaveUp: true } : {}),
+        }).catch(() => {});
+      }
+    }
+  },
+);
+
+// ── getWasalTracking — customer-facing live delivery tracking ────────────────
+//
+// Powers the customer order page's delivery timeline + driver-location map.
+// Ownership is enforced BY CONSTRUCTION: we only ever read the order from the
+// CALLER's own users/{uid}/orders/{orderId} path, so a caller can never fetch
+// tracking for an order that is not theirs. All Wasal access stays server-side —
+// the API key never reaches the app.
+//
+// Per delivery we return:
+//   - status + agentLocation { lat, lng, lastSeen } — from the PUBLIC track
+//     endpoint (GET /order/track/:orderNumber), keyed by the public
+//     wasalOrderNumber. The endpoint is public + non-sensitive, but we still gate
+//     it behind the ownership check so a driver's location is never exposed to a
+//     non-owner who guesses an order number.
+//   - statusHistory[] — from the AUTHENTICATED history endpoint, for the timeline
+//     (the public track endpoint does not include history).
+//
+// The Wasal track endpoint ALSO returns agentPhone (the courier's personal
+// number), but we deliberately DROP it server-side so it never leaves this
+// function — surfacing a driver's number to customers is an explicit product
+// decision, not a default. Re-add it to the payload only if/when that call is
+// made.
+//
+// NOTE: in the sandbox, webhooks never fire, so the Firestore wasalStatuses are
+// frozen after dispatch — the live status the customer sees comes entirely from
+// this callable hitting Wasal directly. That is also what makes the whole
+// feature testable in sandbox (advance an order via the advance-status endpoint
+// and this callable reflects each transition).
+
+// Short in-memory cache so many customers watching the same order — or one
+// customer polling every ~30s — don't multiply Wasal calls against the shared
+// 600-req / 15-min key. Keyed by wasalOrderId; lives while the instance is warm.
+const WASAL_TRACKING_CACHE_TTL_MS = 15 * 1000;
+const wasalTrackingCache = new Map(); // wasalOrderId -> { at: ms, payload }
+const WASAL_ACTIVE_DELIVERY_STATUSES =
+  ["assigned", "on_way_to_merchant", "picked_up", "in_transit"];
+
+/** Fetch one delivery's live status + location + timeline, with a 15s cache. */
+async function fetchWasalDeliveryTracking(client, wasalOrderId, wasalOrderNumber) {
+  const cached = wasalTrackingCache.get(wasalOrderId);
+  if (cached && (Date.now() - cached.at) < WASAL_TRACKING_CACHE_TTL_MS) {
+    return cached.payload;
+  }
+  // Public track (status + live location) and authenticated history (timeline)
+  // in parallel; either failing degrades that part rather than failing the call.
+  const [track, history] = await Promise.all([
+    wasalOrderNumber
+      ? client.trackOrder(wasalOrderNumber).catch((e) => {
+        logger.warn("Wasal track failed", { wasalOrderId, err: e.message });
+        return null;
+      })
+      : Promise.resolve(null),
+    client.getOrderHistory(wasalOrderId).catch((e) => {
+      logger.warn("Wasal history failed", { wasalOrderId, err: e.message });
+      return null;
+    }),
+  ]);
+
+  const status = String((track && track.status) || "");
+  const loc = track && track.agentLocation;
+  const agentLocation =
+    loc && typeof loc.lat === "number" && typeof loc.lng === "number"
+      ? { lat: loc.lat, lng: loc.lng, lastSeen: loc.lastSeen || null }
+      : null;
+
+  // statusHistory shape isn't fully pinned in the docs (status/timestamp/note +
+  // an unnamed actor field) — parse tolerantly and keep only what the UI needs.
+  const rawHistory = (history && (history.statusHistory || history.list)) ||
+    (Array.isArray(history) ? history : []);
+  const statusHistory = (Array.isArray(rawHistory) ? rawHistory : [])
+    .map((h) => ({
+      status: String((h && h.status) || ""),
+      timestamp: (h && (h.timestamp || h.at || h.createdAt)) || null,
+      note: (h && h.note) || null,
+    }))
+    .filter((h) => h.status);
+
+  const payload = {
+    wasalOrderNumber: wasalOrderNumber || "",
+    status,
+    agentLocation,
+    // agentPhone (courier's personal number) is intentionally omitted — see the
+    // header note. Never placed in the payload, so it never reaches the app.
+    statusHistory,
+    isActiveDelivery: WASAL_ACTIVE_DELIVERY_STATUSES.includes(status),
+  };
+  wasalTrackingCache.set(wasalOrderId, { at: Date.now(), payload });
+  return payload;
+}
+
+exports.getWasalTracking = onCall({ secrets: [wasalApiKey] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const uid = request.auth.uid;
+  // Generous per-user cap (client polls ~30s only while a delivery is active).
+  const rateOk = await checkRateLimit(`wasal_track_${uid}`, 300, 3600);
+  if (!rateOk) {
+    throw new HttpsError("resource-exhausted", "Too many requests. Please try again later.");
+  }
+
+  const orderId = request.data?.orderId;
+  if (typeof orderId !== "string" || !orderId || orderId.length > 200) {
+    throw new HttpsError("invalid-argument", "A valid orderId is required.");
+  }
+
+  // Ownership: read ONLY the caller's own copy of the order. Missing → the
+  // caller doesn't own an order with this id (or it doesn't exist).
+  const orderSnap = await db.collection("users").doc(uid)
+    .collection("orders").doc(orderId).get();
+  if (!orderSnap.exists) {
+    throw new HttpsError("not-found", "Order not found.");
+  }
+  const orderData = orderSnap.data() || {};
+  const wasalStatuses = orderData.wasalStatuses || {};
+  const wasalOrderIds = Object.keys(wasalStatuses);
+  // No delivery dispatched yet — nothing to track.
+  if (wasalOrderIds.length === 0) return { deliveries: [] };
+
+  // Delivery integration off — return last-known statuses without calling Wasal.
+  if (wasalEnabled.value() !== "true") {
+    return {
+      deliveries: wasalOrderIds.map((id) => ({
+        wasalOrderNumber: "",
+        status: String(wasalStatuses[id] || ""),
+        agentLocation: null,
+        statusHistory: [],
+        isActiveDelivery: false,
+      })),
+    };
+  }
+
+  const client = wasal.createWasalClient(wasalApiKey.value());
+  try {
+    const deliveries = await Promise.all(wasalOrderIds.map(async (wasalOrderId) => {
+      // wasalOrderNumber isn't stored on the customer doc — resolve it from the
+      // wasal_orders mapping (admin SDK read; the customer never sees this doc).
+      const mapSnap = await db.collection("wasal_orders").doc(wasalOrderId).get();
+      const wasalOrderNumber = mapSnap.exists
+        ? String(mapSnap.data().wasalOrderNumber || "")
+        : "";
+      return fetchWasalDeliveryTracking(client, wasalOrderId, wasalOrderNumber);
+    }));
+    return { deliveries };
+  } catch (error) {
+    logger.error("getWasalTracking failed", error);
+    throw new HttpsError("unavailable", "Could not load delivery tracking. Please try again.");
+  }
+});

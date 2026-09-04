@@ -5,6 +5,7 @@ import '../pages/cart_page.dart';
 import '../pages/search_page.dart';
 import '../pages/login_page.dart';
 import '../pages/profile_page.dart';
+import '../pages/notifications_page.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
 
@@ -124,6 +125,63 @@ class AppHeader extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Notifications bell + unread badge (signed-in only)
+                  if (user != null)
+                    Stack(
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const NotificationsPage(),
+                              ),
+                            );
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.all(6),
+                            child: Icon(
+                              Icons.notifications_none,
+                              size: 28,
+                              color: AppColors.primaryText,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 2,
+                          top: 2,
+                          child: StreamBuilder<int>(
+                            stream: FirestoreService
+                                .getUnreadNotificationCountStream(),
+                            builder: (context, snapshot) {
+                              final count = snapshot.data ?? 0;
+                              if (count <= 0) return const SizedBox();
+                              final label = count > 20 ? '20+' : count.toString();
+                              return Container(
+                                constraints: const BoxConstraints(minWidth: 16),
+                                height: 16,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryText,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    label,
+                                    style: AppTextStyles.bodySmall.copyWith(
+                                      color: AppColors.background,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   Stack(
                     children: [
                       GestureDetector(

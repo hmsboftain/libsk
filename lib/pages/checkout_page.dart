@@ -12,6 +12,7 @@ import '../core/services/performance_service.dart';
 import '../navigation/app_header.dart';
 import '../services/currency_service.dart';
 import 'add_address_page.dart';
+import 'saved_addresses_page.dart';
 import 'payzah_payment_page.dart';
 import '../widgets/cart_item.dart';
 import '../services/firestore_service.dart';
@@ -47,11 +48,18 @@ class CheckoutPage extends StatefulWidget {
   State<CheckoutPage> createState() => _CheckoutPageState();
 }
 
+/// Resolution state of the delivery fee for the chosen address. The pay button
+/// is enabled ONLY in [resolved]; every other state means we can't quote a real
+/// Wasal fee yet, so checkout is blocked (no flat fallback is ever charged).
+enum _DeliveryFeeState { noAddress, noArea, loading, error, resolved }
+
 class _CheckoutPageState extends State<CheckoutPage> {
   // ── Delivery / payment ─────────────────────────────────────────────────────
   String deliveryMethod = 'Regular Delivery';
   String paymentMethod = 'Card';
-  double deliveryCost = 3;
+  // 0 until a real fee is known — a resolved Wasal area fee, or 0 for MTO.
+  // There is deliberately no flat legacy fallback on the client.
+  double deliveryCost = 0;
 
   // ── Made-to-order (auto-detected) ──────────────────────────────────────────
   bool _hasMtoItems = false;
@@ -59,11 +67,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   // ── Discount code ──────────────────────────────────────────────────────────
   // ── Wasal area-based delivery fee ──────────────────────────────────────────
-  // Live quote for the customer's delivery area (per boutique pickup). null →
-  // flat legacy fee, matching the server-side fallback in createOrder. Keyed
-  // by the address doc it was quoted for so address changes refetch.
+  // Live quote for the customer's delivery area (per boutique pickup). Non-null
+  // only once the area fee has resolved; the pay button gates on it. Keyed by
+  // the address doc it was quoted for so address changes refetch.
   double? _wasalAreaFee;
   String? _wasalFeeAddressKey;
+  // Area IDs of the address currently being quoted, kept so the error state's
+  // "tap to retry" can re-issue the same lookup.
+  String? _feeGovId;
+  String? _feeNbId;
+  // True when the last fee lookup for an area-bearing address came back empty
+  // (network/API failure, timeout, or no configured price) → error state.
+  bool _wasalFeeError = false;
 
   String? _discountCodeId;
   double _discountAmount = 0;
@@ -91,7 +106,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     final isKuwait = CurrencyService.instance.selectedCountryCode == 'KW';
     deliveryMethod = isKuwait ? 'Same Day Delivery' : 'Regular Delivery';
-    deliveryCost = isKuwait ? 5 : 3;
+    // deliveryCost stays 0 until a real Wasal fee resolves (or MTO forces 0).
     // KNET is the default rail for Kuwait customers; cards elsewhere.
     paymentMethod = isKuwait ? 'KNET' : 'Card';
   }
@@ -113,31 +128,128 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // ── Wasal live delivery fee ────────────────────────────────────────────────
   // The order ships from the newest saved address (createOrder uses the same
   // orderBy-createdAt-desc rule), so the fee is quoted for that address. Runs
-  // once per address; failures leave the flat fee in place.
+  // once per address change; an area-less address or a failed lookup blocks
+  // checkout rather than falling back to a flat fee.
   void _maybeFetchWasalFee(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> addressDocs,
   ) {
     if (addressDocs.isEmpty) return;
     final latest = addressDocs.first;
-    final data = latest.data();
-    final governorateId = data['wasalGovernorateId']?.toString() ?? '';
-    final neighborhoodId = data['wasalNeighborhoodId']?.toString() ?? '';
-    if (governorateId.isEmpty || neighborhoodId.isEmpty) return;
-    if (_wasalFeeAddressKey == latest.id) return;
+    if (_wasalFeeAddressKey == latest.id) return; // already evaluated this address
     _wasalFeeAddressKey = latest.id;
 
+    final data = latest.data();
+    _feeGovId = data['wasalGovernorateId']?.toString() ?? '';
+    _feeNbId = data['wasalNeighborhoodId']?.toString() ?? '';
+
+    if (_feeGovId!.isEmpty || _feeNbId!.isEmpty) {
+      // No Wasal area on this address → we can't quote area pricing. Drop any
+      // stale quote; the UI prompts the customer to add their area.
+      if (mounted) {
+        setState(() {
+          _wasalAreaFee = null;
+          _wasalFeeError = false;
+        });
+      }
+      return;
+    }
+
+    _fetchWasalFee();
+  }
+
+  // Fetches (or re-fetches, on retry) the area fee for the current address.
+  // getDeliveryFee never throws — it returns null on failure/timeout/no-price —
+  // so a null result becomes the error state, not a silent flat fee.
+  void _fetchWasalFee() {
+    final gov = _feeGovId, nb = _feeNbId;
+    if (gov == null || nb == null || gov.isEmpty || nb.isEmpty) return;
+    // Enter the loading state: no fee in hand, no error yet.
+    if (mounted) {
+      setState(() {
+        _wasalAreaFee = null;
+        _wasalFeeError = false;
+      });
+    }
     WasalService.instance
-        .getDeliveryFee(
-          governorateId: governorateId,
-          neighborhoodId: neighborhoodId,
-        )
+        .getDeliveryFee(governorateId: gov, neighborhoodId: nb)
         .then((fee) {
-          if (!mounted || fee == null) return;
+          if (!mounted) return;
           setState(() {
-            _wasalAreaFee = fee;
-            if (deliveryMethod != 'Made to Order') deliveryCost = fee;
+            if (fee == null) {
+              _wasalFeeError = true;
+            } else {
+              _wasalFeeError = false;
+              _wasalAreaFee = fee;
+              if (deliveryMethod != 'Made to Order') deliveryCost = fee;
+            }
           });
         });
+  }
+
+  // Which delivery-fee state the chosen address is in. Drives both the delivery
+  // section UI and the pay button's enabled state — the button is live only in
+  // [resolved].
+  _DeliveryFeeState _deliveryFeeState(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> addressDocs,
+  ) {
+    if (addressDocs.isEmpty) return _DeliveryFeeState.noAddress;
+    // MTO ships free (deliveryCost 0) and needs no area quote.
+    if (_hasMtoItems) return _DeliveryFeeState.resolved;
+    final data = addressDocs.first.data();
+    final gov = data['wasalGovernorateId']?.toString() ?? '';
+    final nb = data['wasalNeighborhoodId']?.toString() ?? '';
+    if (gov.isEmpty || nb.isEmpty) return _DeliveryFeeState.noArea;
+    if (_wasalFeeError) return _DeliveryFeeState.error;
+    if (_wasalAreaFee == null) return _DeliveryFeeState.loading;
+    return _DeliveryFeeState.resolved;
+  }
+
+  // Inline info/error notice shown in the delivery slot (area missing, or the
+  // fee lookup failed). Tapping runs [onTap] — the add-area form, or a retry.
+  Widget _deliveryNotice({
+    required String message,
+    required VoidCallback onTap,
+    IconData icon = Icons.info_outline,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.selectedSoft,
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: AppColors.deepAccent),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: AppTextStyles.bodySmall
+                    .copyWith(color: AppColors.deepAccent),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Delivery slot while the area fee lookup is in flight.
+  Widget _deliveryLoadingRow() {
+    return const Row(
+      children: [
+        SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            color: AppColors.deepAccent,
+          ),
+        ),
+      ],
+    );
   }
 
   // ── Auto-detect MTO from cart items ────────────────────────────────────────
@@ -162,7 +274,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
             deliveryMethod = isKuwait
                 ? 'Same Day Delivery'
                 : 'Regular Delivery';
-            deliveryCost = _wasalAreaFee ?? (isKuwait ? 5 : 3);
+            // Restore the resolved area fee if we have one; otherwise 0 and the
+            // delivery-fee state machine re-blocks checkout until it resolves.
+            deliveryCost = _wasalAreaFee ?? 0;
           }
         });
 
@@ -411,6 +525,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   void _selectDeliveryMethod(bool isKuwait) {
     final l10n = AppLocalizations.of(context)!;
+    // The sheet is only meaningful once a real area fee has resolved — both
+    // methods are priced at that fee, never a flat fallback.
+    final fee = _wasalAreaFee;
+    if (fee == null) return;
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.background,
@@ -447,10 +565,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 ),
               ),
               const Divider(color: AppColors.border, thickness: 0.5, height: 0.5),
-              // Area-based Wasal fee when quoted; flat legacy fee otherwise.
-              option('Regular Delivery', l10n.regularDelivery, _wasalAreaFee ?? 3),
+              // Area-based Wasal fee (resolved); the sheet never opens otherwise.
+              option('Regular Delivery', l10n.regularDelivery, fee),
               if (isKuwait)
-                option('Same Day Delivery', l10n.sameDayDelivery, _wasalAreaFee ?? 5),
+                option('Same Day Delivery', l10n.sameDayDelivery, fee),
               const SizedBox(height: 8),
             ],
           ),
@@ -614,6 +732,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   WidgetsBinding.instance.addPostFrameCallback(
                     (_) => _maybeFetchWasalFee(addressDocs),
                   );
+                  // Single source of truth for the delivery section + pay button.
+                  final feeState = _deliveryFeeState(addressDocs);
+                  final canPlaceOrder =
+                      feeState == _DeliveryFeeState.resolved;
 
                   return Column(
                     children: [
@@ -644,7 +766,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               // ── Delivery method ───────────────────────
                               _sectionLabel(l10n.deliveryMethod),
                               const SizedBox(height: 10),
-                              _deliveryRow(isKuwait),
+                              _deliveryRow(isKuwait, feeState),
                               _sectionGap(),
 
                               // ── Payment method ────────────────────────
@@ -678,7 +800,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       ),
 
                       // ── Sticky pay bar ────────────────────────────────
-                      _stickyBar(cartItems, total, hasAddress),
+                      _stickyBar(
+                        cartItems,
+                        total,
+                        hasAddress,
+                        canPlaceOrder: canPlaceOrder,
+                      ),
                     ],
                   );
                 },
@@ -790,11 +917,36 @@ class _CheckoutPageState extends State<CheckoutPage> {
       );
     }
 
+    // No saved address yet → jump straight to the add-address form.
     Future<void> openEditor() async {
       await Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const AddAddressPage()),
       );
+      if (mounted) setState(() {});
+    }
+
+    // Has saved addresses → open the list to pick one (with its own "Add New
+    // Address" button). Picking bumps that address to newest, which is the
+    // address createOrder ships to and re-quotes the Wasal fee for; the live
+    // addresses stream then re-emits and _maybeFetchWasalFee re-runs for it.
+    Future<void> openAddressPicker() async {
+      final selectedId = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const SavedAddressesPage(selectable: true),
+        ),
+      );
+      if (!mounted) return;
+      if (selectedId != null) {
+        try {
+          await FirestoreService.markAddressSelected(selectedId);
+        } catch (_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context)
+              .showSnackBar(_brandedErrorSnackBar(l10n.somethingWentWrong));
+        }
+      }
       if (mounted) setState(() {});
     }
 
@@ -814,7 +966,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       title: name.isNotEmpty ? name : l10n.deliveryAddress,
       value: line,
       subtitle: phone,
-      onTap: openEditor,
+      onTap: openAddressPicker,
     );
   }
 
@@ -842,7 +994,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   // ── Delivery method row ─────────────────────────────────────────────────────
 
-  Widget _deliveryRow(bool isKuwait) {
+  Widget _deliveryRow(bool isKuwait, _DeliveryFeeState state) {
     final l10n = AppLocalizations.of(context)!;
 
     if (_hasMtoItems) {
@@ -855,15 +1007,40 @@ class _CheckoutPageState extends State<CheckoutPage> {
       );
     }
 
-    final methodLabel = deliveryMethod == 'Same Day Delivery'
-        ? l10n.sameDayDelivery
-        : l10n.regularDelivery;
-
-    return _compactRow(
-      value: '$methodLabel · ${_fmt(deliveryCost)}',
-      // Only Kuwait has more than one option to choose from.
-      onTap: isKuwait ? () => _selectDeliveryMethod(isKuwait) : null,
-    );
+    switch (state) {
+      // No delivery address yet → the fee isn't known (createOrder and the
+      // Wasal quote both derive it from the chosen address).
+      case _DeliveryFeeState.noAddress:
+        return _compactRow(value: l10n.deliveryCostAfterAddress);
+      // Address has no Wasal area → prompt to add it (unlocks area pricing).
+      case _DeliveryFeeState.noArea:
+        return _deliveryNotice(
+          message: l10n.deliverySelectAreaHint,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AddAddressPage()),
+          ),
+        );
+      // Area fee lookup in flight.
+      case _DeliveryFeeState.loading:
+        return _deliveryLoadingRow();
+      // Lookup failed/timed out/no price → tap to retry, no flat fallback.
+      case _DeliveryFeeState.error:
+        return _deliveryNotice(
+          message: l10n.deliveryFeeUnavailable,
+          onTap: _fetchWasalFee,
+          icon: Icons.refresh,
+        );
+      // Real fee in hand → show it; Kuwait can switch delivery method.
+      case _DeliveryFeeState.resolved:
+        final methodLabel = deliveryMethod == 'Same Day Delivery'
+            ? l10n.sameDayDelivery
+            : l10n.regularDelivery;
+        return _compactRow(
+          value: '$methodLabel · ${_fmt(deliveryCost)}',
+          onTap: isKuwait ? () => _selectDeliveryMethod(isKuwait) : null,
+        );
+    }
   }
 
   // ── Order summary (collapsible) ─────────────────────────────────────────────
@@ -1082,8 +1259,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Widget _stickyBar(
     List<CartItem> cartItems,
     double total,
-    bool hasAddress,
-  ) {
+    bool hasAddress, {
+    required bool canPlaceOrder,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 14, 22, 14),
@@ -1113,7 +1291,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              onPressed: isPlacingOrder
+              // Live only once a real delivery fee has resolved (or MTO): no
+              // flat fallback is ever charged.
+              onPressed: (isPlacingOrder || !canPlaceOrder)
                   ? null
                   : () => _placeOrder(
                       cartItems: cartItems,

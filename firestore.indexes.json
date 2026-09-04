@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "wasalDeliveryOpen", "order": "ASCENDING" },
+        { "fieldPath": "wasalLastPolledAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "promo_bookings",
       "queryScope": "COLLECTION",
       "fields": [

@@ -3,19 +3,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/utils/image_sizing.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
-import '../core/constants/countries.dart';
-import '../services/currency_service.dart';
 import '../services/firestore_service.dart';
 import '../widgets/added_to_cart_sheet.dart';
+import '../widgets/cart_conflict_dialog.dart';
 import '../widgets/error_state_widget.dart';
+import '../widgets/product_badges.dart';
 import '../widgets/theme.dart';
 import 'cart_page.dart';
-
-String _fmt(double kwd) {
-  final service = CurrencyService.instance;
-  final country = countryByCode(service.selectedCountryCode);
-  return service.format(kwd, country.currencySymbol, country.currency);
-}
 
 // Ink — the brand's near-black used for product-page chrome (back/heart
 // buttons, pagination dots). Defined locally; the design system's primaryText
@@ -217,6 +211,23 @@ class _ProductPageState extends State<ProductPage> {
     return v is num
         ? v.toDouble()
         : double.tryParse(v.toString()) ?? widget.price;
+  }
+
+  /// The raw sale price as stored, or null when not set.
+  double? _parseSalePrice(Map<String, dynamic> data) {
+    final v = data['salePrice'];
+    if (v == null) return null;
+    return v is num ? v.toDouble() : double.tryParse(v.toString());
+  }
+
+  /// The price the customer actually pays: the sale price when a genuine sale
+  /// is active (set, positive, below the regular price), otherwise the regular
+  /// price. Mirrors the server-side check in createOrder so the cart, checkout
+  /// and charged amount all agree.
+  double _effectivePrice(Map<String, dynamic> data) {
+    final base = _parsePrice(data);
+    final sale = _parseSalePrice(data);
+    return (sale != null && sale > 0 && sale < base) ? sale : base;
   }
 
   int _parseStock(Map<String, dynamic> data) {
@@ -466,6 +477,16 @@ class _ProductPageState extends State<ProductPage> {
       return;
     }
 
+    // One boutique at a time: if the cart holds a different boutique, prompt to
+    // clear it before adding. Cancelling leaves the cart untouched.
+    if (!await CartConflictGuard.ensureSingleBoutiqueCart(
+      context,
+      widget.boutiqueId,
+    )) {
+      return;
+    }
+    if (!mounted) return;
+
     setState(() => _isAddingToCart = true);
     var added = false;
     try {
@@ -477,7 +498,7 @@ class _ProductPageState extends State<ProductPage> {
         description: _parseDescription(data),
         size: _selectedSize,
         color: colors.isNotEmpty ? _selectedColor : '',
-        price: _parsePrice(data),
+        price: _effectivePrice(data),
         specialRequest: _specialRequestController.text,
       );
       added = true;
@@ -732,6 +753,7 @@ class _ProductPageState extends State<ProductPage> {
     final images = _galleryImages(data);
     final stock = _parseStock(data);
     final price = _parsePrice(data);
+    final salePrice = _parseSalePrice(data);
     final title = _parseTitle(data);
     final description = _parseDescription(data);
     final category = _parseCategory(data);
@@ -766,8 +788,10 @@ class _ProductPageState extends State<ProductPage> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(
-                      _fmt(price),
+                    ProductPriceText(
+                      price: price,
+                      salePrice: salePrice,
+                      saleBadgeLabel: l10n.saleBadge,
                       style: const TextStyle(
                         fontFamily: 'CormorantGaramond',
                         fontSize: 22,

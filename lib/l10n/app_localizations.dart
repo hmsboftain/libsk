@@ -5681,6 +5681,24 @@ abstract class AppLocalizations {
   /// **'Could not request a driver. Please try again.'**
   String get deliveryDispatchFailed;
 
+  /// No description provided for @deliverySelectAreaHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add your area to your delivery address to get exact delivery pricing.'**
+  String get deliverySelectAreaHint;
+
+  /// No description provided for @deliveryCostAfterAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery cost will be calculated once you choose an address.'**
+  String get deliveryCostAfterAddress;
+
+  /// No description provided for @deliveryFeeUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to calculate delivery cost. Tap to try again.'**
+  String get deliveryFeeUnavailable;
+
   /// No description provided for @wasalStatusPending.
   ///
   /// In en, this message translates to:
@@ -5752,6 +5770,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Branch code saved'**
   String get wasalBranchCodeSaved;
+
+  /// No description provided for @deliveryTrackingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery tracking'**
+  String get deliveryTrackingTitle;
+
+  /// No description provided for @deliveryDriverLocationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Driver location not available yet'**
+  String get deliveryDriverLocationUnavailable;
+
+  /// No description provided for @cartOneBoutiqueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'One boutique at a time'**
+  String get cartOneBoutiqueTitle;
+
+  /// No description provided for @cartOneBoutiqueMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Your cart has items from another boutique. Clear it to add this?'**
+  String get cartOneBoutiqueMessage;
+
+  /// No description provided for @cartClearAndAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear cart & add'**
+  String get cartClearAndAdd;
+
+  /// No description provided for @notificationsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No notifications yet'**
+  String get notificationsEmpty;
+
+  /// No description provided for @markAllRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark all as read'**
+  String get markAllRead;
+
+  /// No description provided for @notificationOrderUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This order is no longer available'**
+  String get notificationOrderUnavailable;
+
+  /// No description provided for @loadOlder.
+  ///
+  /// In en, this message translates to:
+  /// **'Load older'**
+  String get loadOlder;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

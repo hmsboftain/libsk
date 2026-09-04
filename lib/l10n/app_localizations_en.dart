@@ -2968,6 +2968,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deliveryDispatchFailed => 'Could not request a driver. Please try again.';
 
   @override
+  String get deliverySelectAreaHint => 'Add your area to your delivery address to get exact delivery pricing.';
+
+  @override
+  String get deliveryCostAfterAddress => 'Delivery cost will be calculated once you choose an address.';
+
+  @override
+  String get deliveryFeeUnavailable => 'Unable to calculate delivery cost. Tap to try again.';
+
+  @override
   String get wasalStatusPending => 'Finding a driver';
 
   @override
@@ -3002,4 +3011,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get wasalBranchCodeSaved => 'Branch code saved';
+
+  @override
+  String get deliveryTrackingTitle => 'Delivery tracking';
+
+  @override
+  String get deliveryDriverLocationUnavailable => 'Driver location not available yet';
+
+  @override
+  String get cartOneBoutiqueTitle => 'One boutique at a time';
+
+  @override
+  String get cartOneBoutiqueMessage => 'Your cart has items from another boutique. Clear it to add this?';
+
+  @override
+  String get cartClearAndAdd => 'Clear cart & add';
+
+  @override
+  String get notificationsEmpty => 'No notifications yet';
+
+  @override
+  String get markAllRead => 'Mark all as read';
+
+  @override
+  String get notificationOrderUnavailable => 'This order is no longer available';
+
+  @override
+  String get loadOlder => 'Load older';
 }

@@ -2972,6 +2972,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get deliveryDispatchFailed => 'تعذّر طلب المندوب. حاول مرة أخرى.';
 
   @override
+  String get deliverySelectAreaHint => 'أضف منطقتك إلى عنوان التوصيل للحصول على سعر التوصيل الدقيق.';
+
+  @override
+  String get deliveryCostAfterAddress => 'سيتم احتساب سعر التوصيل بعد اختيار عنوانك.';
+
+  @override
+  String get deliveryFeeUnavailable => 'تعذّر احتساب تكلفة التوصيل. اضغط للمحاولة مرة أخرى.';
+
+  @override
   String get wasalStatusPending => 'جاري البحث عن مندوب';
 
   @override
@@ -3006,4 +3015,31 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get wasalBranchCodeSaved => 'تم حفظ رمز الفرع';
+
+  @override
+  String get deliveryTrackingTitle => 'تتبع التوصيل';
+
+  @override
+  String get deliveryDriverLocationUnavailable => 'موقع المندوب غير متاح بعد';
+
+  @override
+  String get cartOneBoutiqueTitle => 'متجر واحد في كل طلب';
+
+  @override
+  String get cartOneBoutiqueMessage => 'سلتك تحتوي على منتجات من متجر آخر. هل تريد إفراغها لإضافة هذا؟';
+
+  @override
+  String get cartClearAndAdd => 'إفراغ السلة والإضافة';
+
+  @override
+  String get notificationsEmpty => 'لا توجد إشعارات بعد';
+
+  @override
+  String get markAllRead => 'تعليم الكل كمقروء';
+
+  @override
+  String get notificationOrderUnavailable => 'هذا الطلب لم يعد متاحاً';
+
+  @override
+  String get loadOlder => 'تحميل الإشعارات الأقدم';
 }
