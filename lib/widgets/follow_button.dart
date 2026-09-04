@@ -1,5 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:libsk/l10n/app_localizations.dart';
 import '../core/services/analytics_service.dart';
+import '../pages/login_page.dart';
 import '../services/follow_service.dart';
 import 'theme.dart';
 
@@ -27,10 +30,17 @@ class FollowButton extends StatelessWidget {
     if (controller != null) {
       return AnimatedBuilder(
         animation: controller,
-        builder: (context, _) => _button(
-          following: controller.isFollowing(boutiqueId),
-          onTap: () => controller.toggle(boutiqueId, boutiqueName),
-        ),
+        builder: (context, _) {
+          final following = controller.isFollowing(boutiqueId);
+          return _button(
+            following: following,
+            onTap: () => _onTap(
+              context,
+              controller: controller,
+              following: following,
+            ),
+          );
+        },
       );
     }
 
@@ -42,21 +52,54 @@ class FollowButton extends StatelessWidget {
         final following = snapshot.data ?? false;
         return _button(
           following: following,
-          onTap: () {
-            if (following) {
-              service.unfollow(boutiqueId);
-              AnalyticsService.instance.logBoutiqueUnfollow(boutiqueId);
-            } else {
-              service.follow(boutiqueId);
-              AnalyticsService.instance.logBoutiqueFollow(
-                boutiqueId,
-                boutiqueName,
-              );
-            }
-          },
+          onTap: () =>
+              _onTap(context, service: service, following: following),
         );
       },
     );
+  }
+
+  /// Handles a tap in either mode. Following is per-account, so a guest is sent
+  /// to sign in first and the follow only proceeds on success — this is what
+  /// stops the feed from showing a phantom "Following" (an optimistic flip whose
+  /// write silently no-ops for a signed-out user) while the storefront, reading
+  /// live from Firestore, correctly shows "Follow". Any write failure is rolled
+  /// back and surfaced instead of being swallowed.
+  Future<void> _onTap(
+    BuildContext context, {
+    FollowController? controller,
+    FollowService? service,
+    required bool following,
+  }) async {
+    if (FirebaseAuth.instance.currentUser == null) {
+      final loggedIn = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
+      if (loggedIn != true || !context.mounted) return;
+    }
+
+    try {
+      if (controller != null) {
+        // Analytics is logged inside the controller's optimistic toggle.
+        await controller.toggle(boutiqueId, boutiqueName);
+      } else if (service != null) {
+        if (following) {
+          await service.unfollow(boutiqueId);
+          AnalyticsService.instance.logBoutiqueUnfollow(boutiqueId);
+        } else {
+          await service.follow(boutiqueId);
+          AnalyticsService.instance.logBoutiqueFollow(boutiqueId, boutiqueName);
+        }
+      }
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.somethingWentWrong),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Widget _button({required bool following, required VoidCallback onTap}) {

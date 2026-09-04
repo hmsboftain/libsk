@@ -16,9 +16,14 @@ class FollowService {
 
   // Follow — only writes to user's following subcollection.
   // The Cloud Function onFollowCreated handles incrementing followerCount.
+  //
+  // Throws when there is no signed-in user. Following is per-account, so a guest
+  // cannot follow: failing loudly here (rather than silently returning) lets the
+  // caller prompt sign-in and prevents the optimistic UI from showing a phantom
+  // "Following" that never persisted.
   Future<void> follow(String boutiqueId) async {
     final uid = _uid;
-    if (uid == null) return;
+    if (uid == null) throw Exception('User not logged in');
     await _followingRef(
       uid,
     ).doc(boutiqueId).set({'followedAt': FieldValue.serverTimestamp()});
@@ -28,7 +33,7 @@ class FollowService {
   // The Cloud Function onFollowDeleted handles decrementing followerCount.
   Future<void> unfollow(String boutiqueId) async {
     final uid = _uid;
-    if (uid == null) return;
+    if (uid == null) throw Exception('User not logged in');
     await _followingRef(uid).doc(boutiqueId).delete();
   }
 
@@ -114,14 +119,18 @@ class FollowController extends ChangeNotifier {
       } else {
         await _service.follow(boutiqueId);
       }
-    } catch (_) {
-      // Roll back the optimistic change on failure.
+    } catch (e) {
+      // Roll back the optimistic change on failure (e.g. a guest with no signed-in
+      // account, or a rejected write) and rethrow so the button can surface it —
+      // otherwise the feed would keep showing "Following" for a follow that never
+      // persisted, disagreeing with the storefront's live state.
       if (wasFollowing) {
         _following.add(boutiqueId);
       } else {
         _following.remove(boutiqueId);
       }
       notifyListeners();
+      rethrow;
     }
   }
 }
