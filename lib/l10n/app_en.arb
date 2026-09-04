@@ -550,6 +550,8 @@
   "@notificationSentToUsers": { "placeholders": { "count": { "type": "String" } } },
   "notificationSentToAllUsers": "Notification sent to all users",
   "@notificationSentToAllUsers": {},
+  "notificationDispatchResult": "{dispatched} dispatched / {noToken} no device / {failed} failed (of {attempted})",
+  "@notificationDispatchResult": { "placeholders": { "dispatched": { "type": "String" }, "attempted": { "type": "String" }, "noToken": { "type": "String" }, "failed": { "type": "String" } } },
   "failedToSendNotification": "Failed to send notification: {error}",
   "@failedToSendNotification": { "placeholders": { "error": { "type": "String" } } },
   "libskTagline": "Shop Local. Dress Global.",

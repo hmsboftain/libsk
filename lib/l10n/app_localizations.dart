@@ -3209,6 +3209,12 @@ abstract class AppLocalizations {
   /// **'Notification sent to all users'**
   String get notificationSentToAllUsers;
 
+  /// No description provided for @notificationDispatchResult.
+  ///
+  /// In en, this message translates to:
+  /// **'{dispatched} dispatched / {noToken} no device / {failed} failed (of {attempted})'**
+  String notificationDispatchResult(String dispatched, String attempted, String noToken, String failed);
+
   /// No description provided for @failedToSendNotification.
   ///
   /// In en, this message translates to:

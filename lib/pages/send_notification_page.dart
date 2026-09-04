@@ -73,18 +73,28 @@ class _SendNotificationPageState extends State<SendNotificationPage> {
         'body': body,
         'targetType': _targetType,
       });
-      final broadcast = result.data['broadcast'] == true;
-      final sentCount = result.data['sentCount'];
+      // The callable now reports actual push dispatch, not just that a
+      // Firestore doc was written. Surface the real counts so a send that
+      // reached no devices is not shown as a flat success.
+      final data = result.data;
+      final attempted = (data['attempted'] as num?)?.toInt() ?? 0;
+      final dispatched = (data['dispatched'] as num?)?.toInt() ??
+          (data['sentCount'] as num?)?.toInt() ??
+          0;
+      final noToken = (data['noToken'] as num?)?.toInt() ?? 0;
+      final failed = (data['failed'] as num?)?.toInt() ?? 0;
 
       if (!mounted) return;
+      final message = (attempted > 0 && dispatched == attempted)
+          ? l10n.notificationSentToUsers(dispatched.toString())
+          : l10n.notificationDispatchResult(
+              dispatched.toString(),
+              attempted.toString(),
+              noToken.toString(),
+              failed.toString(),
+            );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            broadcast
-                ? l10n.notificationSentToAllUsers
-                : l10n.notificationSentToUsers((sentCount ?? 0).toString()),
-          ),
-        ),
+        SnackBar(content: Text(message)),
       );
       _titleController.clear();
       _bodyController.clear();
