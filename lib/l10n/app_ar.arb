@@ -548,6 +548,8 @@
   "@notificationSentToUsers": { "placeholders": { "count": { "type": "String" } } },
   "notificationSentToAllUsers": "تم إرسال الإشعار إلى جميع المستخدمين",
   "@notificationSentToAllUsers": {},
+  "notificationDispatchResult": "تم الإرسال إلى {dispatched} / {noToken} بدون جهاز / {failed} فشل (من {attempted})",
+  "@notificationDispatchResult": { "placeholders": { "dispatched": { "type": "String" }, "attempted": { "type": "String" }, "noToken": { "type": "String" }, "failed": { "type": "String" } } },
   "failedToSendNotification": "فشل إرسال الإشعار: {error}",
   "@failedToSendNotification": { "placeholders": { "error": { "type": "String" } } },
   "libskTagline": "تسوّق محلياً. ارتدِ عالمياً.",

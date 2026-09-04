@@ -1626,6 +1626,11 @@ class AppLocalizationsAr extends AppLocalizations {
   String get notificationSentToAllUsers => 'تم إرسال الإشعار إلى جميع المستخدمين';
 
   @override
+  String notificationDispatchResult(String dispatched, String attempted, String noToken, String failed) {
+    return 'تم الإرسال إلى $dispatched / $noToken بدون جهاز / $failed فشل (من $attempted)';
+  }
+
+  @override
   String failedToSendNotification(String error) {
     return 'فشل إرسال الإشعار: $error';
   }

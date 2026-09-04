@@ -142,11 +142,15 @@ async function saveNotificationToUser(uid, title, body, type, extraData = {}) {
     });
 }
 
+// Returns a delivery status so callers can report actual push dispatch, not
+// just that the in-app Firestore doc was written:
+//   "dispatched" | "no_token" | "no_user" | "send_failed"
+// The in-app notification doc is saved in every case except a missing user.
 async function sendNotificationToUser(uid, title, body, type, extraData = {}) {
   const userDoc = await db.collection("users").doc(uid).get();
   if (!userDoc.exists) {
     logger.info("User document not found", {uid});
-    return;
+    return "no_user";
   }
 
   const userData = userDoc.data();
@@ -156,7 +160,7 @@ async function sendNotificationToUser(uid, title, body, type, extraData = {}) {
 
   if (!token) {
     logger.info("No FCM token for user", {uid});
-    return;
+    return "no_token";
   }
 
   const message = {
@@ -171,8 +175,10 @@ async function sendNotificationToUser(uid, title, body, type, extraData = {}) {
   try {
     await admin.messaging().send(message);
     logger.info("Notification sent", {uid, type});
+    return "dispatched";
   } catch (error) {
     logger.error("Failed to send notification", {uid, error});
+    return "send_failed";
   }
 }
 
@@ -2059,40 +2065,54 @@ exports.sendManualNotification = onCall({ maxInstances: 2 }, async (request) => 
       targetType,
     };
 
-    let sentCount = null;
-    let broadcast = false;
-
+    // Resolve the target users. All three target types now fan out over real
+    // per-user FCM tokens (via sendNotificationToUser), so every send is
+    // measurable and reported the same way — no unmeasurable topic broadcast.
+    // SCALING NOTE: this fans out with an unbounded Promise.all, and each
+    // sendNotificationToUser re-reads its user doc and does a per-user FCM
+    // send() + in-app write. Fine to a few hundred users. Beyond that, read the
+    // tokens in a single pass and switch to admin.messaging().sendEachForMulticast()
+    // in chunks of 500 (FCM's multicast limit), with batched in-app writes.
+    let targetUids;
     if (targetType === "all_users") {
-      // Broadcast to every device through the "all_users" FCM topic — a single
-      // send() instead of reading every user doc and messaging them one by one.
-      // Devices subscribe to this topic on startup (NotificationService.initialize).
-      await admin.messaging().send({
-        topic: "all_users",
-        notification: { title, body },
-        data: convertDataToStrings(extraData),
-      });
-      broadcast = true;
+      targetUids = (await db.collection("users").get()).docs.map((d) => d.id);
     } else {
-      // Targeted groups are small, bounded sets — fan out in parallel.
       const collectionName = targetType === "boutique_owners"
         ? "boutique_owners"
         : "admin_users";
-      const targetUids = (await db.collection(collectionName)
+      targetUids = (await db.collection(collectionName)
         .where("isApproved", "==", true).get()).docs.map((d) => d.id);
-
-      await Promise.all(targetUids.map((uid) =>
-        sendNotificationToUser(uid, title, body, "manual_notification", extraData),
-      ));
-      sentCount = targetUids.length;
     }
 
+    const statuses = await Promise.all(targetUids.map((uid) =>
+      sendNotificationToUser(uid, title, body, "manual_notification", extraData),
+    ));
+
+    const attempted  = statuses.length;
+    const dispatched = statuses.filter((s) => s === "dispatched").length;
+    const noToken    = statuses.filter((s) => s === "no_token" || s === "no_user").length;
+    const failed     = statuses.filter((s) => s === "send_failed").length;
+
+    // A push actually left the server only if at least one token send was
+    // dispatched. The in-app doc is written regardless, so "sent" must NOT be
+    // inferred from the Firestore write alone.
+    const pushAccepted = dispatched > 0;
+
     await manualNotificationRef.update({
-      status: "sent",
-      ...(broadcast ? { broadcast: true } : { sentCount }),
+      status: pushAccepted ? "sent" : "no_push_dispatched",
+      attempted, dispatched, noToken, failed,
       sentAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    return { success: true, sentCount, broadcast };
+    return {
+      success: true,        // the callable ran without a fatal error
+      pushAccepted,         // did a real push actually leave the server?
+      targetType,
+      attempted, dispatched, noToken, failed,
+      // Back-compat: existing clients read `sentCount`. It now means
+      // *pushes dispatched*, not *users targeted* (the old, misleading value).
+      sentCount: dispatched,
+    };
   } catch (error) {
     logger.error("Manual notification error", error);
     if (error instanceof HttpsError) throw error;
