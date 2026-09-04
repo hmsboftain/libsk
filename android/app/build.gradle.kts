@@ -28,8 +28,9 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.libsk"
+        // Must match the package_name in android/app/google-services.json and the
+        // App ID registered with Firebase/FCM, or push + App Check won't route.
+        applicationId = "com.libsk.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24
@@ -49,4 +50,11 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // NormalTheme (values/styles.xml + values-night/styles.xml) uses a
+    // Theme.MaterialComponents parent, which requires the Material Components
+    // library on the classpath. The app module otherwise declares no deps.
+    implementation("com.google.android.material:material:1.12.0")
 }
