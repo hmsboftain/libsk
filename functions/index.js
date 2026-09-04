@@ -754,6 +754,8 @@ exports.updateOrderStatus = onCall({ secrets: [wasalApiKey] }, async (request) =
         await boutiqueOrderRef.update({
           wasalStatus: "cancelled",
           wasalStatusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          // Terminal delivery — stop the reconciliation poller from selecting it.
+          wasalDeliveryOpen: false,
         });
       } catch (err) {
         logger.warn("Wasal delivery cancel failed — cancel manually in dashboard",
@@ -5183,6 +5185,10 @@ exports.markReadyForPickup = onCall({ secrets: [wasalApiKey] }, async (request) 
       wasalStatus: wasalOrder.status || "pending",
       wasalDispatchedAt: admin.firestore.FieldValue.serverTimestamp(),
       wasalDispatchClaimed: false, // durable guard (a) has taken over from the claim
+      // Reconciliation-poller fields: mark the delivery open, and seed the
+      // last-polled stamp so reconcileWasalDeliveries' orderBy includes it.
+      wasalDeliveryOpen: true,
+      wasalLastPolledAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     await idBatch.commit();
     claimed = false; // wasalOrderId persisted; guard (a) now blocks re-dispatch
@@ -5248,6 +5254,75 @@ exports.markReadyForPickup = onCall({ secrets: [wasalApiKey] }, async (request) 
   }
 });
 
+// Apply one Wasal delivery status to the boutique sub-order and fan it out to
+// the customer + global order. The SINGLE write path shared by wasalWebhook and
+// reconcileWasalDeliveries, so advance/notify logic lives in one place.
+//
+// The write block below is byte-for-byte the webhook's previous transaction,
+// with TWO additions: (1) a read-skip — if the boutique sub-order already carries
+// this exact wasalStatus, nothing is written (idempotent; a genuine transition is
+// never skipped, so notifyWasalDeliveryStatus still fires once per milestone);
+// (2) it clears wasalDeliveryOpen when the status is terminal, so the poller stops
+// selecting a delivery this path already finished. Because the boutique write and
+// the customer/global fan-out commit in ONE transaction, the boutique wasalStatus
+// is a faithful marker that the whole apply happened — the skip can never drop a
+// fan-out a prior apply left unwritten.
+//
+// map: { boutiqueId, boutiqueOrderId, customerUid, sourceUserOrderId }. Returns
+// true when a change was applied, false when the status was already current.
+async function applyWasalDeliveryStatus(wasalOrderId, wasalStatus, map) {
+  const boutiqueOrderRef = db.collection("boutiques").doc(map.boutiqueId)
+    .collection("orders").doc(map.boutiqueOrderId);
+  const userOrderRef = map.customerUid && map.sourceUserOrderId
+    ? db.collection("users").doc(map.customerUid)
+        .collection("orders").doc(map.sourceUserOrderId)
+    : null;
+  const globalOrderRef = map.sourceUserOrderId
+    ? db.collection("global_orders").doc(map.sourceUserOrderId)
+    : null;
+  const libskStatus = wasal.mapWasalToLibskStatus(wasalStatus);
+  const isTerminal = wasal.WASAL_TERMINAL_STATUSES.includes(wasalStatus);
+
+  return await db.runTransaction(async (tx) => {
+    const boutiqueSnap = await tx.get(boutiqueOrderRef);
+    const globalSnap = globalOrderRef ? await tx.get(globalOrderRef) : null;
+
+    // Idempotent read-skip: already at this status → nothing to do.
+    if (boutiqueSnap.exists && boutiqueSnap.data().wasalStatus === wasalStatus) {
+      return false;
+    }
+
+    // Boutique sub-order: always mirror the Wasal status; advance the LIBSK
+    // status when the delivery has physically progressed; close the delivery
+    // for the reconciliation poller once it reaches a terminal status.
+    tx.set(boutiqueOrderRef, {
+      wasalStatus,
+      wasalStatusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...(libskStatus ? { status: libskStatus } : {}),
+      ...(isTerminal ? { wasalDeliveryOpen: false } : {}),
+    }, { merge: true });
+
+    // Customer-facing order docs: per-delivery status map + aggregated status.
+    // "On the Way" as soon as any delivery moves; "Delivered" only when EVERY
+    // delivery in the order is delivered.
+    if (globalSnap && globalSnap.exists && userOrderRef) {
+      const globalData = globalSnap.data() || {};
+      const statuses = { ...(globalData.wasalStatuses || {}), [wasalOrderId]: wasalStatus };
+      const allDelivered = wasal.overallDeliveryStatus(statuses) === "Delivered";
+      const advance =
+        libskStatus === "Delivered" ? (allDelivered ? "Delivered" : "On the Way")
+        : libskStatus; // "On the Way" or null
+      const update = {
+        [`wasalStatuses.${wasalOrderId}`]: wasalStatus,
+        ...(advance && globalData.status !== "Cancelled" ? { status: advance } : {}),
+      };
+      tx.set(globalOrderRef, update, { merge: true });
+      tx.set(userOrderRef, update, { merge: true });
+    }
+    return true;
+  });
+}
+
 // ── wasalWebhook — signed status pushes from Wasal ───────────────────────────
 //
 // Registered once against Wasal (POST /integration/merchant/webhook with this
@@ -5292,53 +5367,91 @@ exports.wasalWebhook = onRequest(
         return;
       }
       const map = mapSnap.data();
-      const libskStatus = wasal.mapWasalToLibskStatus(wasalStatus);
-
-      const boutiqueOrderRef = db.collection("boutiques").doc(map.boutiqueId)
-        .collection("orders").doc(map.boutiqueOrderId);
-      const userOrderRef = map.customerUid && map.sourceUserOrderId
-        ? db.collection("users").doc(map.customerUid)
-            .collection("orders").doc(map.sourceUserOrderId)
-        : null;
-      const globalOrderRef = map.sourceUserOrderId
-        ? db.collection("global_orders").doc(map.sourceUserOrderId)
-        : null;
-
-      await db.runTransaction(async (tx) => {
-        const globalSnap = globalOrderRef ? await tx.get(globalOrderRef) : null;
-
-        // Boutique sub-order: always mirror the Wasal status; advance the
-        // LIBSK status when the delivery has physically progressed.
-        tx.set(boutiqueOrderRef, {
-          wasalStatus,
-          wasalStatusUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          ...(libskStatus ? { status: libskStatus } : {}),
-        }, { merge: true });
-
-        // Customer-facing order docs: per-delivery status map + aggregated
-        // status. "On the Way" as soon as any delivery moves; "Delivered"
-        // only when EVERY delivery in the order is delivered.
-        if (globalSnap && globalSnap.exists && userOrderRef) {
-          const globalData = globalSnap.data() || {};
-          const statuses = { ...(globalData.wasalStatuses || {}), [wasalOrderId]: wasalStatus };
-          const allDelivered = wasal.overallDeliveryStatus(statuses) === "Delivered";
-          const advance =
-            libskStatus === "Delivered" ? (allDelivered ? "Delivered" : "On the Way")
-            : libskStatus; // "On the Way" or null
-          const update = {
-            [`wasalStatuses.${wasalOrderId}`]: wasalStatus,
-            ...(advance && globalData.status !== "Cancelled" ? { status: advance } : {}),
-          };
-          tx.set(globalOrderRef, update, { merge: true });
-          tx.set(userOrderRef, update, { merge: true });
-        }
-      });
+      // Same transaction as before, now shared with the reconciliation poller.
+      await applyWasalDeliveryStatus(wasalOrderId, wasalStatus, map);
 
       res.status(200).send("OK");
     } catch (error) {
       logger.error("wasalWebhook failed", error);
       // 500 → Wasal may retry; that is safe (handler is idempotent).
       res.status(500).send("Internal error");
+    }
+  },
+);
+
+// ── reconcileWasalDeliveries — backstop poller for missed Wasal status webhooks
+//
+// Wasal webhooks are single-attempt with an 8s timeout and no retry queue, and
+// are currently not fired for demo-driver status changes — so a transition can
+// be lost. This polls open deliveries and re-applies their live status through
+// the SAME path as the webhook (applyWasalDeliveryStatus), so
+// notifyWasalDeliveryStatus fires exactly once per milestone regardless of which
+// observed it first. Budget: keyed getOrder is 1 call/delivery against Wasal's
+// 600-req/15-min key; 5-min interval x 50/batch = 150/15min = 25% of budget.
+const WASAL_RECONCILE_MAX_CHECKS = 5; // stop polling a delivery Wasal can't resolve
+
+exports.reconcileWasalDeliveries = onSchedule(
+  { schedule: "every 5 minutes", maxInstances: 1, timeoutSeconds: 120, secrets: [wasalApiKey] },
+  async () => {
+    if (wasalEnabled.value() !== "true") return;
+
+    const snap = await db.collectionGroup("orders")
+      .where("wasalDeliveryOpen", "==", true)
+      .orderBy("wasalLastPolledAt", "asc") // least-recently-checked first
+      .limit(50)
+      .get();
+    if (snap.empty) return;
+
+    const client = wasal.createWasalClient(wasalApiKey.value());
+
+    for (const doc of snap.docs) {
+      const order = doc.data();
+      const boutiqueId = doc.ref.parent.parent ? doc.ref.parent.parent.id : "";
+      const wasalOrderId = String(order.wasalOrderId || "");
+      if (!wasalOrderId || !boutiqueId) {
+        logger.warn("reconcileWasalDeliveries: open delivery missing ids — closing",
+          { path: doc.ref.path });
+        await doc.ref.update({ wasalDeliveryOpen: false }).catch(() => {});
+        continue;
+      }
+      try {
+        const res = await client.getOrder(wasalOrderId);
+        // getOrder returns the `data` envelope; this project nests the order
+        // under data.order (like createOrder→.order, getCustomer→.customer), so
+        // the status is at res.order.status. Flat res.status is a defensive
+        // fallback. Empty → log, never silently no-op (a shape change must surface).
+        const live = String(
+          (res && res.order && res.order.status) || (res && res.status) || "");
+        if (!live) {
+          logger.warn("reconcileWasalDeliveries: no status in getOrder response",
+            { wasalOrderId, keys: res ? Object.keys(res) : null });
+          await doc.ref.update({
+            wasalLastPolledAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          continue;
+        }
+        await applyWasalDeliveryStatus(wasalOrderId, live, {
+          boutiqueId,
+          boutiqueOrderId: doc.id,
+          customerUid: order.customerUid || "",
+          sourceUserOrderId: order.sourceUserOrderId || "",
+        });
+        // Rotate the batch (applyWasalDeliveryStatus clears wasalDeliveryOpen
+        // itself on a terminal status).
+        await doc.ref.update({
+          wasalLastPolledAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (err) {
+        const checks = (Number(order.wasalReconcileChecks) || 0) + 1;
+        const giveUp = checks >= WASAL_RECONCILE_MAX_CHECKS;
+        logger.warn("reconcileWasalDeliveries: getOrder failed",
+          { wasalOrderId, checks, giveUp, err: err.message });
+        await doc.ref.update({
+          wasalLastPolledAt: admin.firestore.FieldValue.serverTimestamp(),
+          wasalReconcileChecks: checks,
+          ...(giveUp ? { wasalDeliveryOpen: false, wasalReconcileGaveUp: true } : {}),
+        }).catch(() => {});
+      }
     }
   },
 );
