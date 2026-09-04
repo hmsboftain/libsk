@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>836617178098-9k32tnbq495n87mj42fjsg9c99p54jfg.apps.googleusercontent.com</string>
+	<string>836617178098-jg2p6u438tv5mmn16hqcau7dp7doaffl.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.836617178098-9k32tnbq495n87mj42fjsg9c99p54jfg</string>
+	<string>com.googleusercontent.apps.836617178098-jg2p6u438tv5mmn16hqcau7dp7doaffl</string>
 	<key>ANDROID_CLIENT_ID</key>
 	<string>836617178098-iil03dj087h3mheuahfn0r83j7rh7m78.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
@@ -15,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.boftain.libsk</string>
+	<string>com.libsk.app</string>
 	<key>PROJECT_ID</key>
 	<string>libsk-b68f5</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:836617178098:ios:10b67c0209b7eb02ae796b</string>
+	<string>1:836617178098:ios:c786b2bd912c58edae796b</string>
 </dict>
 </plist>
