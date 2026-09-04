@@ -857,8 +857,11 @@ function mapPayzahStatus(gatewayStatus) {
 async function fetchPayzahStatus(attempt) {
   // Local/emulator testing hook: set `mockStatus` ("paid" | "failed" |
   // "pending" | "unclear") on a payment_attempts doc and the next check
-  // behaves as if Payzah returned that status.
-  if (attempt && ["paid", "failed", "pending", "unclear"].includes(attempt.mockStatus)) {
+  // behaves as if Payzah returned that status. NEVER honored in production — it
+  // would let a payment_attempts doc self-report "paid" with no real gateway
+  // capture (writes are already denied to clients, but this is defense in depth).
+  if (payzahEnv.value() !== "production" &&
+      attempt && ["paid", "failed", "pending", "unclear"].includes(attempt.mockStatus)) {
     return {
       result: attempt.mockStatus,
       gatewayStatus: attempt.mockStatus === "unclear" ? "HOST TIMEOUT" : null,
@@ -1816,6 +1819,15 @@ function emailRenderers() {
   return _emailRenderers;
 }
 
+// Redact an email for logs — keep the first character and the domain, mask the
+// rest (e.g. "hussain@gmail.com" -> "h***@gmail.com"). Keeps enough to debug
+// delivery without writing customer PII to Cloud Logging.
+function redactEmail(email) {
+  if (!email || typeof email !== "string" || !email.includes("@")) return "<redacted>";
+  const [local, domain] = email.split("@");
+  return `${local.slice(0, 1)}***@${domain}`;
+}
+
 async function sendOrderEmail(to, subject, html) {
   try {
     const resend = getResend();
@@ -1825,9 +1837,9 @@ async function sendOrderEmail(to, subject, html) {
       subject,
       html,
     });
-    logger.info("Order email sent", { to, subject });
+    logger.info("Order email sent", { to: redactEmail(to), subject });
   } catch (err) {
-    logger.error("Failed to send order email", { to, err });
+    logger.error("Failed to send order email", { to: redactEmail(to), err });
   }
 }
 
@@ -2501,10 +2513,23 @@ exports.cleanupGuestCarts = onSchedule(
     .get();
 
   for (const userDoc of guestUsersSnap.docs) {
-    const cartSnap = await userDoc.ref.collection("cart_items").where("createdAt", "<", cutoff).get();
+    // Carts live at users/{guestId}/carts/{boutiqueId}/items — not a flat
+    // cart_items collection — so the old query never matched and guest carts
+    // were never purged. Walk each boutique cart, delete stale line items, and
+    // drop any summary doc left with no fresh items.
+    const cartsSnap = await userDoc.ref.collection("carts").get();
     const batch = db.batch();
-    cartSnap.docs.forEach(doc => batch.delete(doc.ref));
-    if (cartSnap.docs.length > 0) await batch.commit();
+    let ops = 0;
+    for (const cartDoc of cartsSnap.docs) {
+      const staleItems = await cartDoc.ref.collection("items")
+        .where("createdAt", "<", cutoff).get();
+      if (staleItems.empty) continue;
+      staleItems.docs.forEach((doc) => { batch.delete(doc.ref); ops++; });
+      const fresh = await cartDoc.ref.collection("items")
+        .where("createdAt", ">=", cutoff).limit(1).get();
+      if (fresh.empty) { batch.delete(cartDoc.ref); ops++; }
+    }
+    if (ops > 0) await batch.commit();
   }
 });
 
@@ -4538,7 +4563,7 @@ async function sendOtpEmail(to, code, locale) {
     subject: locale === "ar" ? "رمز التحقق — LIBSK" : "Your LIBSK verification code",
     html: otpEmailHtml(code, locale),
   });
-  logger.info("OTP email sent", { to });
+  logger.info("OTP email sent", { to: redactEmail(to) });
 }
 
 exports.sendEmailOtp = onCall({ secrets: [resendApiKey] }, async (request) => {
