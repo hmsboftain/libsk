@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../navigation/app_header.dart';
@@ -32,9 +32,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     });
 
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(
-        email: emailController.text.trim(),
-      );
+      // Branded reset email via Cloud Function (Resend), not Firebase Auth's
+      // plain built-in template. The server always returns success and never
+      // reveals whether the account exists, so the UI shows one uniform message
+      // (no account enumeration — this replaces the old user-not-found branch).
+      await FirebaseFunctions.instanceFor(region: 'us-central1')
+          .httpsCallable('sendBrandedPasswordReset')
+          .call({'email': emailController.text.trim()});
 
       if (!mounted) return;
 
@@ -43,16 +47,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       );
 
       Navigator.pop(context);
-    } on FirebaseAuthException catch (e) {
-      String message = l10n.couldNotSendResetEmail;
-
-      if (e.code == 'invalid-email') {
-        message = l10n.invalidEmailAddress;
-      } else if (e.code == 'user-not-found') {
-        message = l10n.noAccountFoundForThisEmail;
-      } else if (e.message != null) {
-        message = e.message!;
-      }
+    } on FirebaseFunctionsException catch (e) {
+      final message = e.code == 'invalid-argument'
+          ? l10n.invalidEmailAddress
+          : (e.message ?? l10n.couldNotSendResetEmail);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
