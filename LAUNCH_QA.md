@@ -29,10 +29,10 @@ device pass. Kept in-repo so the remaining items stay tracked.
 | 1 | **Wasal aggregation (bug)** | `applyWasalDeliveryStatus` + `markReadyForPickup` fan-out wrote `wasalStatuses` with a **dotted key in `set({merge:true})`** — a literal field name in the admin SDK, so the nested map stayed `{}`. Multi-boutique orders were marked **Delivered after only the first delivery**, and the double-push suppression broke. Now written as a nested object → deep-merges correctly. | 25/25 Wasal assertions (multi-boutique: one delivered → On the Way; all → Delivered) |
 | 2 | **Status email fee (bug)** | `sendOrderStatusEmail` recomputed a flat 3/5 delivery fee instead of reading `after.deliveryCost` (Wasal orders showed the wrong fee). Now mirrors the confirmation email. | code + re-read |
 | 3 | **Status email coverage** | Emails now sent for **Confirmed / On the Way / Delivered / Cancelled** (was only Delivered/Cancelled, keyed off non-existent `Picked Up`/`Out for Delivery` statuses), each a full **receipt** via `orderEmailHtml`. | code + re-read |
-| 4 | **Google/Apple sign-in** | Root causes found: (a) **iOS Apple** — missing `com.apple.developer.applesignin` entitlement (added to `Runner.entitlements`); (b) **Android Google** — `google-services.json` has no `client_type:1` (Android/SHA) OAuth client → `ApiException 10` (**needs SHA registration, see below**); (c) error handling swallowed the real error (`catch (_)`) — now records to Crashlytics + surfaces the real message via `lib/services/auth_error.dart` (login + sign-up). | config inspected; error path code-reviewed |
+| 4 | **Google/Apple sign-in** | Error handling swallowed the real error (`catch (_)`) — now records to Crashlytics + surfaces the real message via `lib/services/auth_error.dart` (login + sign-up). That surfacing is what let Hussain diagnose both root causes on-device. **RESOLVED (device-tested):** Google works as-is (the `google-services.json` SHA gap flagged from static analysis was **not** an actual blocker — no change needed). Apple's real error was "identity provider configuration was not found" = the **Apple provider was disabled in Firebase Auth** (now enabled in the console); the native sheet already appeared, so entitlement/provisioning were fine. The `com.apple.developer.applesignin` entitlement was still added to `Runner.entitlements` as the standard, explicit capability declaration. | device-tested ✓ |
 | 5 | **OTP email logo** | Header wordmark "LIBSK" replaced with the logo image, embedded as a Resend **inline `cid:` attachment** (`functions/email_assets.js`, base64) so it renders in Gmail/Apple Mail (data: URIs get stripped). | code |
 | 6 | **Branded password reset** | Re-added `sendBrandedPasswordReset` callable (generates the reset link via Admin SDK + sends a branded email through Resend). Client `forgot_password_page.dart` now calls it. Rate-limited per email; **never reveals whether an account exists** (returns `{sent:true}` always) — closes the old user-not-found enumeration leak. | 6/6 assertions (validation + enumeration guard) |
-| 7 | **Dead code** | Deleted `PayzahCheckoutPreviewPage`, `AppUser`, `AppOrder` (+ `Order` typedef), `CartItemModel` (0 external refs). **Kept `PromoCategoryUsage`** — it's used internally by the live `PromoAvailability`. | `flutter analyze` clean |
+| 7 | **Dead code** | Deleted `PayzahCheckoutPreviewPage`, `AppUser`, `AppOrder` (+ `Order` typedef), `CartItemModel`, and `Boutique` (`boutique.dart`) — all 0 external refs. **Kept `PromoCategoryUsage`** — it's used internally by the live `PromoAvailability`. | `flutter analyze`: no issues |
 | 8 | **Boutique visibility toggle (feature)** | New owner-writable `isVisible` boolean. Boutiques onboard **hidden** (`isVisible:false`); owner flips it visible from *My Boutique* once setup is done. Rules updated (owner-writable + bool-guarded, scoped). Storefront browse (`boutiques_page`) hides `isVisible === false`. | 104/104 rules assertions |
 
 ### ⚠️ Visibility toggle — migration-safety (read before deploy)
@@ -89,13 +89,6 @@ search, and category pages is a scoped follow-up (reuse the same
 
 ## Still open (needs live creds / console — not fixed here)
 
-- **Android Google sign-in:** register the app's **SHA-1 + SHA-256** for the
-  current signing config (debug + release/upload key) in Firebase Console →
-  Project Settings → Android app, then **re-download `google-services.json`**
-  (adds the missing `client_type:1` OAuth client). Get the SHAs with
-  `cd android && ./gradlew signingReport`. Also confirm Google + Apple providers
-  are **enabled** in Firebase Auth, and the Apple **Service ID + redirect URI**
-  (Team ID `S28HXJ48JF`) for the App ID / Sign In with Apple capability.
 - **Orphaned prod function:** `firebase functions:list` — confirm whether
   `sendBrandedPasswordReset` already exists in prod (this branch re-adds it) and
   that `sendWelcomeEmail` (PR #41) is on master before any functions deploy, or a
@@ -112,6 +105,7 @@ search, and category pages is a scoped follow-up (reuse the same
 - **Language switcher (EN/AR + RTL)** — deferred by Hussain.
 
 ## Confirmed working live (manual device pass, 2026-09-05)
+Google + Apple sign-in (after enabling the Apple provider in Firebase Auth);
 Payzah card/KNET/Apple Pay + refund; Wasal live dispatch, double-tap protection,
 cancel-with-live-delivery, branch codes; prod webhook delivery; OTP + password
 reset received; App Check + jailbreak warning; login role routing + verification
