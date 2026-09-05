@@ -214,11 +214,9 @@ class PayzahCheckoutStateView extends StatelessWidget {
           height: 56,
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.fromBorderSide(
-              BorderSide(color: AppColors.deepAccent, width: 1),
-            ),
+            color: AppColors.deepAccent,
           ),
-          child: Icon(icon, size: 26, color: AppColors.deepAccent),
+          child: Icon(icon, size: 26, color: Colors.white),
         ),
         const SizedBox(height: 26),
         Text(

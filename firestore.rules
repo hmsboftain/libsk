@@ -10,13 +10,9 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function isAdmin() {
-      let adminDoc = get(/databases/$(database)/documents/admin_users/$(request.auth.uid));
-      return isSignedIn() &&
-        adminDoc != null &&
-        adminDoc.data.isApproved == true;
-    }
-
+    // Single admin tier: the sole super_admin. (The former role-agnostic
+    // isAdmin() helper was removed — every privileged path now requires
+    // isSuperAdmin(): isApproved == true AND role == 'super_admin'.)
     function isSuperAdmin() {
       let adminDoc = get(/databases/$(database)/documents/admin_users/$(request.auth.uid));
       return isSignedIn() &&
@@ -160,7 +156,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || isSuperAdmin();
       // A client may seed the verification flags only as false — never true, and
       // never verificationExempt. Granting yourself verified status at create
       // time would otherwise walk straight past the signup gate.
@@ -171,11 +167,21 @@ service cloud.firestore {
       // Verification state is server-owned: the OTP Cloud Functions and the
       // backfill script write it via the admin SDK (which bypasses rules).
       // Clients never flip their own flags, same principle as role.
+      //
+      // The superadmin branch may edit another user's doc — boutique onboarding
+      // sets role = 'boutique_owner' from the client, and that write must stay
+      // allowed — but is blocked from the four verification flags. Otherwise a
+      // hand-write could grant verificationExempt and walk any account straight
+      // past the signup verification gate. Those flags stay server-only.
       allow update: if (isOwner(userId) &&
         !request.resource.data.diff(resource.data).affectedKeys()
           .hasAny(['role', 'emailVerified', 'phoneVerified',
                    'verificationExempt', 'verificationExemptAt']) &&
-        isValidUserUpdate()) || isAdmin();
+        isValidUserUpdate()) ||
+        (isSuperAdmin() &&
+         !request.resource.data.diff(resource.data).affectedKeys()
+           .hasAny(['emailVerified', 'phoneVerified',
+                    'verificationExempt', 'verificationExemptAt']));
       allow delete: if isSuperAdmin();
 
       match /saved_items/{itemId} {
@@ -208,9 +214,9 @@ service cloud.firestore {
         }
       }
       match /orders/{orderId} {
-        allow read: if isOwner(userId) || isAdmin();
+        allow read: if isOwner(userId) || isSuperAdmin();
         allow create: if false;
-        allow update: if isAdmin();
+        allow update: if isSuperAdmin();
         allow delete: if false;
       }
       match /notifications/{notifId} {
@@ -232,13 +238,13 @@ service cloud.firestore {
         !request.resource.data.keys().hasAny([
           'promoCreditBalance', 'promoCreditWeek2DueAt', 'promoCreditWeek2Pending',
         ]);
-      allow update: if (isBoutiqueOwnerOf(boutiqueId) || isAdmin()) &&
+      allow update: if (isBoutiqueOwnerOf(boutiqueId) || isSuperAdmin()) &&
         // Server-only promo/ranking fields — only Cloud Functions (admin SDK
         // bypasses rules) may write these. Blocked for every client, including
-        // admins, so paid promo placement & trending rank can't be set by hand.
-        // The promoCredit* group is the founding-partner credit ledger: its live
-        // balance and grant schedule are mutated ONLY by the recharge/scheduled/
-        // spend Cloud Functions, never by any client (not even the owner).
+        // the superadmin, so paid promo placement & trending rank can't be set
+        // by hand. The promoCredit* group is the founding-partner credit ledger:
+        // its live balance and grant schedule are mutated ONLY by the recharge/
+        // scheduled/spend Cloud Functions, never by any client (not even the owner).
         !request.resource.data.diff(resource.data).affectedKeys()
           .hasAny([
             'followerCount', 'isFeedSponsored', 'feedSponsoredUntil',
@@ -248,13 +254,13 @@ service cloud.firestore {
             'promoCreditWeek2DueAt', 'promoCreditWeek2Pending',
           ]) &&
         // Home-page featuring fields drive the PAID "Featured Boutique"
-        // placement. Admins may still set them by hand (free editorial curation
-        // via the admin homepage tool); boutique owners may NOT — otherwise an
+        // placement. The superadmin may still set them by hand (free editorial
+        // curation via the homepage tool); boutique owners may NOT — otherwise an
         // owner could grant themselves a paid placement for free. The paid path
         // writes them from a Cloud Function (admin SDK bypasses rules).
-        // wasalBranchCode routes driver pickups for this boutique — admin-set
-        // only, so an owner can't point deliveries at another branch.
-        (isAdmin() ||
+        // wasalBranchCode routes driver pickups for this boutique —
+        // superadmin-set only, so an owner can't point deliveries at another branch.
+        (isSuperAdmin() ||
           !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['isVisibleOnHome', 'homeExpiresAt', 'homeOrder',
                      'wasalBranchCode']));
@@ -262,38 +268,39 @@ service cloud.firestore {
 
       match /products/{productId} {
         allow read: if true;
-        allow create: if (isBoutiqueOwnerOf(boutiqueId) || isAdmin()) &&
+        allow create: if (isBoutiqueOwnerOf(boutiqueId) || isSuperAdmin()) &&
           isValidProduct() &&
           // No promo/ranking fields may be set at creation time by any client —
-          // featuring & paid placement are applied later (admin curation or a
-          // Cloud Function), never seeded on the initial product write.
+          // featuring & paid placement are applied later (superadmin curation or
+          // a Cloud Function), never seeded on the initial product write.
           !request.resource.data.keys().hasAny([
             'isFeedSponsored', 'feedSponsoredUntil', 'weeklyOrders',
             'salesCount', 'isTrending', 'totalSales', 'rating', 'reviewCount',
             'isFeaturedOnHome', 'featuredExpiresAt', 'featuredOrder',
             'promotedCategories', 'categoryPromoUntil',
           ]);
-        allow update: if (isBoutiqueOwnerOf(boutiqueId) || isAdmin()) &&
+        allow update: if (isBoutiqueOwnerOf(boutiqueId) || isSuperAdmin()) &&
           isValidProduct() &&
-          // Server-only for EVERY client (incl. admins): computed counters, feed
-          // sponsorship, and paid category pinning (no manual curation UI).
+          // Server-only for EVERY client (incl. the superadmin): computed
+          // counters, feed sponsorship, and paid category pinning (no manual
+          // curation UI).
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'isFeedSponsored', 'feedSponsoredUntil', 'weeklyOrders',
             'salesCount', 'isTrending', 'totalSales', 'rating', 'reviewCount',
             'promotedCategories', 'categoryPromoUntil',
           ]) &&
-          // Home "Featured Pieces" fields drive PAID placement. Admins may set
-          // them by hand (editorial curation); owners may NOT (paid-only, via a
-          // Cloud Function which bypasses rules with the admin SDK).
-          (isAdmin() ||
+          // Home "Featured Pieces" fields drive PAID placement. The superadmin
+          // may set them by hand (editorial curation); owners may NOT (paid-only,
+          // via a Cloud Function which bypasses rules with the admin SDK).
+          (isSuperAdmin() ||
             !request.resource.data.diff(resource.data).affectedKeys()
               .hasAny(['isFeaturedOnHome', 'featuredExpiresAt', 'featuredOrder']));
-        allow delete: if isBoutiqueOwnerOf(boutiqueId) || isAdmin();
+        allow delete: if isBoutiqueOwnerOf(boutiqueId) || isSuperAdmin();
       }
       match /orders/{orderId} {
-        allow read: if isBoutiqueOwnerOf(boutiqueId) || isAdmin();
+        allow read: if isBoutiqueOwnerOf(boutiqueId) || isSuperAdmin();
         allow create: if false;
-        allow update: if isBoutiqueOwnerOf(boutiqueId) || isAdmin();
+        allow update: if isBoutiqueOwnerOf(boutiqueId) || isSuperAdmin();
         allow delete: if false;
       }
       // Founding-partner promo-credit ledger: the full audit trail of every
@@ -303,13 +310,13 @@ service cloud.firestore {
       // settlement branch, the scheduled recharge/expiry jobs and the manual
       // adjust callable all use the admin SDK, which bypasses these rules.
       match /promoCredits/{creditId} {
-        allow read: if isBoutiqueOwnerOf(boutiqueId) || isAdmin();
+        allow read: if isBoutiqueOwnerOf(boutiqueId) || isSuperAdmin();
         allow write: if false;
       }
     }
 
     match /boutique_owners/{ownerId} {
-      allow read: if isOwner(ownerId) || isAdmin();
+      allow read: if isOwner(ownerId) || isSuperAdmin();
       allow create, update, delete: if isSuperAdmin();
     }
 
@@ -319,31 +326,32 @@ service cloud.firestore {
     }
 
     match /global_orders/{orderId} {
-      allow read: if isAdmin() ||
+      allow read: if isSuperAdmin() ||
         (isSignedIn() && resource.data.customerUid == request.auth.uid);
       allow create: if false;
-      allow update: if isAdmin();
+      allow update: if isSuperAdmin();
       allow delete: if false;
     }
 
     match /discount_codes/{codeId} {
-      // Owners read their own codes (query filters by boutiqueId); admins read all.
-      allow read: if isBoutiqueOwnerOf(resource.data.boutiqueId) || isAdmin();
-      allow create: if (isBoutiqueOwnerOf(request.resource.data.boutiqueId) || isAdmin()) &&
+      // Owners read their own codes (query filters by boutiqueId); the superadmin
+      // reads all.
+      allow read: if isBoutiqueOwnerOf(resource.data.boutiqueId) || isSuperAdmin();
+      allow create: if (isBoutiqueOwnerOf(request.resource.data.boutiqueId) || isSuperAdmin()) &&
         isValidDiscountCode();
       // usageCount is incremented only by Cloud Functions (admin SDK bypasses
       // rules); clients may toggle isActive etc. but never tamper with the
       // redemption counter.
-      allow update: if (isBoutiqueOwnerOf(resource.data.boutiqueId) || isAdmin()) &&
+      allow update: if (isBoutiqueOwnerOf(resource.data.boutiqueId) || isSuperAdmin()) &&
         isValidDiscountCode() &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['usageCount']);
-      allow delete: if isBoutiqueOwnerOf(resource.data.boutiqueId) || isAdmin();
+      allow delete: if isBoutiqueOwnerOf(resource.data.boutiqueId) || isSuperAdmin();
     }
 
     match /promo_slot_payments/{paymentId} {
-      // Admin-only analytics read. Written exclusively by Cloud Functions via
-      // the admin SDK (which bypasses rules), so all client writes are denied.
-      allow read: if isAdmin();
+      // Superadmin-only analytics read. Written exclusively by Cloud Functions
+      // via the admin SDK (which bypasses rules), so all client writes are denied.
+      allow read: if isSuperAdmin();
       allow write: if false;
     }
 
@@ -358,14 +366,14 @@ service cloud.firestore {
       // read: the ad-analytics dashboard needs no extra permission, and because
       // these numbers are billing-adjacent they stay server-written like the
       // rest of the doc — logPromoClick and attributePromoSales own them.
-      allow read: if isAdmin() || isBoutiqueOwnerOf(resource.data.boutiqueId);
+      allow read: if isSuperAdmin() || isBoutiqueOwnerOf(resource.data.boutiqueId);
       allow write: if false;
 
       // The orders a booking's clicks drove — the dashboard's drill-down.
       // boutiqueId is denormalised onto each doc so authorising a read here
       // costs no parent lookup.
       match /attributed_sales/{orderId} {
-        allow read: if isAdmin() || isBoutiqueOwnerOf(resource.data.boutiqueId);
+        allow read: if isSuperAdmin() || isBoutiqueOwnerOf(resource.data.boutiqueId);
         allow write: if false;
       }
     }
@@ -381,17 +389,17 @@ service cloud.firestore {
     match /payment_attempts/{attemptId} {
       // Written exclusively by Cloud Functions (admin SDK bypasses rules).
       // Customers may read their own attempt so checkout's Verifying state
-      // can listen for the reconciled status; admins may read all.
+      // can listen for the reconciled status; the superadmin may read all.
       allow read: if isSignedIn() &&
-        (resource.data.customerUid == request.auth.uid || isAdmin());
+        (resource.data.customerUid == request.auth.uid || isSuperAdmin());
       allow write: if false;
     }
 
     match /disputes/{disputeId} {
       allow read: if isSignedIn() &&
-        (resource.data.customerUid == request.auth.uid || isAdmin());
+        (resource.data.customerUid == request.auth.uid || isSuperAdmin());
       allow create: if false;
-      allow update: if isAdmin();
+      allow update: if isSuperAdmin();
       allow delete: if false;
     }
 
@@ -401,25 +409,23 @@ service cloud.firestore {
       // exception is order_counter: it holds cumulative order volume (a
       // business metric) and is written and read ONLY by the server (admin
       // SDK, which bypasses rules), so no client needs it. Expose that doc to
-      // admins alone rather than to every signed-in customer.
+      // the superadmin alone rather than to every signed-in customer.
       allow read: if isSignedIn() &&
-        (docId != 'order_counter' || isAdmin());
+        (docId != 'order_counter' || isSuperAdmin());
       allow write: if false;
     }
 
     match /manual_notifications/{notifId} {
-      allow read, create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isSuperAdmin();
+      // Server-only in both directions. The sendManualNotification callable
+      // writes this collection via the admin SDK (which bypasses rules); no
+      // client ever reads, creates, updates or deletes it directly. Deny-all
+      // keeps the send audit trail out of client reach entirely.
+      allow read, write: if false;
     }
 
     match /hero_banners/{bannerId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
-    }
-
-    match /pending_invites/{inviteId} {
-      allow read, write: if isSuperAdmin();
+      allow create, update, delete: if isSuperAdmin();
     }
 
     match /rate_limits/{docId} {
@@ -440,7 +446,7 @@ service cloud.firestore {
     }
 
     match /{path=**}/orders/{orderId} {
-      allow read: if isAdmin();
+      allow read: if isSuperAdmin();
     }
 
     match /{document=**} {

@@ -112,13 +112,9 @@ async function saveAlgoliaObjects(indexName, objects) {
 
 // ================= HELPERS =================
 
-async function isAdminUser(uid) {
-  const adminDoc = await db.collection("admin_users").doc(uid).get();
-  if (!adminDoc.exists) return false;
-  const adminData = adminDoc.data();
-  return adminData.isApproved === true;
-}
-
+// Single admin tier: the sole super_admin. (The former role-agnostic
+// isAdminUser() helper was removed — every privileged callable now requires
+// isSuperAdminUser(): isApproved === true AND role === "super_admin".)
 async function isSuperAdminUser(uid) {
   const adminDoc = await db.collection("admin_users").doc(uid).get();
   if (!adminDoc.exists) return false;
@@ -2296,11 +2292,8 @@ exports.sendManualNotification = onCall({ maxInstances: 2 }, async (request) => 
     }
 
     const uid = request.auth.uid;
-    const isAdmin = await isAdminUser(uid);
-    const isSuperAdmin = await isSuperAdminUser(uid);
-
-    if (!isAdmin && !isSuperAdmin) {
-      throw new HttpsError("permission-denied", "Only admins can send notifications.");
+    if (!await isSuperAdminUser(uid)) {
+      throw new HttpsError("permission-denied", "Super admins only.");
     }
 
     const data = request.data || {};
