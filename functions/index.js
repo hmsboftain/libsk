@@ -1599,7 +1599,16 @@ exports.validateDiscountCode = onCall(async (request) => {
 // ================= ORDER NOTIFICATIONS =================
 
 exports.notifyOrderPlaced = onDocumentCreated(
-  "global_orders/{orderId}",
+  // Region pinned to us-central1 to MATCH what's already deployed, so a full
+  // `firebase deploy --only functions` never tries to delete-and-recreate these
+  // in a different region. The Firestore DB is eur3, so the function runs
+  // cross-region from its (eur3) trigger — a SUPPORTED config (events still
+  // fire), just an extra latency/egress hop, which is what the deploy's
+  // region-mismatch warning is nudging about. Colocating all five notify* fns in
+  // a European region to remove that hop is an optional future migration
+  // (redeploy → brief trigger gap), to be scheduled separately — do NOT change
+  // the region here outside of that migration.
+  { document: "global_orders/{orderId}", region: "us-central1" },
   async (event) => {
     const orderData = event.data.data();
     const orderId = event.params.orderId;
@@ -1653,7 +1662,8 @@ function wasalDeliveryTransitionInUpdate(beforeData, afterData) {
 }
 
 exports.notifyOrderStatusChanged = onDocumentUpdated(
-  "global_orders/{orderId}",
+  // Region pinned to deployed us-central1 — see notifyOrderPlaced for the why.
+  { document: "global_orders/{orderId}", region: "us-central1" },
   async (event) => {
     const beforeData = event.data.before.data();
     const afterData = event.data.after.data();
@@ -2032,7 +2042,13 @@ exports.sendOrderStatusEmail = onDocumentUpdated(
 // the false->true transition catches everyone exactly once. `welcomeSent`
 // guards against re-sends (setting it re-triggers this, but the guard returns).
 exports.sendWelcomeEmail = onDocumentUpdated(
-  { document: "users/{uid}", secrets: [resendApiKey] },
+  // Region pinned to europe-west1 to MATCH the deployed function (it went live in
+  // europe-west1). The source previously declared no region (defaulting to
+  // us-central1), so a full `firebase deploy --only functions` would have seen a
+  // mismatch and tried to delete-and-recreate it in us-central1. europe-west1 is
+  // colocated with the eur3 Firestore DB (no cross-region hop — why this one
+  // never triggered the region-mismatch warning).
+  { document: "users/{uid}", region: "europe-west1", secrets: [resendApiKey] },
   async (event) => {
     const before = event.data.before.data();
     const after = event.data.after.data();
@@ -2089,7 +2105,8 @@ exports.sendWelcomeEmail = onDocumentUpdated(
 // ================= DISPUTE NOTIFICATIONS =================
 
 exports.notifyDisputeCreated = onDocumentCreated(
-  "disputes/{disputeId}",
+  // Region pinned to deployed us-central1 — see notifyOrderPlaced for the why.
+  { document: "disputes/{disputeId}", region: "us-central1" },
   async (event) => {
     const disputeData = event.data.data();
     const disputeId = event.params.disputeId;
@@ -2127,7 +2144,8 @@ exports.notifyDisputeCreated = onDocumentCreated(
 );
 
 exports.notifyDisputeStatusChanged = onDocumentUpdated(
-  "disputes/{disputeId}",
+  // Region pinned to deployed us-central1 — see notifyOrderPlaced for the why.
+  { document: "disputes/{disputeId}", region: "us-central1" },
   async (event) => {
     const beforeData = event.data.before.data();
     const afterData = event.data.after.data();
@@ -2266,7 +2284,8 @@ exports.submitDispute = onCall(async (request) => {
 // ================= LOW STOCK NOTIFICATIONS =================
 
 exports.notifyLowStock = onDocumentUpdated(
-  "boutiques/{boutiqueId}/products/{productId}",
+  // Region pinned to deployed us-central1 — see notifyOrderPlaced for the why.
+  { document: "boutiques/{boutiqueId}/products/{productId}", region: "us-central1" },
   async (event) => {
     const beforeData = event.data.before.data();
     const afterData = event.data.after.data();
