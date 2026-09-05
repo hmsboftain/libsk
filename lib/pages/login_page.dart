@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import '../services/auth_error.dart';
 import '../services/firestore_service.dart';
 import '../services/verification_service.dart';
 import '../widgets/theme.dart';
@@ -168,13 +169,11 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
       Navigator.pop(context, true);
-    } catch (_) {
+    } catch (e, st) {
+      final msg = reportSignInError(
+        e, st, 'google_sign_in', AppLocalizations.of(context)!.somethingWentWrong);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.somethingWentWrong),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
     }
@@ -224,22 +223,18 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
       Navigator.pop(context, true);
-    } on SignInWithAppleAuthorizationException catch (e) {
+    } on SignInWithAppleAuthorizationException catch (e, st) {
       // User cancelled — don't show an error snackbar.
       if (e.code == AuthorizationErrorCode.canceled) return;
+      final msg = reportSignInError(
+        e, st, 'apple_sign_in', AppLocalizations.of(context)!.somethingWentWrong);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.somethingWentWrong),
-        ),
-      );
-    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } catch (e, st) {
+      final msg = reportSignInError(
+        e, st, 'apple_sign_in', AppLocalizations.of(context)!.somethingWentWrong);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.somethingWentWrong),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } finally {
       if (mounted) setState(() => _isAppleLoading = false);
     }

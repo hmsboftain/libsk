@@ -189,6 +189,14 @@ class _BoutiquesPageState extends State<BoutiquesPage> {
                       }
 
                       var docs = snapshot.data?.docs ?? [];
+                      // Hide boutiques the owner has explicitly hidden from the
+                      // storefront (isVisible === false). MIGRATION-SAFE: missing
+                      // or true both read as visible, so existing boutiques with
+                      // no field stay visible and no backfill is required (this is
+                      // the anti-outage property — see go-live-draft-mode history).
+                      docs = docs
+                          .where((doc) => doc.data()['isVisible'] != false)
+                          .toList();
                       if (_searchQuery.isNotEmpty) {
                         docs = docs.where((doc) {
                           final name =

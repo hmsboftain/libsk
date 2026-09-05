@@ -10,8 +10,7 @@ import 'theme.dart';
 /// `reconcilePayzahPayments` Cloud Functions resolve the corresponding
 /// `payment_attempts` doc. That asynchronous gap is why [redirecting] and
 /// [verifying] exist as first-class states here. Driven live by
-/// `PayzahPaymentPage`; preview every state via `PayzahCheckoutPreviewPage`
-/// in debug builds.
+/// `PayzahPaymentPage`.
 enum PayzahCheckoutState {
   /// The payment attempt is being created server-side.
   loading,
@@ -214,11 +213,9 @@ class PayzahCheckoutStateView extends StatelessWidget {
           height: 56,
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.fromBorderSide(
-              BorderSide(color: AppColors.deepAccent, width: 1),
-            ),
+            color: AppColors.deepAccent,
           ),
-          child: Icon(icon, size: 26, color: AppColors.deepAccent),
+          child: Icon(icon, size: 26, color: Colors.white),
         ),
         const SizedBox(height: 26),
         Text(

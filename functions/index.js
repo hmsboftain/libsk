@@ -36,6 +36,7 @@ const {
   validateClick,
   attributeOrder,
 } = require("./promo_analytics");
+const { LOGO_CID, logoAttachment } = require("./email_assets");
 const { defineString, defineSecret } = require("firebase-functions/params");
 const algoliaAppId = defineString("ALGOLIA_APP_ID");
 const algoliaAdminKey = defineSecret("ALGOLIA_ADMIN_KEY");
@@ -112,13 +113,9 @@ async function saveAlgoliaObjects(indexName, objects) {
 
 // ================= HELPERS =================
 
-async function isAdminUser(uid) {
-  const adminDoc = await db.collection("admin_users").doc(uid).get();
-  if (!adminDoc.exists) return false;
-  const adminData = adminDoc.data();
-  return adminData.isApproved === true;
-}
-
+// Single admin tier: the sole super_admin. (The former role-agnostic
+// isAdminUser() helper was removed — every privileged callable now requires
+// isSuperAdminUser(): isApproved === true AND role === "super_admin".)
 async function isSuperAdminUser(uid) {
   const adminDoc = await db.collection("admin_users").doc(uid).get();
   if (!adminDoc.exists) return false;
@@ -1984,9 +1981,14 @@ exports.sendOrderStatusEmail = onDocumentUpdated(
     if (before.status === after.status) return;
     if (!after.customerEmail) return;
 
+    // Full status coverage over the REAL order-status set
+    // (ORDER_STATUSES minus "Placed", which the confirmation email owns): every
+    // customer-facing transition sends a branded RECEIPT email, not just a line.
+    // The old keys "Picked Up" / "Out for Delivery" never existed in the status
+    // set, so Confirmed/On the Way sent nothing — fixed here.
     const statusTitles = {
-      "Picked Up": "Your order has been picked up",
-      "Out for Delivery": "Your order is out for delivery",
+      "Confirmed": "Your order is confirmed",
+      "On the Way": "Your order is on the way",
       "Delivered": "Your order has been delivered",
       "Cancelled": "Your order has been cancelled",
     };
@@ -1995,7 +1997,13 @@ exports.sendOrderStatusEmail = onDocumentUpdated(
     if (!title) return;
 
     const items = after.items || [];
-    const deliveryCost = after.deliveryMethod === "Same Day Delivery" ? 5
+    // Prefer the fee stored on the order (area-based Wasal pricing); fall back to
+    // the legacy flat fee only for pre-deliveryCost orders. Previously this always
+    // recomputed a flat 3/5, so Wasal orders showed the wrong fee (and a
+    // breakdown that didn't sum) — mirror sendOrderConfirmationForOrder here.
+    const deliveryCost = typeof after.deliveryCost === "number"
+      ? after.deliveryCost
+      : after.deliveryMethod === "Same Day Delivery" ? 5
       : after.deliveryMethod === "Made to Order" ? 0 : 3;
     const subtotal = items.reduce((s, i) => s + (i.price * i.quantity), 0);
 
@@ -2296,11 +2304,8 @@ exports.sendManualNotification = onCall({ maxInstances: 2 }, async (request) => 
     }
 
     const uid = request.auth.uid;
-    const isAdmin = await isAdminUser(uid);
-    const isSuperAdmin = await isSuperAdminUser(uid);
-
-    if (!isAdmin && !isSuperAdmin) {
-      throw new HttpsError("permission-denied", "Only admins can send notifications.");
+    if (!await isSuperAdminUser(uid)) {
+      throw new HttpsError("permission-denied", "Super admins only.");
     }
 
     const data = request.data || {};
@@ -4554,7 +4559,7 @@ function otpEmailHtml(code, locale) {
     <tr><td align="center">
       <table width="560" cellpadding="0" cellspacing="0" style="background:#FFFDF8;border:1px solid #DDD8D1;max-width:560px;width:100%;">
         <tr><td style="padding:32px 40px 24px;border-bottom:1px solid #DDD8D1;" align="${ar ? "right" : "left"}">
-          <p style="margin:0;font-family:Georgia,serif;font-size:26px;letter-spacing:4px;color:#2C2925;text-transform:uppercase;">LIBSK</p>
+          <img src="cid:${LOGO_CID}" width="82" alt="LIBSK" style="display:block;width:82px;height:auto;border:0;outline:none;text-decoration:none;" />
         </td></tr>
         <tr><td style="padding:36px 40px;" align="${ar ? "right" : "left"}">
           <p style="margin:0 0 6px;font-family:Georgia,serif;font-size:20px;color:#2C2925;">${title}</p>
@@ -4584,6 +4589,7 @@ async function sendOtpEmail(to, code, locale) {
     to,
     subject: locale === "ar" ? "رمز التحقق — LIBSK" : "Your LIBSK verification code",
     html: otpEmailHtml(code, locale),
+    attachments: [logoAttachment()], // inline logo (cid:LOGO_CID) in the header
   });
   logger.info("OTP email sent", { to: redactEmail(to) });
 }
@@ -4701,6 +4707,101 @@ exports.verifyEmailOtp = onCall(async (request) => {
 
   logger.info("Email verified via OTP", { uid });
   return { verified: true };
+});
+
+// ── Branded password reset ───────────────────────────────────────────────────
+//
+// Firebase Auth's built-in sendPasswordResetEmail uses the console template
+// (plain, no logo, generic sign-off). This callable generates the SAME reset
+// link via the Admin SDK and sends a branded email (logo + OTP/welcome styling)
+// through Resend instead. It is unauthenticated (the user is logged out), so it
+// is guarded by a per-email rate limit and NEVER reveals whether an account
+// exists (always returns { sent: true }), closing the account-enumeration hole
+// the old client-side user-not-found handling had.
+function passwordResetEmailHtml(link, locale) {
+  const ar = locale === "ar";
+  const dir = ar ? "rtl" : "ltr";
+  const align = ar ? "right" : "left";
+  const title = ar ? "إعادة تعيين كلمة المرور" : "Reset your password";
+  const intro = ar
+    ? "تلقينا طلبًا لإعادة تعيين كلمة مرور حسابك في لبسك. اضغط الزر أدناه لاختيار كلمة مرور جديدة:"
+    : "We received a request to reset your LIBSK account password. Tap the button below to choose a new one:";
+  const button = ar ? "إعادة تعيين كلمة المرور" : "Reset password";
+  const expiry = ar ? "ينتهي هذا الرابط خلال ساعة واحدة." : "This link expires in 1 hour.";
+  const ignore = ar
+    ? "إذا لم تطلب ذلك، يمكنك تجاهل هذه الرسالة بأمان — لن تتغير كلمة مرورك."
+    : "If you didn't request this, you can safely ignore this email — your password won't change.";
+  return `<!DOCTYPE html>
+<html dir="${dir}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#FFFDF8;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#FFFDF8;padding:40px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#FFFDF8;border:1px solid #DDD8D1;max-width:560px;width:100%;">
+        <tr><td style="padding:32px 40px 24px;border-bottom:1px solid #DDD8D1;" align="${align}">
+          <img src="cid:${LOGO_CID}" width="82" alt="LIBSK" style="display:block;width:82px;height:auto;border:0;outline:none;text-decoration:none;" />
+        </td></tr>
+        <tr><td style="padding:36px 40px;" align="${align}">
+          <p style="margin:0 0 6px;font-family:Georgia,serif;font-size:20px;color:#2C2925;">${title}</p>
+          <p style="margin:0 0 28px;font-family:Arial,sans-serif;font-size:13px;color:#8E877D;">${intro}</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;"><tr><td align="${align}">
+            <a href="${link}" style="display:inline-block;background:#8A7E70;color:#FFFDF8;font-family:Arial,sans-serif;font-size:14px;letter-spacing:1px;text-decoration:none;padding:14px 30px;">${button}</a>
+          </td></tr></table>
+          <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;color:#8E877D;">${expiry}</p>
+          <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#8E877D;">${ignore}</p>
+        </td></tr>
+        <tr><td style="padding:20px 40px;border-top:1px solid #DDD8D1;" align="${align}">
+          <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#8E877D;">${ar ? "فريق لبسك" : "The LIBSK team"}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function sendBrandedPasswordResetEmail(to, link, locale) {
+  const resend = getResend();
+  await resend.emails.send({
+    from: "LIBSK <accounts@libsk.com>",
+    to,
+    subject: locale === "ar" ? "إعادة تعيين كلمة المرور — LIBSK" : "Reset your LIBSK password",
+    html: passwordResetEmailHtml(link, locale),
+    attachments: [logoAttachment()],
+  });
+  logger.info("Branded password reset email sent", { to: redactEmail(to) });
+}
+
+exports.sendBrandedPasswordReset = onCall({ secrets: [resendApiKey] }, async (request) => {
+  const email = String(request.data?.email || "").trim().toLowerCase();
+  if (!email || email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new HttpsError("invalid-argument", "A valid email is required.");
+  }
+  // Per-email rate limit. On limit we STILL return success below, so the
+  // response never reveals whether the address has an account.
+  const rateOk = await checkRateLimit(`pwreset_${email}`, 5, 3600);
+  if (!rateOk) return { sent: true };
+
+  let link;
+  try {
+    link = await admin.auth().generatePasswordResetLink(email);
+  } catch (err) {
+    // auth/user-not-found (or any lookup error): do NOT reveal it — return the
+    // same success shape so the endpoint can't enumerate accounts.
+    logger.info("Password reset requested for unknown/failed address", {
+      code: err.code || String(err),
+    });
+    return { sent: true };
+  }
+
+  try {
+    await sendBrandedPasswordResetEmail(
+      email, link, request.data?.locale === "ar" ? "ar" : "en");
+  } catch (err) {
+    logger.error("Failed to send branded password reset", { err: err.message });
+    throw new HttpsError("unavailable", "Could not send the reset email. Please try again.");
+  }
+  return { sent: true };
 });
 
 // Mirrors Auth's emailVerified onto the profile at creation. Google and Apple
@@ -5205,15 +5306,18 @@ exports.markReadyForPickup = onCall({ secrets: [wasalApiKey] }, async (request) 
     if (customerUid && sourceUserOrderId) {
       try {
         const fanout = db.batch();
+        // Nest wasalStatuses as an object (see applyWasalDeliveryStatus): a
+        // dotted key in set()+merge is a literal field name, not a nested path.
+        const initial = { wasalStatuses: { [wasalOrderId]: wasalOrder.status || "pending" } };
         fanout.set(
           db.collection("users").doc(customerUid)
             .collection("orders").doc(sourceUserOrderId),
-          { [`wasalStatuses.${wasalOrderId}`]: wasalOrder.status || "pending" },
+          initial,
           { merge: true },
         );
         fanout.set(
           db.collection("global_orders").doc(sourceUserOrderId),
-          { [`wasalStatuses.${wasalOrderId}`]: wasalOrder.status || "pending" },
+          initial,
           { merge: true },
         );
         await fanout.commit();
@@ -5312,8 +5416,16 @@ async function applyWasalDeliveryStatus(wasalOrderId, wasalStatus, map) {
       const advance =
         libskStatus === "Delivered" ? (allDelivered ? "Delivered" : "On the Way")
         : libskStatus; // "On the Way" or null
+      // Nest wasalStatuses as an OBJECT, never as a dotted key. In the admin SDK
+      // a dotted key in set()+merge is a LITERAL field name (only update() treats
+      // dotted keys as nested paths), so `{['wasalStatuses.'+id]: v}` created a
+      // top-level field literally named "wasalStatuses.<id>" and left the nested
+      // wasalStatuses map {} — which broke overallDeliveryStatus (multi-boutique
+      // orders were marked Delivered after only the first delivery) and the
+      // notifyOrderStatusChanged double-push suppression. An object value with
+      // {merge:true} deep-merges the map, adding/updating just this id's entry.
       const update = {
-        [`wasalStatuses.${wasalOrderId}`]: wasalStatus,
+        wasalStatuses: { [wasalOrderId]: wasalStatus },
         ...(advance && globalData.status !== "Cancelled" ? { status: advance } : {}),
       };
       tx.set(globalOrderRef, update, { merge: true });

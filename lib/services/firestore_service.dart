@@ -1228,39 +1228,13 @@ class FirestoreService {
     return AdminPermissions.fromMap(data);
   }
 
-  static Future<bool> isCurrentUserAdmin() async {
-    final permissions = await getCurrentUserPermissions();
-    return permissions.isApproved;
-  }
-
+  // Single admin tier: the sole super_admin. (isCurrentUserAdmin() and the
+  // five canCurrentUser* helpers were removed — they were never called and
+  // mirrored granular flags that were never written. isSuperAdmin is the only
+  // authorization decision the app makes.)
   static Future<bool> isCurrentUserSuperAdmin() async {
     final permissions = await getCurrentUserPermissions();
     return permissions.isSuperAdmin;
-  }
-
-  static Future<bool> canCurrentUserManageUsers() async {
-    final permissions = await getCurrentUserPermissions();
-    return permissions.canManageUsers;
-  }
-
-  static Future<bool> canCurrentUserManageBoutiques() async {
-    final permissions = await getCurrentUserPermissions();
-    return permissions.canManageBoutiques;
-  }
-
-  static Future<bool> canCurrentUserManageOrders() async {
-    final permissions = await getCurrentUserPermissions();
-    return permissions.canManageOrders;
-  }
-
-  static Future<bool> canCurrentUserManageHomepage() async {
-    final permissions = await getCurrentUserPermissions();
-    return permissions.canManageHomepage;
-  }
-
-  static Future<bool> canCurrentUserViewAnalytics() async {
-    final permissions = await getCurrentUserPermissions();
-    return permissions.canViewAnalytics;
   }
 
   // ── Admin dashboard reads ──────────────────────────────────────────────────

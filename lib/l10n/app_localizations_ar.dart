@@ -3042,4 +3042,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get loadOlder => 'تحميل الإشعارات الأقدم';
+
+  @override
+  String get storefrontVisibility => 'ظهور المتجر';
+
+  @override
+  String get storefrontVisibilityHint => 'عند التفعيل، يظهر متجرك ومنتجاتك في واجهة المتجر للعملاء. اتركه معطلاً حتى تجهّز الشعار والغلاف والمنتجات.';
+
+  @override
+  String get boutiqueNowVisible => 'أصبح متجرك ظاهراً الآن في واجهة المتجر';
+
+  @override
+  String get boutiqueNowHidden => 'أصبح متجرك مخفياً الآن عن واجهة المتجر';
 }

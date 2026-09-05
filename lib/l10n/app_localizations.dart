@@ -5824,6 +5824,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Load older'**
   String get loadOlder;
+
+  /// No description provided for @storefrontVisibility.
+  ///
+  /// In en, this message translates to:
+  /// **'Storefront visibility'**
+  String get storefrontVisibility;
+
+  /// No description provided for @storefrontVisibilityHint.
+  ///
+  /// In en, this message translates to:
+  /// **'When on, your boutique and its products appear in the customer storefront. Keep it off until your logo, banner and items are ready.'**
+  String get storefrontVisibilityHint;
+
+  /// No description provided for @boutiqueNowVisible.
+  ///
+  /// In en, this message translates to:
+  /// **'Your boutique is now visible in the storefront'**
+  String get boutiqueNowVisible;
+
+  /// No description provided for @boutiqueNowHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'Your boutique is now hidden from the storefront'**
+  String get boutiqueNowHidden;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

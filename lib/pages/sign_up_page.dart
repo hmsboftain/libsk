@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/utils/validators.dart';
+import '../services/auth_error.dart';
 import '../services/firestore_service.dart';
 import '../widgets/theme.dart';
 import 'email_verification_page.dart';
@@ -351,14 +352,11 @@ class _SignUpPageState extends State<SignUpPage> {
 
       if (!mounted) return;
       Navigator.pop(context, true);
-    } catch (e) {
-      debugPrint('GOOGLE SIGN IN ERROR: $e');
+    } catch (e, st) {
+      final msg = reportSignInError(
+        e, st, 'google_sign_in', AppLocalizations.of(context)!.somethingWentWrong);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.somethingWentWrong),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
     }

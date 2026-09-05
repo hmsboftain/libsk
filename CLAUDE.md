@@ -104,7 +104,11 @@ The company is registered as **"LIBSK Commission Agency and Trading Company"** (
    run `flutter gen-l10n`. NOTE: Wasal sandbox never fires webhooks — webhook
    receiver is verified with locally signed payloads or in production.
 3. Apple Developer enrollment (Organization, DUNS requested — blocked Apple-side)
-4. Firebase Crashlytics — integration incomplete, do not treat as active
+4. Firebase Crashlytics — WIRED and active (main.dart: release-only collection
+   via setCrashlyticsCollectionEnabled(!kDebugMode), FlutterError.onError →
+   recordFlutterError, PlatformDispatcher.onError → recordError(fatal); dep
+   firebase_crashlytics ^5.0.0). Verified 2026-09-05. (Previously documented as
+   "incomplete, do not treat as active" — that note was stale.)
 
 ### Pending Integrations (Priority Order)
 1. Order confirmation email (SendGrid + FCM)
