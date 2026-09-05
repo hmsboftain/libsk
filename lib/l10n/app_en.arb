@@ -1038,5 +1038,9 @@
   "notificationsEmpty": "No notifications yet",
   "markAllRead": "Mark all as read",
   "notificationOrderUnavailable": "This order is no longer available",
-  "loadOlder": "Load older"
+  "loadOlder": "Load older",
+  "storefrontVisibility": "Storefront visibility",
+  "storefrontVisibilityHint": "When on, your boutique and its products appear in the customer storefront. Keep it off until your logo, banner and items are ready.",
+  "boutiqueNowVisible": "Your boutique is now visible in the storefront",
+  "boutiqueNowHidden": "Your boutique is now hidden from the storefront"
 }

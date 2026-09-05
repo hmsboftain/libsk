@@ -263,7 +263,16 @@ service cloud.firestore {
         (isSuperAdmin() ||
           !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['isVisibleOnHome', 'homeExpiresAt', 'homeOrder',
-                     'wasalBranchCode']));
+                     'wasalBranchCode'])) &&
+        // Owner-managed storefront visibility toggle: a boutique is hidden by
+        // default at onboarding and the owner flips it visible once setup (logo/
+        // banner/items) is done. This is the ONE ranking-adjacent flag an owner
+        // MAY set — explicitly allowed and type-guarded here — unlike the
+        // server-only fields blocked above. Distinct from isVisibleOnHome (the
+        // PAID home-featuring placement): isVisible only controls whether the
+        // boutique appears in the customer storefront at all.
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isVisible']) ||
+          request.resource.data.isVisible is bool);
       allow delete: if isSuperAdmin();
 
       match /products/{productId} {

@@ -35,7 +35,12 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
   Map<String, dynamic>? _boutiqueData;
   String? _boutiqueId;
   bool _isLoading = true;
+  bool _savingVisibility = false;
   String? _error;
+
+  // Migration-safe: a boutique is hidden ONLY when isVisible === false. Missing
+  // or true both read as visible, so existing boutiques (no field) stay visible.
+  bool get _isVisible => _boutiqueData?['isVisible'] != false;
 
   @override
   void initState() {
@@ -240,6 +245,33 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
     );
   }
 
+  Future<void> _setVisibility(bool value) async {
+    final l10n = AppLocalizations.of(context)!;
+    if (_boutiqueId == null || _savingVisibility) return;
+    setState(() => _savingVisibility = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('boutiques')
+          .doc(_boutiqueId)
+          .update({'isVisible': value});
+      if (!mounted) return;
+      setState(() => _boutiqueData?['isVisible'] = value);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? l10n.boutiqueNowVisible : l10n.boutiqueNowHidden),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Set boutique visibility failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.somethingWentWrong)),
+      );
+    } finally {
+      if (mounted) setState(() => _savingVisibility = false);
+    }
+  }
+
   Widget _buildContent(AppLocalizations l10n) {
     final name = _boutiqueData?['name']?.toString() ?? l10n.boutique;
     final description = _boutiqueData?['description']?.toString() ?? '';
@@ -376,7 +408,59 @@ class _MyBoutiquePageState extends State<MyBoutiquePage> {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+
+            // ── Storefront visibility toggle ────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.field,
+                  border: Border.all(color: AppColors.border, width: 0.5),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.storefrontVisibility,
+                            style: AppTextStyles.labelLarge,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.storefrontVisibilityHint,
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.secondaryText,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _savingVisibility
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: AppColors.deepAccent,
+                            ),
+                          )
+                        : Switch(
+                            value: _isVisible,
+                            activeThumbColor: AppColors.deepAccent,
+                            onChanged: _setVisibility,
+                          ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Divider(color: AppColors.border, thickness: 0.5),

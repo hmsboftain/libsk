@@ -3038,4 +3038,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loadOlder => 'Load older';
+
+  @override
+  String get storefrontVisibility => 'Storefront visibility';
+
+  @override
+  String get storefrontVisibilityHint => 'When on, your boutique and its products appear in the customer storefront. Keep it off until your logo, banner and items are ready.';
+
+  @override
+  String get boutiqueNowVisible => 'Your boutique is now visible in the storefront';
+
+  @override
+  String get boutiqueNowHidden => 'Your boutique is now hidden from the storefront';
 }

@@ -1017,5 +1017,9 @@
   "notificationsEmpty": "لا توجد إشعارات بعد",
   "markAllRead": "تعليم الكل كمقروء",
   "notificationOrderUnavailable": "هذا الطلب لم يعد متاحاً",
-  "loadOlder": "تحميل الإشعارات الأقدم"
+  "loadOlder": "تحميل الإشعارات الأقدم",
+  "storefrontVisibility": "ظهور المتجر",
+  "storefrontVisibilityHint": "عند التفعيل، يظهر متجرك ومنتجاتك في واجهة المتجر للعملاء. اتركه معطلاً حتى تجهّز الشعار والغلاف والمنتجات.",
+  "boutiqueNowVisible": "أصبح متجرك ظاهراً الآن في واجهة المتجر",
+  "boutiqueNowHidden": "أصبح متجرك مخفياً الآن عن واجهة المتجر"
 }

@@ -138,6 +138,12 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
             'description': boutiqueDescController.text.trim(),
             'ownerUid': _foundUid,
             'isActive': true,
+            // Hidden from the customer storefront until the owner finishes setup
+            // (logo/banner/items) and flips it visible themselves. Owner-writable
+            // (see firestore.rules). MIGRATION-SAFE: the storefront hides a
+            // boutique ONLY when isVisible === false, so existing boutiques with
+            // no field stay visible and no backfill is needed.
+            'isVisible': false,
             // Flag only — promoCreditBalance is server-only (blocked at create by
             // firestore.rules); the launch recharge Cloud Function grants the
             // actual Week-1 credit and clears promoCreditPending.
