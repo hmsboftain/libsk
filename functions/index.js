@@ -36,7 +36,6 @@ const {
   validateClick,
   attributeOrder,
 } = require("./promo_analytics");
-const { LOGO_CID, logoAttachment } = require("./email_assets");
 const { defineString, defineSecret } = require("firebase-functions/params");
 const algoliaAppId = defineString("ALGOLIA_APP_ID");
 const algoliaAdminKey = defineSecret("ALGOLIA_ADMIN_KEY");
@@ -1730,7 +1729,7 @@ exports.notifyOrderStatusChanged = onDocumentUpdated(
 // English only — matching the existing notification copy; there is no stored
 // per-user language preference to localize against.
 exports.notifyWasalDeliveryStatus = onDocumentUpdated(
-  "boutiques/{boutiqueId}/orders/{orderId}",
+  { document: "boutiques/{boutiqueId}/orders/{orderId}", region: "europe-west1" },
   async (event) => {
     const before = event.data.before.data();
     const after = event.data.after.data();
@@ -1971,7 +1970,7 @@ async function sendOrderConfirmationForOrder(order) {
 }
 
 exports.sendOrderConfirmationEmail = onDocumentCreated(
-  { document: "global_orders/{orderId}", secrets: [resendApiKey] },
+  { document: "global_orders/{orderId}", region: "europe-west1", secrets: [resendApiKey] },
   async (event) => {
     const order = event.data.data();
     // Payzah orders start Pending Payment — the confirmation is sent from the
@@ -1983,7 +1982,7 @@ exports.sendOrderConfirmationEmail = onDocumentCreated(
 );
 
 exports.sendOrderStatusEmail = onDocumentUpdated(
-  { document: "global_orders/{orderId}", secrets: [resendApiKey] },
+  { document: "global_orders/{orderId}", region: "europe-west1", secrets: [resendApiKey] },
   async (event) => {
     const before = event.data.before.data();
     const after = event.data.after.data();
@@ -2419,7 +2418,7 @@ exports.sendManualNotification = onCall({ maxInstances: 2 }, async (request) => 
 // ================= ALGOLIA SEARCH SYNC =================
 
 exports.algoliaProductCreated = onDocumentCreated(
-  { document: "boutiques/{boutiqueId}/products/{productId}", secrets: [algoliaAdminKey] },
+  { document: "boutiques/{boutiqueId}/products/{productId}", region: "europe-west1", secrets: [algoliaAdminKey] },
   async (event) => {
     const data = event.data.data();
     const { boutiqueId, productId } = event.params;
@@ -2437,7 +2436,7 @@ exports.algoliaProductCreated = onDocumentCreated(
 );
 
 exports.algoliaProductUpdated = onDocumentUpdated(
-  { document: "boutiques/{boutiqueId}/products/{productId}", secrets: [algoliaAdminKey] },
+  { document: "boutiques/{boutiqueId}/products/{productId}", region: "europe-west1", secrets: [algoliaAdminKey] },
   async (event) => {
     const data = event.data.after.data();
     const { boutiqueId, productId } = event.params;
@@ -2455,14 +2454,14 @@ exports.algoliaProductUpdated = onDocumentUpdated(
 );
 
 exports.algoliaProductDeleted = onDocumentDeleted(
-  { document: "boutiques/{boutiqueId}/products/{productId}", secrets: [algoliaAdminKey] },
+  { document: "boutiques/{boutiqueId}/products/{productId}", region: "europe-west1", secrets: [algoliaAdminKey] },
   async (event) => {
     await deleteAlgoliaObject(PRODUCTS_INDEX, event.params.productId);
   }
 );
 
 exports.algoliaBoutiqueCreated = onDocumentCreated(
-  { document: "boutiques/{boutiqueId}", secrets: [algoliaAdminKey] },
+  { document: "boutiques/{boutiqueId}", region: "europe-west1", secrets: [algoliaAdminKey] },
   async (event) => {
     const data = event.data.data();
     const { boutiqueId } = event.params;
@@ -2477,7 +2476,7 @@ exports.algoliaBoutiqueCreated = onDocumentCreated(
 );
 
 exports.algoliaBoutiqueUpdated = onDocumentUpdated(
-  { document: "boutiques/{boutiqueId}", secrets: [algoliaAdminKey] },
+  { document: "boutiques/{boutiqueId}", region: "europe-west1", secrets: [algoliaAdminKey] },
   async (event) => {
     const data = event.data.after.data();
     const { boutiqueId } = event.params;
@@ -2492,7 +2491,7 @@ exports.algoliaBoutiqueUpdated = onDocumentUpdated(
 );
 
 exports.algoliaBoutiqueDeleted = onDocumentDeleted(
-  { document: "boutiques/{boutiqueId}", secrets: [algoliaAdminKey] },
+  { document: "boutiques/{boutiqueId}", region: "europe-west1", secrets: [algoliaAdminKey] },
   async (event) => {
     await deleteAlgoliaObject(BOUTIQUES_INDEX, event.params.boutiqueId);
   }
@@ -4166,7 +4165,7 @@ exports.logPromoClick = onCall(async (request) => {
  * loop, and a replay is a no-op.
  */
 exports.attributePromoSales = onDocumentWritten(
-  "global_orders/{orderId}",
+  { document: "global_orders/{orderId}", region: "europe-west1" },
   async (event) => {
     const orderId = event.params.orderId;
     const before = event.data.before.exists ? event.data.before.data() : null;
@@ -4286,7 +4285,7 @@ async function reversePromoAttribution(orderId, newStatus) {
 // ================= FOLLOW COUNTS =================
 
 exports.onFollowCreated = onDocumentCreated(
-  "users/{userId}/following/{boutiqueId}",
+  { document: "users/{userId}/following/{boutiqueId}", region: "europe-west1" },
   async (event) => {
     const boutiqueId = event.params.boutiqueId;
     await db.collection("boutiques").doc(boutiqueId).update({
@@ -4296,7 +4295,7 @@ exports.onFollowCreated = onDocumentCreated(
 );
 
 exports.onFollowDeleted = onDocumentDeleted(
-  "users/{userId}/following/{boutiqueId}",
+  { document: "users/{userId}/following/{boutiqueId}", region: "europe-west1" },
   async (event) => {
     const boutiqueId = event.params.boutiqueId;
     const boutiqueRef = db.collection("boutiques").doc(boutiqueId);
@@ -4572,13 +4571,14 @@ function otpEmailHtml(code, locale) {
 
   return `<!DOCTYPE html>
 <html dir="${dir}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light only"></head>
 <body style="margin:0;padding:0;background:#FFFDF8;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#FFFDF8;padding:40px 0;">
     <tr><td align="center">
       <table width="560" cellpadding="0" cellspacing="0" style="background:#FFFDF8;border:1px solid #DDD8D1;max-width:560px;width:100%;">
         <tr><td style="padding:32px 40px 24px;border-bottom:1px solid #DDD8D1;" align="${ar ? "right" : "left"}">
-          <img src="cid:${LOGO_CID}" width="82" alt="LIBSK" style="display:block;width:82px;height:auto;border:0;outline:none;text-decoration:none;" />
+          <img src="https://libsk-email.web.app/libsk-wordmark.png" width="160" height="75" alt="LIBSK" style="display:block;width:160px;height:auto;border:0;outline:none;text-decoration:none;" />
         </td></tr>
         <tr><td style="padding:36px 40px;" align="${ar ? "right" : "left"}">
           <p style="margin:0 0 6px;font-family:Georgia,serif;font-size:20px;color:#2C2925;">${title}</p>
@@ -4608,7 +4608,6 @@ async function sendOtpEmail(to, code, locale) {
     to,
     subject: locale === "ar" ? "رمز التحقق — LIBSK" : "Your LIBSK verification code",
     html: otpEmailHtml(code, locale),
-    attachments: [logoAttachment()], // inline logo (cid:LOGO_CID) in the header
   });
   logger.info("OTP email sent", { to: redactEmail(to) });
 }
@@ -4732,61 +4731,26 @@ exports.verifyEmailOtp = onCall(async (request) => {
 //
 // Firebase Auth's built-in sendPasswordResetEmail uses the console template
 // (plain, no logo, generic sign-off). This callable generates the SAME reset
-// link via the Admin SDK and sends a branded email (logo + OTP/welcome styling)
-// through Resend instead. It is unauthenticated (the user is logged out), so it
-// is guarded by a per-email rate limit and NEVER reveals whether an account
-// exists (always returns { sent: true }), closing the account-enumeration hole
-// the old client-side user-not-found handling had.
-function passwordResetEmailHtml(link, locale) {
-  const ar = locale === "ar";
-  const dir = ar ? "rtl" : "ltr";
-  const align = ar ? "right" : "left";
-  const title = ar ? "إعادة تعيين كلمة المرور" : "Reset your password";
-  const intro = ar
-    ? "تلقينا طلبًا لإعادة تعيين كلمة مرور حسابك في لبسك. اضغط الزر أدناه لاختيار كلمة مرور جديدة:"
-    : "We received a request to reset your LIBSK account password. Tap the button below to choose a new one:";
-  const button = ar ? "إعادة تعيين كلمة المرور" : "Reset password";
-  const expiry = ar ? "ينتهي هذا الرابط خلال ساعة واحدة." : "This link expires in 1 hour.";
-  const ignore = ar
-    ? "إذا لم تطلب ذلك، يمكنك تجاهل هذه الرسالة بأمان — لن تتغير كلمة مرورك."
-    : "If you didn't request this, you can safely ignore this email — your password won't change.";
-  return `<!DOCTYPE html>
-<html dir="${dir}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#FFFDF8;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#FFFDF8;padding:40px 0;">
-    <tr><td align="center">
-      <table width="560" cellpadding="0" cellspacing="0" style="background:#FFFDF8;border:1px solid #DDD8D1;max-width:560px;width:100%;">
-        <tr><td style="padding:32px 40px 24px;border-bottom:1px solid #DDD8D1;" align="${align}">
-          <img src="cid:${LOGO_CID}" width="82" alt="LIBSK" style="display:block;width:82px;height:auto;border:0;outline:none;text-decoration:none;" />
-        </td></tr>
-        <tr><td style="padding:36px 40px;" align="${align}">
-          <p style="margin:0 0 6px;font-family:Georgia,serif;font-size:20px;color:#2C2925;">${title}</p>
-          <p style="margin:0 0 28px;font-family:Arial,sans-serif;font-size:13px;color:#8E877D;">${intro}</p>
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;"><tr><td align="${align}">
-            <a href="${link}" style="display:inline-block;background:#8A7E70;color:#FFFDF8;font-family:Arial,sans-serif;font-size:14px;letter-spacing:1px;text-decoration:none;padding:14px 30px;">${button}</a>
-          </td></tr></table>
-          <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;color:#8E877D;">${expiry}</p>
-          <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#8E877D;">${ignore}</p>
-        </td></tr>
-        <tr><td style="padding:20px 40px;border-top:1px solid #DDD8D1;" align="${align}">
-          <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#8E877D;">${ar ? "فريق لبسك" : "The LIBSK team"}</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
-}
-
-async function sendBrandedPasswordResetEmail(to, link, locale) {
+// link via the Admin SDK and sends the branded React Email PasswordReset
+// template (the shared Layout header/footer, same as the welcome email) through
+// Resend instead. It is unauthenticated (the user is logged out), so it is
+// guarded by a per-email rate limit and NEVER reveals whether an account exists
+// (always returns { sent: true }), closing the account-enumeration hole the old
+// client-side user-not-found handling had.
+//
+// English-only by design: the client (forgot_password_page.dart) never sends a
+// locale, so every reset already goes out in English — matching the welcome and
+// order-confirmation templates, which share the same Layout.
+async function sendBrandedPasswordResetEmail(to, link) {
+  const { renderPasswordReset } = emailRenderers();
+  const { html, text } = await renderPasswordReset({ resetUrl: link });
   const resend = getResend();
   await resend.emails.send({
     from: "LIBSK <accounts@libsk.com>",
     to,
-    subject: locale === "ar" ? "إعادة تعيين كلمة المرور — LIBSK" : "Reset your LIBSK password",
-    html: passwordResetEmailHtml(link, locale),
-    attachments: [logoAttachment()],
+    subject: "Reset your LIBSK password",
+    html,
+    text,
   });
   logger.info("Branded password reset email sent", { to: redactEmail(to) });
 }
@@ -4814,8 +4778,7 @@ exports.sendBrandedPasswordReset = onCall({ secrets: [resendApiKey] }, async (re
   }
 
   try {
-    await sendBrandedPasswordResetEmail(
-      email, link, request.data?.locale === "ar" ? "ar" : "en");
+    await sendBrandedPasswordResetEmail(email, link);
   } catch (err) {
     logger.error("Failed to send branded password reset", { err: err.message });
     throw new HttpsError("unavailable", "Could not send the reset email. Please try again.");
@@ -4826,7 +4789,7 @@ exports.sendBrandedPasswordReset = onCall({ secrets: [resendApiKey] }, async (re
 // Mirrors Auth's emailVerified onto the profile at creation. Google and Apple
 // hand back an already-verified address, so those accounts start verified and
 // never see the OTP screen; password signups start false.
-exports.mirrorEmailVerifiedOnProfileCreate = onDocumentCreated("users/{uid}", async (event) => {
+exports.mirrorEmailVerifiedOnProfileCreate = onDocumentCreated({ document: "users/{uid}", region: "europe-west1" }, async (event) => {
   const uid = event.params.uid;
   try {
     const userRecord = await admin.auth().getUser(uid);
