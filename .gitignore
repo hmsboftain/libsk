@@ -129,3 +129,7 @@ android/.gradle/
 lib/config/algolia_secrets.local.dart
 ios/GoogleService-Info.plist
 .firebase/
+
+# macOS
+.DS_Store
+**/.DS_Store
