@@ -269,7 +269,7 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
     throw new HttpsError("invalid-argument", "Order cannot contain more than 50 items.");
   }
 
-  const allowedDeliveryMethods = ["Regular Delivery", "Same Day Delivery", "Made to Order"];
+  const allowedDeliveryMethods = ["Standard Delivery", "Made to Order"];
   const allowedPaymentMethods  = ["Card", "KNET", "Apple Pay"];
 
   if (!allowedDeliveryMethods.includes(deliveryMethod)) {
@@ -533,7 +533,6 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
     const deliveryCost = deliveryMethod === "Made to Order" ? 0
       : wasalAreaFee !== null
         ? parseFloat((wasalAreaFee * wasalPickupCount).toFixed(3))
-        : deliveryMethod === "Same Day Delivery" ? 5
         : 3;
     const total = verifiedSubtotal + deliveryCost - discountAmount;
 
@@ -1948,7 +1947,6 @@ async function sendOrderConfirmationForOrder(order) {
   // to the legacy flat fee for orders created before deliveryCost existed.
   const deliveryCost = typeof order.deliveryCost === "number"
     ? order.deliveryCost
-    : order.deliveryMethod === "Same Day Delivery" ? 5
     : order.deliveryMethod === "Made to Order" ? 0 : 3;
   const subtotal = items.reduce((s, i) => s + (i.price * i.quantity), 0);
 
@@ -2012,7 +2010,6 @@ exports.sendOrderStatusEmail = onDocumentUpdated(
     // breakdown that didn't sum) — mirror sendOrderConfirmationForOrder here.
     const deliveryCost = typeof after.deliveryCost === "number"
       ? after.deliveryCost
-      : after.deliveryMethod === "Same Day Delivery" ? 5
       : after.deliveryMethod === "Made to Order" ? 0 : 3;
     const subtotal = items.reduce((s, i) => s + (i.price * i.quantity), 0);
 

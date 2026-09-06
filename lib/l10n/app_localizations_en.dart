@@ -634,10 +634,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deliveryMethod => 'DELIVERY METHOD';
 
   @override
-  String get regularDelivery => 'Regular Delivery';
-
-  @override
-  String get sameDayDelivery => 'Same Day Delivery';
+  String get standardDelivery => 'Standard Delivery';
 
   @override
   String get madeToOrder => 'Made to Order';

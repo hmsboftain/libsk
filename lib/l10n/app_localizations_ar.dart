@@ -634,10 +634,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get deliveryMethod => 'طريقة التوصيل';
 
   @override
-  String get regularDelivery => 'توصيل عادي';
-
-  @override
-  String get sameDayDelivery => 'توصيل في نفس اليوم';
+  String get standardDelivery => 'توصيل قياسي';
 
   @override
   String get madeToOrder => 'حسب الطلب';

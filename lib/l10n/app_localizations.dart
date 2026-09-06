@@ -1313,17 +1313,11 @@ abstract class AppLocalizations {
   /// **'DELIVERY METHOD'**
   String get deliveryMethod;
 
-  /// No description provided for @regularDelivery.
+  /// No description provided for @standardDelivery.
   ///
   /// In en, this message translates to:
-  /// **'Regular Delivery'**
-  String get regularDelivery;
-
-  /// No description provided for @sameDayDelivery.
-  ///
-  /// In en, this message translates to:
-  /// **'Same Day Delivery'**
-  String get sameDayDelivery;
+  /// **'Standard Delivery'**
+  String get standardDelivery;
 
   /// No description provided for @madeToOrder.
   ///

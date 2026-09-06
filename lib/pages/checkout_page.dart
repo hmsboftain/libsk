@@ -55,7 +55,7 @@ enum _DeliveryFeeState { noAddress, noArea, loading, error, resolved }
 
 class _CheckoutPageState extends State<CheckoutPage> {
   // ── Delivery / payment ─────────────────────────────────────────────────────
-  String deliveryMethod = 'Regular Delivery';
+  String deliveryMethod = 'Standard Delivery';
   String paymentMethod = 'Card';
   // 0 until a real fee is known — a resolved Wasal area fee, or 0 for MTO.
   // There is deliberately no flat legacy fallback on the client.
@@ -105,7 +105,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _addressesStream = FirestoreService.getSavedAddressesStream();
 
     final isKuwait = CurrencyService.instance.selectedCountryCode == 'KW';
-    deliveryMethod = isKuwait ? 'Same Day Delivery' : 'Regular Delivery';
+    deliveryMethod = 'Standard Delivery';
     // deliveryCost stays 0 until a real Wasal fee resolves (or MTO forces 0).
     // KNET is the default rail for Kuwait customers; cards elsewhere.
     paymentMethod = isKuwait ? 'KNET' : 'Card';
@@ -268,12 +268,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
             deliveryMethod = 'Made to Order';
             deliveryCost = 0;
           } else if (deliveryMethod == 'Made to Order') {
-            // MTO items removed — reset to default
-            final isKuwait =
-                CurrencyService.instance.selectedCountryCode == 'KW';
-            deliveryMethod = isKuwait
-                ? 'Same Day Delivery'
-                : 'Regular Delivery';
+            // MTO items removed — reset to the sole delivery method.
+            deliveryMethod = 'Standard Delivery';
             // Restore the resolved area fee if we have one; otherwise 0 and the
             // delivery-fee state machine re-blocks checkout until it resolves.
             deliveryCost = _wasalAreaFee ?? 0;
@@ -523,60 +519,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   // ── Pickers ──────────────────────────────────────────────────────────────
 
-  void _selectDeliveryMethod(bool isKuwait) {
-    final l10n = AppLocalizations.of(context)!;
-    // The sheet is only meaningful once a real area fee has resolved — both
-    // methods are priced at that fee, never a flat fallback.
-    final fee = _wasalAreaFee;
-    if (fee == null) return;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.background,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      builder: (sheetContext) {
-        Widget option(String value, String label, double cost) {
-          return ListTile(
-            title: Text(
-              '$label · ${_fmt(cost)}',
-              style: AppTextStyles.bodyMedium,
-            ),
-            trailing: deliveryMethod == value
-                ? const Icon(Icons.check, color: AppColors.deepAccent, size: 18)
-                : null,
-            onTap: () {
-              setState(() {
-                deliveryMethod = value;
-                deliveryCost = cost;
-              });
-              Navigator.pop(sheetContext);
-            },
-          );
-        }
-
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 16, 22, 8),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(l10n.deliveryMethod, style: AppTextStyles.labelLarge),
-                ),
-              ),
-              const Divider(color: AppColors.border, thickness: 0.5, height: 0.5),
-              // Area-based Wasal fee (resolved); the sheet never opens otherwise.
-              option('Regular Delivery', l10n.regularDelivery, fee),
-              if (isKuwait)
-                option('Same Day Delivery', l10n.sameDayDelivery, fee),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   void _selectPaymentMethod() {
     final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
@@ -679,7 +621,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
       );
     }
 
-    final isKuwait = CurrencyService.instance.selectedCountryCode == 'KW';
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
@@ -766,7 +707,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               // ── Delivery method ───────────────────────
                               _sectionLabel(l10n.deliveryMethod),
                               const SizedBox(height: 10),
-                              _deliveryRow(isKuwait, feeState),
+                              _deliveryRow(feeState),
                               _sectionGap(),
 
                               // ── Payment method ────────────────────────
@@ -994,7 +935,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   // ── Delivery method row ─────────────────────────────────────────────────────
 
-  Widget _deliveryRow(bool isKuwait, _DeliveryFeeState state) {
+  Widget _deliveryRow(_DeliveryFeeState state) {
     final l10n = AppLocalizations.of(context)!;
 
     if (_hasMtoItems) {
@@ -1031,14 +972,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
           onTap: _fetchWasalFee,
           icon: Icons.refresh,
         );
-      // Real fee in hand → show it; Kuwait can switch delivery method.
+      // Real fee in hand → show it (single Standard Delivery method).
       case _DeliveryFeeState.resolved:
-        final methodLabel = deliveryMethod == 'Same Day Delivery'
-            ? l10n.sameDayDelivery
-            : l10n.regularDelivery;
         return _compactRow(
-          value: '$methodLabel · ${_fmt(deliveryCost)}',
-          onTap: isKuwait ? () => _selectDeliveryMethod(isKuwait) : null,
+          value: '${l10n.standardDelivery} · ${_fmt(deliveryCost)}',
         );
     }
   }
