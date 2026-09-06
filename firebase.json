@@ -30,6 +30,9 @@
     {
       "codebase": "default",
       "disallowLegacyRuntimeConfig": true,
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build:emails"
+      ],
       "ignore": [
         "node_modules",
         ".git",
