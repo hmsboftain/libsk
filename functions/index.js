@@ -323,6 +323,21 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
   const customerName  = userData.fullName  || request.auth.token.name  || "User";
   const customerEmail = userData.email     || request.auth.token.email || "";
 
+  // ── Delivery coverage: Kuwait only ────────────────────────────────────────
+  // Every LIBSK order is fulfilled through Wasal, which currently delivers
+  // inside Kuwait only. Reject an out-of-Kuwait (or missing) delivery address
+  // HERE — before the order doc is written and before any Payzah charge is
+  // attempted (fail fast). wasal.isKuwaitAddress is the authoritative country
+  // gate (pure); the live Wasal area match is cross-checked further below once
+  // the fee lookup has run. Message is surfaced verbatim to the customer via
+  // FirebaseFunctionsException.message.
+  const OUT_OF_KUWAIT_MSG =
+    "We're not yet able to deliver to this address. " +
+    "LIBSK currently delivers within Kuwait only.";
+  if (!wasal.isKuwaitAddress(addressData)) {
+    throw new HttpsError("failed-precondition", OUT_OF_KUWAIT_MSG);
+  }
+
   const now        = new Date();
   const dateString = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
 
@@ -352,18 +367,30 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
   // I/O inside a transaction would repeat on retries). null → legacy flat fee.
   // Fee lookup failures must never block checkout, hence the broad catch.
   let wasalAreaFee = null;
-  if (wasalEnabled.value() === "true" &&
-      addressData &&
-      addressData.wasalGovernorateId &&
-      addressData.wasalNeighborhoodId) {
+  let wasalLookupSucceeded = false;
+  const addressHasWasalIds = !!(
+    addressData &&
+    addressData.wasalGovernorateId &&
+    addressData.wasalNeighborhoodId
+  );
+  if (wasalEnabled.value() === "true" && addressHasWasalIds) {
     try {
       wasalAreaFee = await getWasalAreaFee(
         addressData.wasalGovernorateId,
         addressData.wasalNeighborhoodId,
       );
+      wasalLookupSucceeded = true;
     } catch (err) {
       logger.warn("Wasal fee lookup failed — using flat delivery fee", err);
     }
+  }
+  // Wasal area cross-check. A lookup that SUCCEEDED but matched no Kuwait zone
+  // (fee === null with no thrown error) means the address's area IDs fall
+  // outside Wasal coverage — reject before the order is written or charged. A
+  // lookup that THREW (network/disabled) leaves wasalLookupSucceeded false and
+  // never blocks checkout, matching the flat-fee fallback principle above.
+  if (addressHasWasalIds && wasalLookupSucceeded && wasalAreaFee === null) {
+    throw new HttpsError("failed-precondition", OUT_OF_KUWAIT_MSG);
   }
   const wasalPickupCount = Math.max(1, Object.keys(boutiqueMap).length);
 
