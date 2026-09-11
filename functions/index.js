@@ -1845,6 +1845,9 @@ exports.notifyWasalDeliveryStatus = onDocumentUpdated(
 // ================= EMAIL NOTIFICATIONS (RESEND) =================
 
 const { Resend } = require("resend");
+// Every KWD amount in email goes through this (3 decimals: "1.250 KWD") — the
+// same formatter the React Email templates use.
+const { formatKwd } = require("./format_kwd");
 
 function getResend() {
   return new Resend(resendApiKey.value());
@@ -1891,14 +1894,15 @@ function orderEmailHtml({ title, orderNumber, date, customerName, items, subtota
   //   • item.size    — client-supplied cart value (not re-verified server-side)
   // Everything else is intentionally left raw because it cannot carry markup:
   // orderNumber and date are built server-side, deliveryMethod is validated
-  // against a fixed allowlist in createOrder, and quantities/prices/totals are
-  // numbers. Not escaping them keeps the escaped (dangerous) fields easy to spot.
+  // against a fixed allowlist in createOrder, quantities are numbers, and every
+  // amount is formatKwd output (digits + " KWD"). Not escaping them keeps the
+  // escaped (dangerous) fields easy to spot.
   const rows = items.map(item => `
     <tr>
       <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;">${escapeHtml(item.title)}</td>
       <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:center;">${escapeHtml(item.size || "—")}</td>
       <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:center;">${item.quantity}</td>
-      <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:right;">${item.price.toFixed(0)} KWD</td>
+      <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:right;">${formatKwd(item.price)}</td>
     </tr>
   `).join("");
 
@@ -1937,16 +1941,16 @@ function orderEmailHtml({ title, orderNumber, date, customerName, items, subtota
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
             <tr>
               <td style="font-family:Arial,sans-serif;font-size:13px;color:#8E877D;padding:4px 0;">Subtotal</td>
-              <td style="font-family:Arial,sans-serif;font-size:13px;color:#8E877D;padding:4px 0;text-align:right;">${subtotal.toFixed(0)} KWD</td>
+              <td style="font-family:Arial,sans-serif;font-size:13px;color:#8E877D;padding:4px 0;text-align:right;">${formatKwd(subtotal)}</td>
             </tr>
             <tr>
               <td style="font-family:Arial,sans-serif;font-size:13px;color:#8E877D;padding:4px 0;">${deliveryMethod}</td>
-              <td style="font-family:Arial,sans-serif;font-size:13px;color:#8E877D;padding:4px 0;text-align:right;">${deliveryCost.toFixed(0)} KWD</td>
+              <td style="font-family:Arial,sans-serif;font-size:13px;color:#8E877D;padding:4px 0;text-align:right;">${formatKwd(deliveryCost)}</td>
             </tr>
             <tr><td colspan="2" style="border-top:1px solid #DDD8D1;padding-top:10px;"></td></tr>
             <tr>
               <td style="font-family:Georgia,serif;font-size:15px;color:#2C2925;font-weight:bold;padding:4px 0;">Total</td>
-              <td style="font-family:Georgia,serif;font-size:15px;color:#2C2925;font-weight:bold;padding:4px 0;text-align:right;">${total.toFixed(0)} KWD</td>
+              <td style="font-family:Georgia,serif;font-size:15px;color:#2C2925;font-weight:bold;padding:4px 0;text-align:right;">${formatKwd(total)}</td>
             </tr>
           </table>
         </td></tr>
