@@ -86,6 +86,14 @@ const db = admin.firestore();
 setGlobalOptions({maxInstances: 10, cpu: "gcf_gen1"});
 
 const {algoliasearch} = require("algoliasearch");
+// Discount-code scope + amount — the one rule createOrder and
+// validateDiscountCode share. Pure, unit-tested in test/discount_codes.test.js.
+const {
+  DiscountScopeError,
+  codeFitsBoutiques,
+  discountOnSubtotal,
+  discountForOrder,
+} = require("./discount_codes");
 
 const PRODUCTS_INDEX = "products";
 const BOUTIQUES_INDEX = "boutiques";
@@ -538,29 +546,21 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
           throw new HttpsError("failed-precondition", "You have already used this discount code.");
         }
       }
-      // Boutique-owned codes apply only to that boutique's items (others stay
-      // full price); platform-wide codes (no boutiqueId, created by super
-      // admins) apply to the whole cart.
-      const codeBoutiqueId = String(codeData.boutiqueId || "");
-      const discountableSubtotal = codeBoutiqueId
-        ? verifiedItems
-            .filter((i) => i.boutiqueId === codeBoutiqueId)
-            .reduce((sum, i) => sum + i.price * i.quantity, 0)
-        : verifiedSubtotal;
-      if (discountableSubtotal <= 0) {
-        throw new HttpsError("failed-precondition",
-          "This discount code is not valid for the items in your cart");
+      // A code is usable only on an order made entirely of its own boutique's
+      // items — anything else (including a code with no boutiqueId) is REJECTED
+      // here, never silently discounted to nothing. The discount comes off the
+      // item subtotal only and is capped at it.
+      try {
+        discountAmount = discountForOrder(codeData, verifiedItems);
+      } catch (err) {
+        if (err instanceof DiscountScopeError) {
+          throw new HttpsError("failed-precondition", err.message);
+        }
+        throw err;
       }
-      const codeValue = Number(codeData.value) || 0;
-      if (codeData.type === "percentage") {
-        discountAmount = parseFloat(((discountableSubtotal * codeValue) / 100).toFixed(3));
-      } else {
-        discountAmount = Math.min(codeValue, discountableSubtotal);
-      }
-      // The discount can never exceed the in-boutique (discountable) subtotal.
-      discountAmount = Math.min(discountAmount, discountableSubtotal);
     }
-    // Clamp incoming discountAmount to server-verified value
+    // Invariant, restated where the total is built: the discount never exceeds
+    // the item subtotal, so it can never reach the delivery fee below.
     discountAmount = Math.max(0, Math.min(discountAmount, verifiedSubtotal));
 
     // Area-based Wasal fee (per boutique pickup) when available; otherwise the
@@ -1619,16 +1619,27 @@ exports.validateDiscountCode = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Invalid code.");
   }
 
+  // Every code belongs to one boutique, and code text is unique only WITHIN a
+  // boutique (two boutiques may both run "SAVE10"), so the lookup is scoped to
+  // the cart's boutique. Checkout is single-boutique; a cart that isn't can't
+  // use any code.
+  const cartBoutiqueIds = Array.isArray(boutiqueIds) ? [...new Set(boutiqueIds.map(String))] : [];
+  if (cartBoutiqueIds.length !== 1) {
+    throw new HttpsError("failed-precondition",
+      "This discount code is not valid for the items in your cart");
+  }
+
   const snap = await db.collection("discount_codes")
     .where("code", "==", code.toUpperCase().trim())
+    .where("boutiqueId", "==", cartBoutiqueIds[0])
     .where("isActive", "==", true)
     .limit(1)
     .get();
 
-  // Anti-enumeration: nonexistent, expired, and usage-exhausted codes all return
-  // the IDENTICAL error (same code + message) so a caller can't tell a real-but-
-  // unusable code from a fake one. "Already used" and "wrong boutique" below stay
-  // specific on purpose — high-value UX, and only reachable for live codes.
+  // Anti-enumeration: nonexistent, expired, usage-exhausted and other-boutique
+  // codes all return the IDENTICAL error (same code + message) so a caller
+  // can't tell a real-but-unusable code from a fake one. "Already used" below
+  // stays specific on purpose — high-value UX, only reachable for live codes.
   if (snap.empty) {
     throw new HttpsError("not-found", "This discount code isn't valid.");
   }
@@ -1656,27 +1667,18 @@ exports.validateDiscountCode = onCall(async (request) => {
     }
   }
 
-  // Boutique-owned codes only apply if that boutique has items in the current
-  // cart. Platform-wide codes (no boutiqueId) skip the membership check.
-  const cartBoutiqueIds = Array.isArray(boutiqueIds)
-    ? boutiqueIds.map((b) => String(b))
-    : [];
-  const codeBoutiqueId = String(docData.boutiqueId || "");
-  if (codeBoutiqueId && !cartBoutiqueIds.includes(codeBoutiqueId)) {
+  // Same scope rule createOrder enforces (the query above already scoped the
+  // lookup; this also rejects a stray doc with no boutiqueId). Rejecting here,
+  // at apply time, means a code never shows a discount the order would refuse.
+  // (Preview only — createOrder re-checks against the real items.)
+  if (!codeFitsBoutiques(docData, cartBoutiqueIds)) {
     throw new HttpsError("failed-precondition",
       "This discount code is not valid for the items in your cart");
   }
 
   const type = docData.type;
   const value = Number(docData.value) || 0;
-  const sub = Number(subtotal) || 0;
-
-  let discountAmount = 0;
-  if (type === "percentage") {
-    discountAmount = parseFloat(((sub * value) / 100).toFixed(3));
-  } else {
-    discountAmount = Math.min(value, sub);
-  }
+  const discountAmount = discountOnSubtotal(docData, Number(subtotal) || 0);
 
   return {
     codeId: docId,

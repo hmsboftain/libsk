@@ -53,6 +53,32 @@ class CheckoutPage extends StatefulWidget {
 /// Wasal fee yet, so checkout is blocked (no flat fallback is ever charged).
 enum _DeliveryFeeState { noAddress, noArea, loading, error, resolved }
 
+/// What a discount code is worth on [items] — the checkout preview of the rule
+/// createOrder enforces (functions/discount_codes.js):
+///  * every code belongs to one boutique ([codeBoutiqueId]) and is worth
+///    something only when EVERY item is that boutique's — 0 otherwise, including
+///    for a code with no boutiqueId (the server rejects such an order outright);
+///  * a percentage of the item subtotal (rounded to 3 dp) or the flat value;
+///  * never more than the item subtotal, so it can never reach delivery.
+/// The server recomputes this itself; nothing here is trusted for the charge.
+double checkoutDiscount({
+  required String? type,
+  required double value,
+  required String? codeBoutiqueId,
+  required List<CartItem> items,
+}) {
+  final subtotal = items.fold<double>(0, (s, i) => s + i.price * i.quantity);
+  if (subtotal <= 0) return 0;
+  if (codeBoutiqueId == null || codeBoutiqueId.isEmpty) return 0;
+  if (!items.every((i) => i.boutiqueId == codeBoutiqueId)) return 0;
+  final raw = type == 'percentage'
+      ? double.parse(((subtotal * value) / 100).toStringAsFixed(3))
+      : value;
+  // The one cap, for both kinds of code: never more than the items.
+  if (raw <= 0) return 0;
+  return raw > subtotal ? subtotal : raw;
+}
+
 class _CheckoutPageState extends State<CheckoutPage> {
   // ── Delivery / payment ─────────────────────────────────────────────────────
   String deliveryMethod = 'Standard Delivery';
@@ -81,7 +107,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool _wasalFeeError = false;
 
   String? _discountCodeId;
-  double _discountAmount = 0;
+  // The applied code's terms, as validated by validateDiscountCode. Its amount
+  // is deliberately NOT stored: _discountFor recomputes it from the live cart on
+  // every build, so it can't go stale if the cart changes after the code is
+  // applied, and it's capped at the item subtotal so it never reaches delivery.
+  String? _discountType;
+  double _discountValue = 0;
+  String? _discountCodeBoutiqueId;
   String? _appliedCode;
   String? _discountBoutiqueName;
   bool _isValidatingCode = false;
@@ -319,24 +351,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
         subtotal: subtotal,
         boutiqueIds: boutiqueIds,
       );
-      // Scope the previewed discount to the owning boutique's items so the
-      // preview matches the server-side charge (createOrder is authoritative).
-      // Platform-wide codes (no boutiqueId) apply to the whole cart.
-      final codeBoutiqueId = data['boutiqueId']?.toString();
-      final codeType = data['type']?.toString();
-      final codeValue = (data['value'] as num?)?.toDouble() ?? 0;
-      final discountable = (codeBoutiqueId == null || codeBoutiqueId.isEmpty)
-          ? subtotal
-          : cartItems
-                .where((i) => i.boutiqueId == codeBoutiqueId)
-                .fold<double>(0, (s, i) => s + i.price * i.quantity);
-      final amount = codeType == 'percentage'
-          ? double.parse(((discountable * codeValue) / 100).toStringAsFixed(3))
-          : (codeValue < discountable ? codeValue : discountable);
+      // validateDiscountCode has already rejected a code that doesn't fit this
+      // cart (another boutique's code). Keep its terms; the amount is derived
+      // from the live cart by _discountFor.
       final boutiqueName = data['boutiqueName']?.toString();
       setState(() {
         _discountCodeId = data['codeId']?.toString();
-        _discountAmount = amount;
+        _discountType = data['type']?.toString();
+        _discountValue = (data['value'] as num?)?.toDouble() ?? 0;
+        _discountCodeBoutiqueId = data['boutiqueId']?.toString();
         _appliedCode = data['code']?.toString();
         _discountBoutiqueName =
             (boutiqueName != null && boutiqueName.isNotEmpty)
@@ -347,14 +370,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${_appliedCode ?? code} — ${_fmt(_discountAmount)} off',
+            '${_appliedCode ?? code} — ${_fmt(_discountFor(cartItems))} off',
           ),
         ),
       );
     } on FirebaseFunctionsException catch (e) {
       setState(() {
         _discountCodeId = null;
-        _discountAmount = 0;
+        _discountType = null;
+        _discountValue = 0;
+        _discountCodeBoutiqueId = null;
         _appliedCode = null;
         _discountBoutiqueName = null;
       });
@@ -372,11 +397,24 @@ class _CheckoutPageState extends State<CheckoutPage> {
   void _removeDiscountCode() {
     setState(() {
       _discountCodeId = null;
-      _discountAmount = 0;
+      _discountType = null;
+      _discountValue = 0;
+      _discountCodeBoutiqueId = null;
       _appliedCode = null;
       _discountBoutiqueName = null;
       _codeController.clear();
     });
+  }
+
+  /// The applied code's discount on [items] right now (0 with no code).
+  double _discountFor(List<CartItem> items) {
+    if (_discountCodeId == null) return 0;
+    return checkoutDiscount(
+      type: _discountType,
+      value: _discountValue,
+      codeBoutiqueId: _discountCodeBoutiqueId,
+      items: items,
+    );
   }
 
   // ── Place order ────────────────────────────────────────────────────────────
@@ -445,9 +483,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
         }
       }
 
-      final finalDiscount = _discountAmount > checkedSubtotal
-          ? 0.0
-          : _discountAmount;
+      // Recomputed from the items actually being ordered, never a stale amount
+      // from when the code was applied — and capped at their subtotal, so the
+      // delivery fee is never discounted.
+      final finalDiscount = _discountFor(cartItems);
       final checkedTotal = checkedSubtotal + deliveryCost - finalDiscount;
 
       final List<Map<String, dynamic>> orderItems = cartItems.map((item) {
@@ -478,8 +517,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
           total: checkedTotal,
           deliveryMethod: deliveryMethod,
           paymentMethod: paymentMethod,
-          discountCodeId: finalDiscount > 0 ? _discountCodeId : null,
-          discountAmount: finalDiscount > 0 ? finalDiscount : null,
+          // An applied code is ALWAYS sent. createOrder is authoritative: it
+          // applies the code or rejects it with a clear error — the client
+          // never quietly drops a code the customer saw applied.
+          discountCodeId: _discountCodeId,
+          discountAmount: _discountCodeId != null ? finalDiscount : null,
           // Pass null — the server already has the product's timeframe
           estimatedDays: null,
         );
@@ -663,7 +705,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 subtotal += item.price * item.quantity;
                 totalUnits += item.quantity;
               }
-              final double total = subtotal + deliveryCost - _discountAmount;
+              final double total =
+                  subtotal + deliveryCost - _discountFor(cartItems);
 
               return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                 stream: _addressesStream,
@@ -1030,9 +1073,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
             l10n.delivery,
             _hasMtoItems ? l10n.madeToOrder : _fmt(deliveryCost),
           ),
-          if (_discountAmount > 0) ...[
+          if (_discountFor(cartItems) > 0) ...[
             const SizedBox(height: 8),
-            _buildTotalRow(l10n.discountLabel, '- ${_fmt(_discountAmount)}'),
+            _buildTotalRow(
+              l10n.discountLabel,
+              '- ${_fmt(_discountFor(cartItems))}',
+            ),
           ],
           const SizedBox(height: 12),
           _buildTotalRow(l10n.total, _fmt(total), bold: true),
@@ -1079,7 +1125,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             children: [
               Expanded(
                 child: Text(
-                  '$_appliedCode — ${_fmt(_discountAmount)} off',
+                  '$_appliedCode — ${_fmt(_discountFor(cartItems))} off',
                   style: AppTextStyles.labelLarge.copyWith(
                     color: AppColors.deepAccent,
                   ),

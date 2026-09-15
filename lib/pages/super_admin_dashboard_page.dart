@@ -456,7 +456,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                           title: 'Discount Codes',
                           value: 'Manage',
                           subtitle:
-                              'Create and toggle discount codes for buyers.',
+                              "Review, pause or remove boutiques' codes.",
                           icon: Icons.local_offer_outlined,
                           compactValue: true,
                           onTap: () => Navigator.push(

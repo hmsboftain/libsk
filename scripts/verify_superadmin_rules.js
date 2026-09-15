@@ -18,6 +18,9 @@
  *      blocked from the four verification flags (no signup-gate bypass).
  *   6. U3/U4: pending_invites is gone and manual_notifications is server-only —
  *      even the superadmin cannot read them from a client.
+ *   8. Every discount code belongs to a boutique: a code with no (or an empty)
+ *      boutiqueId can't be stored by anyone, and a code's boutiqueId can't be
+ *      changed after creation (no re-pointing a code at another boutique).
  *
  * Usage:
  *   TOK=$(gcloud auth print-access-token) node scripts/verify_superadmin_rules.js
@@ -86,6 +89,9 @@ const code = {
   code: "SAVE10", type: "percentage", value: 10, isActive: true,
   usageCount: 0, usageLimit: null, boutiqueId: "b1",
 };
+// The same code with its boutiqueId stripped — a platform-wide code, which no
+// longer exists.
+const { boutiqueId: _unusedBoutiqueId, ...codeNoBoutique } = code;
 
 const cases = [
   // ══ 1. Read all users ══════════════════════════════════════════════════
@@ -209,6 +215,32 @@ const cases = [
     { auth: SUPER, path: DOC("manual_notifications/mn1"), method: "create", resource: { data: { title: "x" } } }, null, superMock("super1")),
   testCase("super reads pending_invites (removed → catch-all deny)", "DENY",
     { auth: SUPER, path: DOC("pending_invites/pi1"), method: "get" }, { data: { email: "x@y.com" } }, superMock("super1")),
+
+  // ══ 8. Discount codes always belong to a boutique ══════════════════════════
+  testCase("super creates a code with NO boutiqueId (platform code, removed)", "DENY",
+    { auth: SUPER, path: DOC("discount_codes/dc2"), method: "create", resource: { data: codeNoBoutique } },
+    null, [...noOwner("super1"), ...superMock("super1")]),
+  testCase("super creates a code with an EMPTY boutiqueId", "DENY",
+    { auth: SUPER, path: DOC("discount_codes/dc2"), method: "create", resource: { data: { ...code, boutiqueId: "" } } },
+    null, [...noOwner("super1"), ...superMock("super1")]),
+  testCase("owner creates a code for their OWN boutique", "ALLOW",
+    { auth: OWNER, path: DOC("discount_codes/dc3"), method: "create", resource: { data: code } },
+    null, [...ownerMock("owner1", "b1"), ...noAdmin("owner1")]),
+  testCase("owner creates a code with NO boutiqueId", "DENY",
+    { auth: OWNER, path: DOC("discount_codes/dc3"), method: "create", resource: { data: codeNoBoutique } },
+    null, [...ownerMock("owner1", "b1"), ...noAdmin("owner1")]),
+  testCase("owner creates a code for ANOTHER boutique", "DENY",
+    { auth: OWNER, path: DOC("discount_codes/dc3"), method: "create", resource: { data: { ...code, boutiqueId: "b2" } } },
+    null, [...ownerMock("owner1", "b1"), ...noAdmin("owner1")]),
+  testCase("owner pauses their OWN code", "ALLOW",
+    { auth: OWNER, path: DOC("discount_codes/dc3"), method: "update", resource: { data: { ...code, isActive: false } } },
+    { data: code }, [...ownerMock("owner1", "b1"), ...noAdmin("owner1")]),
+  testCase("owner re-points their code at ANOTHER boutique", "DENY",
+    { auth: OWNER, path: DOC("discount_codes/dc3"), method: "update", resource: { data: { ...code, boutiqueId: "b2" } } },
+    { data: code }, [...ownerMock("owner1", "b1"), ...noAdmin("owner1")]),
+  testCase("super strips a code's boutiqueId (turning it platform-wide)", "DENY",
+    { auth: SUPER, path: DOC("discount_codes/dc3"), method: "update", resource: { data: codeNoBoutique } },
+    { data: code }, [...noOwner("super1"), ...superMock("super1")]),
 ];
 
 const body = {
