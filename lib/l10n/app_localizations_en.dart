@@ -3010,6 +3010,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get wasalBranchCodeSaved => 'Branch code saved';
 
   @override
+  String get commissionPercentLabel => 'Commission %';
+
+  @override
+  String get commissionPercentHint => 'LIBSK commission rate, e.g. 12 or 15';
+
+  @override
+  String get commissionPercentSaved => 'Commission rate saved';
+
+  @override
   String get deliveryTrackingTitle => 'Delivery tracking';
 
   @override

@@ -64,6 +64,14 @@ const wasalApiKey = defineSecret("WASAL_API_KEY");
 const wasalWebhookSecret = defineSecret("WASAL_WEBHOOK_SECRET");
 const wasalEnabled = defineString("WASAL_ENABLED", {default: "false"});
 
+// Payzah multivendor commission fields (snake_case mapping + fallback) and the
+// internal gateway-fee / net-commission bookkeeping math. Pure, unit-tested in
+// test/payzah_commission.test.js.
+const {
+  buildPayzahCommissionFields,
+  calculateNetCommission,
+} = require("./payzah_commission");
+
 admin.initializeApp();
 
 const db = admin.firestore();
@@ -568,6 +576,19 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
     // reporting can sum it directly instead of recomputing at read time.
     const commissionAmount = parseFloat((verifiedSubtotal * 0.15).toFixed(3));
 
+    // Internal bookkeeping: the Payzah gateway fee for this transaction and
+    // LIBSK's net commission after it. NOT sent to Payzah, and it never touches
+    // the boutique payout (which stays verifiedSubtotal - commissionAmount).
+    // Commission is on GMV (verifiedSubtotal); the gateway fee is on the FULL
+    // amount charged (total, incl. delivery) — Payzah levies its fee on that.
+    // Rate 15 mirrors the 0.15 used for commissionAmount above — keep in sync
+    // (and move both to the per-boutique rate together if that changes).
+    const orderPaymentType = paymentMethod === "KNET" ? "1"
+      : paymentMethod === "Apple Pay" ? "3" : "2";
+    const { gatewayFee, netCommission } = calculateNetCommission(
+      verifiedSubtotal, total, 15, orderPaymentType,
+    );
+
     const orderBase = {
       orderNumber,
       date: dateString,
@@ -575,6 +596,8 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
       total,
       deliveryCost,
       commissionAmount,
+      gatewayFee,
+      netCommission,
       status: initialOrderStatus,
       customerUid: uid,
       customerName,
@@ -1300,6 +1323,49 @@ exports.initializePayzahPayment = onCall(
     const projectId = process.env.GCLOUD_PROJECT;
     const redirectUrl = `https://us-central1-${projectId}.cloudfunctions.net/payzahRedirect`;
 
+    // ── Multivendor commission fields ────────────────────────────────────
+    // Checkout is single-boutique (the client enforces one boutique per cart —
+    // CartConflictGuard.ensureSingleBoutiqueCart), so the attempt carries
+    // exactly one boutiqueId. Map that boutique's commission config onto
+    // Payzah's snake_case commission_* fields. Any missing/invalid field falls
+    // back to the default inside buildPayzahCommissionFields — a commission
+    // lookup must NEVER break a checkout. See payzah_commission.js for the
+    // (still-unconfirmed-with-Payzah) real-split vs metadata caveat.
+    const attemptBoutiqueIds = Array.isArray(attempt.boutiqueIds) ? attempt.boutiqueIds : [];
+    const commissionBoutiqueId = attemptBoutiqueIds[0] || null;
+    if (attemptBoutiqueIds.length > 1) {
+      // Not expected under the one-boutique-per-cart guard; the first boutique
+      // is used. Logged so a future multi-boutique cart can't silently bill the
+      // whole order at a single boutique's rate without anyone noticing.
+      logger.warn("Payzah init: attempt spans multiple boutiques; using the first for commission", {
+        attemptId, boutiqueIds: attemptBoutiqueIds,
+      });
+    }
+
+    let commissionResult = buildPayzahCommissionFields(null); // default if no boutique
+    if (commissionBoutiqueId) {
+      try {
+        const boutiqueSnap = await db.collection("boutiques").doc(commissionBoutiqueId).get();
+        commissionResult = buildPayzahCommissionFields(boutiqueSnap.exists ? boutiqueSnap.data() : null);
+        if (!boutiqueSnap.exists) {
+          logger.warn("Payzah init: boutique doc not found; using default commission", {
+            attemptId, boutiqueId: commissionBoutiqueId,
+          });
+        } else if (commissionResult.usedFallback) {
+          logger.warn("Payzah init: boutique missing commission fields; using defaults for those", {
+            attemptId, boutiqueId: commissionBoutiqueId, missingFields: commissionResult.missingFields,
+          });
+        }
+      } catch (err) {
+        logger.warn("Payzah init: commission lookup failed; using default commission", {
+          attemptId, boutiqueId: commissionBoutiqueId, error: String(err),
+        });
+        commissionResult = buildPayzahCommissionFields(null);
+      }
+    } else {
+      logger.warn("Payzah init: attempt has no boutiqueId; using default commission", { attemptId });
+    }
+
     const paymentType = attempt.payzahPaymentType || "2";
     const payload = {
       trackid: String(attempt.trackid),
@@ -1315,6 +1381,9 @@ exports.initializePayzahPayment = onCall(
       customer_name: String(userData.fullName || request.auth.token.name || ""),
       customer_email: String(userData.email || request.auth.token.email || ""),
       customer_phone: customerPhone,
+      // Multivendor commission split (commission_type / commission_percent /
+      // commission_fixed) for this boutique — numbers, per Payzah's field spec.
+      ...commissionResult.fields,
       // kfast_id (Numeric, max 8) appears in the docs' request field table but
       // is never explained anywhere — deliberately omitted until Payzah
       // support confirms its purpose.

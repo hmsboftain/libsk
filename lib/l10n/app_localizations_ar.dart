@@ -3014,6 +3014,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get wasalBranchCodeSaved => 'تم حفظ رمز الفرع';
 
   @override
+  String get commissionPercentLabel => 'نسبة العمولة ٪';
+
+  @override
+  String get commissionPercentHint => 'نسبة عمولة لبسك، مثال: ١٢ أو ١٥';
+
+  @override
+  String get commissionPercentSaved => 'تم حفظ نسبة العمولة';
+
+  @override
   String get deliveryTrackingTitle => 'تتبع التوصيل';
 
   @override
