@@ -4,16 +4,14 @@
 // Node's built-in runner, no deps. These exercise the REAL module
 // initializePayzahPayment calls, so a green run means: the fee-absorbed vendor
 // split (formula, vendor-key lookup, no-fallback failures, exact request body),
-// the switched-off merchant-key flow sending exactly the pre-split request, the
-// (currently unsent) commission config mapping, and the internal gateway-fee
-// bookkeeping all hold.
+// the switched-off merchant-key flow sending exactly the pre-split request, and
+// the internal gateway-fee bookkeeping all hold.
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
   DEFAULT_COMMISSION,
-  buildPayzahCommissionFields,
   BOUTIQUE_SECRETS_COLLECTION,
   PayzahVendorSplitConfigError,
   gatewayFeeFils,
@@ -31,169 +29,6 @@ const {
   feeForPaymentType,
   calculateNetCommission,
 } = require("../payzah_commission");
-
-// ── boutique WITH commission fields set ───────────────────────────────────────
-
-test("boutique with all fields set: maps camelCase -> snake_case, no fallback", () => {
-  const res = buildPayzahCommissionFields({
-    commissionType: 2,
-    commissionPercent: 15,
-    commissionFixed: 0,
-    // unrelated fields are ignored
-    name: "Some Boutique",
-    foundingPartner: false,
-  });
-  assert.deepEqual(res.fields, {
-    commission_type: 2,
-    commission_percent: 15,
-    commission_fixed: 0,
-  });
-  assert.equal(res.usedFallback, false);
-  assert.deepEqual(res.missingFields, []);
-});
-
-test("founding-partner rate (type 2, 12%) passes through unchanged", () => {
-  const res = buildPayzahCommissionFields({
-    commissionType: 2,
-    commissionPercent: 12,
-    commissionFixed: 0,
-  });
-  assert.deepEqual(res.fields, {
-    commission_type: 2,
-    commission_percent: 12,
-    commission_fixed: 0,
-  });
-  assert.equal(res.usedFallback, false);
-});
-
-test("fixed (type 1) and mixed (type 3) commission types are honored", () => {
-  const fixed = buildPayzahCommissionFields({
-    commissionType: 1,
-    commissionPercent: 0,
-    commissionFixed: 2.5,
-  });
-  assert.deepEqual(fixed.fields, {
-    commission_type: 1,
-    commission_percent: 0,
-    commission_fixed: 2.5,
-  });
-  assert.equal(fixed.usedFallback, false);
-
-  const mixed = buildPayzahCommissionFields({
-    commissionType: 3,
-    commissionPercent: 10,
-    commissionFixed: 1,
-  });
-  assert.deepEqual(mixed.fields, {
-    commission_type: 3,
-    commission_percent: 10,
-    commission_fixed: 1,
-  });
-  assert.equal(mixed.usedFallback, false);
-});
-
-test("numeric strings from Firestore are coerced to numbers", () => {
-  const res = buildPayzahCommissionFields({
-    commissionType: "2",
-    commissionPercent: "15",
-    commissionFixed: "0",
-  });
-  assert.deepEqual(res.fields, {
-    commission_type: 2,
-    commission_percent: 15,
-    commission_fixed: 0,
-  });
-  assert.equal(res.usedFallback, false);
-});
-
-// ── boutique MISSING commission fields (fallback path) ────────────────────────
-
-test("completely missing config (null) falls back to every default", () => {
-  const res = buildPayzahCommissionFields(null);
-  assert.deepEqual(res.fields, {
-    commission_type: DEFAULT_COMMISSION.commissionType,
-    commission_percent: DEFAULT_COMMISSION.commissionPercent,
-    commission_fixed: DEFAULT_COMMISSION.commissionFixed,
-  });
-  assert.equal(res.usedFallback, true);
-  assert.deepEqual(
-    res.missingFields.sort(),
-    ["commissionFixed", "commissionPercent", "commissionType"],
-  );
-});
-
-test("empty object (legacy boutique with no commission fields) falls back", () => {
-  const res = buildPayzahCommissionFields({ name: "Legacy Boutique" });
-  assert.equal(res.fields.commission_type, DEFAULT_COMMISSION.commissionType);
-  assert.equal(res.fields.commission_percent, DEFAULT_COMMISSION.commissionPercent);
-  assert.equal(res.fields.commission_fixed, DEFAULT_COMMISSION.commissionFixed);
-  assert.equal(res.usedFallback, true);
-});
-
-test("partial config falls back only for the missing field", () => {
-  const res = buildPayzahCommissionFields({
-    commissionType: 2,
-    commissionPercent: 15,
-    // commissionFixed missing
-  });
-  assert.equal(res.fields.commission_type, 2);
-  assert.equal(res.fields.commission_percent, 15);
-  assert.equal(res.fields.commission_fixed, DEFAULT_COMMISSION.commissionFixed);
-  assert.equal(res.usedFallback, true);
-  assert.deepEqual(res.missingFields, ["commissionFixed"]);
-});
-
-test("invalid values fall back to defaults (never throw, never break checkout)", () => {
-  const badType = buildPayzahCommissionFields({
-    commissionType: 9, // not 1/2/3
-    commissionPercent: 15,
-    commissionFixed: 0,
-  });
-  assert.equal(badType.fields.commission_type, DEFAULT_COMMISSION.commissionType);
-  assert.deepEqual(badType.missingFields, ["commissionType"]);
-
-  const negativePercent = buildPayzahCommissionFields({
-    commissionType: 2,
-    commissionPercent: -5,
-    commissionFixed: 0,
-  });
-  assert.equal(negativePercent.fields.commission_percent, DEFAULT_COMMISSION.commissionPercent);
-
-  const tooHighPercent = buildPayzahCommissionFields({
-    commissionType: 2,
-    commissionPercent: 150,
-    commissionFixed: 0,
-  });
-  assert.equal(tooHighPercent.fields.commission_percent, DEFAULT_COMMISSION.commissionPercent);
-
-  const nonNumeric = buildPayzahCommissionFields({
-    commissionType: "abc",
-    commissionPercent: {},
-    commissionFixed: "x",
-  });
-  assert.equal(nonNumeric.fields.commission_type, DEFAULT_COMMISSION.commissionType);
-  assert.equal(nonNumeric.fields.commission_percent, DEFAULT_COMMISSION.commissionPercent);
-  assert.equal(nonNumeric.fields.commission_fixed, DEFAULT_COMMISSION.commissionFixed);
-  assert.equal(nonNumeric.usedFallback, true);
-});
-
-// ── field-name mapping contract (Firestore camelCase -> Payzah snake_case) ────
-
-test("output keys are exactly Payzah's snake_case field names", () => {
-  const res = buildPayzahCommissionFields({
-    commissionType: 2,
-    commissionPercent: 12,
-    commissionFixed: 0,
-  });
-  assert.deepEqual(
-    Object.keys(res.fields).sort(),
-    ["commission_fixed", "commission_percent", "commission_type"],
-  );
-  // and NOT the camelCase Firestore names
-  assert.equal(res.fields.commissionType, undefined);
-  assert.equal(res.fields.commissionPercent, undefined);
-  assert.equal(res.fields.commissionFixed, undefined);
-});
 
 // ── gateway fee / net commission (internal bookkeeping) ───────────────────────
 //
@@ -471,7 +306,7 @@ test("readCommissionPercent: numbers 0-100 only, and NO default", () => {
   assert.equal(readCommissionPercent(null), null);
 });
 
-test("the legacy default is the STANDARD 15% (Founding Partner 12% is manual only)", () => {
+test("the default commission is the STANDARD 15% (Founding Partner 12% is manual only)", () => {
   assert.equal(DEFAULT_COMMISSION.commissionPercent, 15);
 });
 

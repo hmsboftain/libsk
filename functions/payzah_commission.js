@@ -27,88 +27,31 @@ const { kwdToFils, filsToKwd } = require("./promo_credit");
 //      is exactly the one LIBSK sent before the vendor split existed (see
 //      resolvePayzahInitAuth).
 
-// ================= COMMISSION CONFIG MAPPING (NOT SENT) =================
+// ================= DEFAULT COMMISSION CONFIG =================
 //
-// NOT CALLED by initializePayzahPayment: the merchant-key flow sends no
-// commission fields. Kept (with its tests) only until a decision on removing
-// it; DEFAULT_COMMISSION below is still used by the backfill script. Maps a
-// boutique's Firestore commission config onto the three commission_* fields:
-//
-//   Firestore field (camelCase)  ->  Payzah request field (snake_case)
-//   commissionType               ->  commission_type    (1 = fixed | 2 = percentage | 3 = mixed)
-//   commissionPercent            ->  commission_percent (used when type is 2 or 3)
-//   commissionFixed              ->  commission_fixed   (used when type is 1 or 3)
-//
-// We always send all three fields (type + percent + fixed); an unused field for
-// the chosen type (e.g. commission_fixed: 0 when type is 2) is harmless.
-
-// Single source of truth for the default commission config, applied when a
-// boutique document is missing (or has an invalid value for) a field.
+// The commission config a boutique starts with. The onboarding page
+// (boutique_onboarding_page.dart) writes it on every new boutique, and the
+// backfill script (scripts/backfill-boutique-commission.js) writes it onto
+// boutiques that lack it. Keep the three in sync.
 //
 // This is intentionally ONE default — NOT 12-vs-15 business logic baked into
 // code. Per-boutique rates are set/edited from the superadmin "All Boutiques"
 // screen (admin_boutiques_page.dart), which is how rates are adjusted going
-// forward without a code change. Keep this value in sync with the Flutter
-// onboarding default (boutique_onboarding_page.dart) and the backfill script
-// (scripts/backfill-boutique-commission.js).
+// forward without a code change.
 //
 // The default is the STANDARD 15%. The Founding Partner 12% rate is only ever
 // set by hand, per boutique, from All Boutiques — it is never auto-applied.
 //
-// The fee-absorbed vendor split does NOT use this default: a boutique with no
-// valid commissionPercent is refused a payment (see readCommissionPercent)
-// rather than charged a rate nobody chose for it.
+// Payment code never falls back to this default. The fee-absorbed vendor split
+// refuses a boutique with no valid commissionPercent (see
+// readCommissionPercent) rather than charge a rate nobody chose, and the
+// merchant-key flow sends no commission fields. No payment code reads
+// commissionType or commissionFixed.
 const DEFAULT_COMMISSION = Object.freeze({
   commissionType: 2, // percentage
   commissionPercent: 15,
   commissionFixed: 0,
 });
-
-// Payzah commission_type enum: 1 fixed, 2 percentage, 3 mixed.
-const VALID_COMMISSION_TYPES = [1, 2, 3];
-
-// Build the Payzah commission fields from a boutique document's data.
-//
-// Returns { fields, usedFallback, missingFields }:
-//   fields        - { commission_type, commission_percent, commission_fixed } (numbers)
-//   usedFallback  - true if any field fell back to DEFAULT_COMMISSION
-//   missingFields - the camelCase field names that were missing/invalid
-//
-// NEVER throws. A missing or malformed value falls back to the default so a
-// commission lookup can never break a checkout. Pass null/undefined to get the
-// pure defaults.
-function buildPayzahCommissionFields(boutiqueData) {
-  const data = boutiqueData || {};
-  const missingFields = [];
-
-  let commissionType = Number(data.commissionType);
-  if (!Number.isFinite(commissionType) || !VALID_COMMISSION_TYPES.includes(commissionType)) {
-    commissionType = DEFAULT_COMMISSION.commissionType;
-    missingFields.push("commissionType");
-  }
-
-  let commissionPercent = Number(data.commissionPercent);
-  if (!Number.isFinite(commissionPercent) || commissionPercent < 0 || commissionPercent > 100) {
-    commissionPercent = DEFAULT_COMMISSION.commissionPercent;
-    missingFields.push("commissionPercent");
-  }
-
-  let commissionFixed = Number(data.commissionFixed);
-  if (!Number.isFinite(commissionFixed) || commissionFixed < 0) {
-    commissionFixed = DEFAULT_COMMISSION.commissionFixed;
-    missingFields.push("commissionFixed");
-  }
-
-  return {
-    fields: {
-      commission_type: commissionType,
-      commission_percent: commissionPercent,
-      commission_fixed: commissionFixed,
-    },
-    usedFallback: missingFields.length > 0,
-    missingFields,
-  };
-}
 
 // ================= FEE-ABSORBED VENDOR SPLIT (DEFAULT FLOW) =================
 //
@@ -504,8 +447,6 @@ function calculateNetCommission(commissionBase, chargedTotal, commissionPercent,
 
 module.exports = {
   DEFAULT_COMMISSION,
-  VALID_COMMISSION_TYPES,
-  buildPayzahCommissionFields,
   BOUTIQUE_SECRETS_COLLECTION,
   PayzahVendorSplitConfigError,
   gatewayFeeFils,
