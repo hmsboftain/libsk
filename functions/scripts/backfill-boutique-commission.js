@@ -6,11 +6,13 @@
 // that don't have it yet:
 //
 //   commissionType:    2   (percentage)
-//   commissionPercent: 12
+//   commissionPercent: 15  (Standard)
 //   commissionFixed:   0
 //
-// Matches DEFAULT_COMMISSION in ../payzah_commission.js — keep them in sync. If
-// you change the default rate, change it there first, then re-read it here.
+// The values come from DEFAULT_COMMISSION in ../payzah_commission.js — change
+// the default there, not here. The Founding Partner 12% rate is NEVER
+// backfilled: set it by hand, per boutique, from All Boutiques (before or after
+// running this — an existing commissionPercent is never overwritten).
 //
 // SAFETY:
 //   * DRY RUN by default — prints what WOULD change and writes nothing.

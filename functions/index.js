@@ -54,6 +54,15 @@ const payzahDirectEnabled = defineString("PAYZAH_DIRECT_ENABLED", {default: "fal
 // PAYZAH_ENV picks the gateway host: "test" (sandbox) | "production".
 const payzahPrivateKey = defineSecret("PAYZAH_PRIVATE_KEY");
 const payzahEnv = defineString("PAYZAH_ENV", {default: "test"});
+// Fee-absorbed vendor split for ORDER payments (default ON): initialize as the
+// boutique's Payzah vendor account so the settlement routes to the boutique,
+// with LIBSK's cut sent as a fixed commission (see payzah_commission.js).
+// Rollback to the single-merchant-key flow: set PAYZAH_VENDOR_SPLIT_ENABLED=false
+// in functions/.env AND functions/.env.libsk-b68f5, then redeploy. Only the exact
+// string "false" rolls back — anything else keeps the split on, so a typo can't
+// silently send every payment to LIBSK's account. Promo bookings always use the
+// merchant key regardless (LIBSK is the payee there).
+const payzahVendorSplitEnabled = defineString("PAYZAH_VENDOR_SPLIT_ENABLED", {default: "true"});
 // Wasal delivery integration. API key is a managed secret (pk_test_ in
 // sandbox, pk_live_ in production — same endpoints, no code changes). The
 // webhook secret is issued once when the webhook is registered with Wasal.
@@ -64,12 +73,20 @@ const wasalApiKey = defineSecret("WASAL_API_KEY");
 const wasalWebhookSecret = defineSecret("WASAL_WEBHOOK_SECRET");
 const wasalEnabled = defineString("WASAL_ENABLED", {default: "false"});
 
-// Payzah multivendor commission fields (snake_case mapping + fallback) and the
-// internal gateway-fee / net-commission bookkeeping math. Pure, unit-tested in
-// test/payzah_commission.test.js.
+// Payzah multivendor commission: the fee-absorbed vendor split (default), the
+// legacy merchant-key commission metadata (rollback), the Initialize Payment
+// body, and the internal gateway-fee / net-commission bookkeeping math.
+// Unit-tested in test/payzah_commission.test.js.
 const {
   buildPayzahCommissionFields,
   calculateNetCommission,
+  BOUTIQUE_SECRETS_COLLECTION,
+  PayzahVendorSplitConfigError,
+  resolveVendorSplit,
+  PAYZAH_AUTH_VENDOR,
+  payzahAuthModeForInit,
+  payzahStatusSigningKey,
+  buildPayzahInitPayload,
 } = require("./payzah_commission");
 
 admin.initializeApp();
@@ -690,6 +707,12 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
       lastGatewayStatus: null,
       status: "pending",
       amount: total,
+      // What `amount` is made of (amount = subtotal - discountAmount +
+      // deliveryCost). The Payzah vendor split needs it: commission is taken on
+      // subtotal - discount only, and delivery routes entirely to LIBSK.
+      subtotal: verifiedSubtotal,
+      discountAmount,
+      deliveryCost,
       currency: "KWD",
       checkAttempts: 0,
       lastCheckedAt: null,
@@ -876,13 +899,17 @@ function logPayzahFailure(context, responseBody) {
 }
 
 // Payzah auth: the Authorization header is the Base64 of the raw private key.
-async function callPayzah(path, body) {
+// `privateKey` decides which Payzah account the call acts as: LIBSK's merchant
+// key, or a boutique's vendor key (which is what routes a payment to that
+// boutique). Deliberately required with no default, so no call site can fall
+// back to the merchant key by forgetting to pass the vendor's.
+async function callPayzah(path, body, privateKey) {
   const base = PAYZAH_BASE_URLS[payzahEnv.value()] || PAYZAH_BASE_URLS.test;
   const res = await fetch(`${base}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: Buffer.from(payzahPrivateKey.value(), "utf-8").toString("base64"),
+      Authorization: Buffer.from(privateKey, "utf-8").toString("base64"),
     },
     body: JSON.stringify(body),
   });
@@ -924,10 +951,17 @@ async function fetchPayzahStatus(attempt) {
     throw new Error("Payment attempt has no trackid.");
   }
 
+  // Sign with the SAME Payzah account that initialized this payment
+  // (payzahAuthMode, recorded by initializePayzahPayment). The accounts are
+  // separate scopes: the merchant key gets 10012 "no record" for a vendor
+  // payment, which would read as "still pending". A vendor key that can't be
+  // found throws — it is never swapped for the merchant key.
+  const privateKey = await payzahStatusSigningKey(db, attempt, payzahPrivateKey.value());
+
   const response = await callPayzah(PAYZAH_PATHS.status, {
     trackid: String(attempt.trackid),
     ...(attempt.payzahPaymentId ? { payment_id: attempt.payzahPaymentId } : {}),
-  });
+  }, privateKey);
 
   if (response?.status !== true) {
     // 10012 = no payment record for this trackid yet — the customer may never
@@ -1261,10 +1295,56 @@ exports.reconcilePayzahPayments = onSchedule(
 
 // ================= PAYZAH: INITIALIZE PAYMENT =================
 //
-// Called by the Flutter client right after createOrder (payzah path). The
-// amount, trackid and payment type all come from the payment_attempts doc
-// createOrder wrote inside its price-verification transaction — the client
-// supplies only the attempt id, never a price.
+// Called by the Flutter client right after createOrder (payzah path), and by
+// the promo booking flow for a kind:"promo_booking" attempt (a boutique paying
+// LIBSK for a promo slot). The amount, trackid and payment type all come from
+// the payment_attempts doc the server wrote inside its price-verification
+// transaction — the client supplies only the attempt id, never a price.
+
+// ROLLBACK ONLY (PAYZAH_VENDOR_SPLIT_ENABLED=false): the commission fields the
+// single-merchant-key flow sends for an order payment. Logic unchanged from
+// that flow — it maps the boutique's commission config onto Payzah's
+// snake_case commission_* fields and never throws (a commission lookup must
+// never break a checkout). Under the merchant key these fields are METADATA:
+// LIBSK receives 100% and there is no vendor to split with.
+async function legacyPayzahCommissionFields(attempt, attemptId) {
+  const attemptBoutiqueIds = Array.isArray(attempt.boutiqueIds) ? attempt.boutiqueIds : [];
+  const commissionBoutiqueId = attemptBoutiqueIds[0] || null;
+  if (attemptBoutiqueIds.length > 1) {
+    // Not expected under the one-boutique-per-cart guard; the first boutique
+    // is used. Logged so a future multi-boutique cart can't silently bill the
+    // whole order at a single boutique's rate without anyone noticing.
+    logger.warn("Payzah init: attempt spans multiple boutiques; using the first for commission", {
+      attemptId, boutiqueIds: attemptBoutiqueIds,
+    });
+  }
+
+  let commissionResult = buildPayzahCommissionFields(null); // default if no boutique
+  if (commissionBoutiqueId) {
+    try {
+      const boutiqueSnap = await db.collection("boutiques").doc(commissionBoutiqueId).get();
+      commissionResult = buildPayzahCommissionFields(boutiqueSnap.exists ? boutiqueSnap.data() : null);
+      if (!boutiqueSnap.exists) {
+        logger.warn("Payzah init: boutique doc not found; using default commission", {
+          attemptId, boutiqueId: commissionBoutiqueId,
+        });
+      } else if (commissionResult.usedFallback) {
+        logger.warn("Payzah init: boutique missing commission fields; using defaults for those", {
+          attemptId, boutiqueId: commissionBoutiqueId, missingFields: commissionResult.missingFields,
+        });
+      }
+    } catch (err) {
+      logger.warn("Payzah init: commission lookup failed; using default commission", {
+        attemptId, boutiqueId: commissionBoutiqueId, error: String(err),
+      });
+      commissionResult = buildPayzahCommissionFields(null);
+    }
+  } else {
+    logger.warn("Payzah init: attempt has no boutiqueId; using default commission", { attemptId });
+  }
+
+  return commissionResult.fields;
+}
 
 exports.initializePayzahPayment = onCall(
   { secrets: [payzahPrivateKey] },
@@ -1323,75 +1403,90 @@ exports.initializePayzahPayment = onCall(
     const projectId = process.env.GCLOUD_PROJECT;
     const redirectUrl = `https://us-central1-${projectId}.cloudfunctions.net/payzahRedirect`;
 
-    // ── Multivendor commission fields ────────────────────────────────────
-    // Checkout is single-boutique (the client enforces one boutique per cart —
-    // CartConflictGuard.ensureSingleBoutiqueCart), so the attempt carries
-    // exactly one boutiqueId. Map that boutique's commission config onto
-    // Payzah's snake_case commission_* fields. Any missing/invalid field falls
-    // back to the default inside buildPayzahCommissionFields — a commission
-    // lookup must NEVER break a checkout. See payzah_commission.js for the
-    // (still-unconfirmed-with-Payzah) real-split vs metadata caveat.
-    const attemptBoutiqueIds = Array.isArray(attempt.boutiqueIds) ? attempt.boutiqueIds : [];
-    const commissionBoutiqueId = attemptBoutiqueIds[0] || null;
-    if (attemptBoutiqueIds.length > 1) {
-      // Not expected under the one-boutique-per-cart guard; the first boutique
-      // is used. Logged so a future multi-boutique cart can't silently bill the
-      // whole order at a single boutique's rate without anyone noticing.
-      logger.warn("Payzah init: attempt spans multiple boutiques; using the first for commission", {
-        attemptId, boutiqueIds: attemptBoutiqueIds,
-      });
-    }
-
-    let commissionResult = buildPayzahCommissionFields(null); // default if no boutique
-    if (commissionBoutiqueId) {
-      try {
-        const boutiqueSnap = await db.collection("boutiques").doc(commissionBoutiqueId).get();
-        commissionResult = buildPayzahCommissionFields(boutiqueSnap.exists ? boutiqueSnap.data() : null);
-        if (!boutiqueSnap.exists) {
-          logger.warn("Payzah init: boutique doc not found; using default commission", {
-            attemptId, boutiqueId: commissionBoutiqueId,
-          });
-        } else if (commissionResult.usedFallback) {
-          logger.warn("Payzah init: boutique missing commission fields; using defaults for those", {
-            attemptId, boutiqueId: commissionBoutiqueId, missingFields: commissionResult.missingFields,
-          });
-        }
-      } catch (err) {
-        logger.warn("Payzah init: commission lookup failed; using default commission", {
-          attemptId, boutiqueId: commissionBoutiqueId, error: String(err),
-        });
-        commissionResult = buildPayzahCommissionFields(null);
-      }
-    } else {
-      logger.warn("Payzah init: attempt has no boutiqueId; using default commission", { attemptId });
-    }
-
+    // ── Which Payzah account this payment is made to ─────────────────────
+    // The signing key decides where the money settles, so it is chosen here
+    // and nowhere else:
+    //   * promo booking → LIBSK's merchant key, no commission fields. The
+    //     boutique is the PAYER and LIBSK the payee; there is no vendor to split
+    //     with, and signing as the boutique would pay it back its own promo fee.
+    //   * order, split on (default) → the boutique's vendor key + LIBSK's
+    //     fee-absorbed fixed commission. A boutique that isn't set up fails
+    //     HERE, loudly — never a silent fallback to the merchant key, which
+    //     would settle 100% to LIBSK with no sign anything was wrong.
+    //   * order, split off (rollback) → merchant key + legacy metadata.
     const paymentType = attempt.payzahPaymentType || "2";
-    const payload = {
-      trackid: String(attempt.trackid),
-      // Plain decimal string, 3 dp, e.g. "11.250" — no symbols or commas.
-      amount: Number(attempt.amount).toFixed(3),
+    const authMode = payzahAuthModeForInit(attempt, payzahVendorSplitEnabled.value() !== "false");
+    let payzahAuth;
+    if (authMode === PAYZAH_AUTH_VENDOR) {
+      // The Payzah dashboard ALSO has each vendor's Debit and Credit commission
+      // tabs set to that boutique's plain rate (12% / 15%), configured by hand
+      // as a safety net for a request that ever arrives WITHOUT commission
+      // fields. The commission_* fields sent below override it — so the
+      // dashboard showing a percentage while this code sends a fixed amount is
+      // expected, not a mismatch.
+      let split;
+      try {
+        split = await resolveVendorSplit(db, attempt, paymentType);
+      } catch (err) {
+        if (err instanceof PayzahVendorSplitConfigError) {
+          logger.error("Payzah init BLOCKED: boutique not set up for the vendor split; NOT falling back to the merchant key", {
+            attemptId, boutiqueIds: attempt.boutiqueIds || [], reason: err.message,
+          });
+          throw new HttpsError("failed-precondition", "This boutique can't accept payments right now. Please try again later.");
+        }
+        logger.error("Payzah init: vendor split lookup failed", { attemptId, error: String(err) });
+        throw new HttpsError("unavailable", "Could not start the payment. Please try again.");
+      }
+      logger.info("Payzah init: vendor split", {
+        attemptId,
+        boutiqueId: split.boutiqueId,
+        amount: attempt.amount,
+        paymentType,
+        commissionPercent: split.commissionPercent,
+        baseFils: split.baseFils,
+        deliveryFils: split.deliveryFils,
+        feeFils: split.feeFils,
+        commissionFils: split.commissionFils,
+      });
+      payzahAuth = { mode: authMode, privateKey: split.privateKey, commissionFields: split.fields };
+    } else {
+      payzahAuth = {
+        mode: authMode,
+        privateKey: payzahPrivateKey.value(),
+        // Promo bookings carry no commission fields (LIBSK is the payee);
+        // rollback-mode orders carry the legacy metadata.
+        commissionFields: attempt.kind === "promo_booking"
+          ? null
+          : await legacyPayzahCommissionFields(attempt, attemptId),
+      };
+    }
+
+    const payload = buildPayzahInitPayload({
+      trackid: attempt.trackid,
+      amount: attempt.amount,
       currency: PAYZAH_CURRENCY_KWD,
-      payment_type: paymentType, // "1" K-Net | "2" card | "3" Transit (Apple Pay)
-      language: language === "ARA" ? "ARA" : "ENG",
-      // Both URLs point at the same handler — it re-verifies via
-      // get-payment-details either way and never trusts which one was hit.
-      success_url: redirectUrl,
-      error_url: redirectUrl,
-      customer_name: String(userData.fullName || request.auth.token.name || ""),
-      customer_email: String(userData.email || request.auth.token.email || ""),
-      customer_phone: customerPhone,
-      // Multivendor commission split (commission_type / commission_percent /
-      // commission_fixed) for this boutique — numbers, per Payzah's field spec.
-      ...commissionResult.fields,
-      // kfast_id (Numeric, max 8) appears in the docs' request field table but
-      // is never explained anywhere — deliberately omitted until Payzah
-      // support confirms its purpose.
-    };
+      paymentType,
+      language,
+      redirectUrl,
+      customerName: String(userData.fullName || request.auth.token.name || ""),
+      customerEmail: String(userData.email || request.auth.token.email || ""),
+      customerPhone,
+      commissionFields: payzahAuth.commissionFields,
+    });
+
+    // Record which account signs this payment BEFORE the gateway creates it:
+    // every status check signs with exactly this account (payzahStatusSigningKey).
+    // Written only after the call, a failed write following a successful init
+    // would leave a vendor payment with no mode — looked up with the merchant
+    // key, answered "no record", and quietly expired despite being captured.
+    await attemptRef.update({
+      payzahAuthMode: payzahAuth.mode,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
     let response;
     try {
-      response = await callPayzah(PAYZAH_PATHS.init, payload);
+      response = await callPayzah(PAYZAH_PATHS.init, payload, payzahAuth.privateKey);
     } catch (err) {
       logger.error("Payzah init network error", { attemptId, error: String(err) });
       throw new HttpsError("unavailable", "Could not reach the payment gateway. Please try again.");
@@ -1421,6 +1516,60 @@ exports.initializePayzahPayment = onCall(
     return { paymentUrl, directUrl: paymentUrl, trackid: attempt.trackid };
   },
 );
+
+// ================= PAYZAH: BOUTIQUE VENDOR KEY (SUPERADMIN) =================
+//
+// boutiqueSecrets/{boutiqueId} is deny-all in firestore.rules — no client can
+// read or write it, the superadmin included — so the All Boutiques screen sets
+// the key through these callables (admin SDK). The key itself NEVER goes back to
+// a client: the status call returns only whether one is on file and its last 4
+// characters, enough to tell which key is set without exposing it.
+
+function vendorKeyStatus(key) {
+  const isSet = typeof key === "string" && key.length > 0;
+  return { isSet, last4: isSet ? key.slice(-4) : null };
+}
+
+exports.setBoutiquePayzahVendorKey = onCall({ maxInstances: 2 }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be logged in.");
+  const uid = request.auth.uid;
+  if (!await isSuperAdminUser(uid)) {
+    throw new HttpsError("permission-denied", "Super admins only.");
+  }
+
+  const data = request.data || {};
+  const boutiqueId = String(data.boutiqueId || "").trim();
+  const vendorKey = String(data.vendorKey || "").trim();
+  if (!boutiqueId) throw new HttpsError("invalid-argument", "boutiqueId is required.");
+  if (!vendorKey) throw new HttpsError("invalid-argument", "vendorKey is required.");
+  if (vendorKey.length > 500) {
+    throw new HttpsError("invalid-argument", "vendorKey is too long.");
+  }
+
+  const boutiqueSnap = await db.collection("boutiques").doc(boutiqueId).get();
+  if (!boutiqueSnap.exists) throw new HttpsError("not-found", "Boutique not found.");
+
+  await db.collection(BOUTIQUE_SECRETS_COLLECTION).doc(boutiqueId).set({
+    payzahVendorKey: vendorKey,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedBy: uid,
+  }, { merge: true });
+  // Never log the key itself.
+  logger.info("Payzah vendor key set", { boutiqueId, by: uid });
+  return vendorKeyStatus(vendorKey);
+});
+
+exports.getBoutiquePayzahVendorKeyStatus = onCall({ maxInstances: 2 }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be logged in.");
+  if (!await isSuperAdminUser(request.auth.uid)) {
+    throw new HttpsError("permission-denied", "Super admins only.");
+  }
+  const boutiqueId = String((request.data || {}).boutiqueId || "").trim();
+  if (!boutiqueId) throw new HttpsError("invalid-argument", "boutiqueId is required.");
+
+  const snap = await db.collection(BOUTIQUE_SECRETS_COLLECTION).doc(boutiqueId).get();
+  return vendorKeyStatus(snap.exists ? snap.data().payzahVendorKey : undefined);
+});
 
 // ================= PAYZAH: REDIRECT CALLBACK =================
 //

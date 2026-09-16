@@ -18,6 +18,8 @@
  *      blocked from the four verification flags (no signup-gate bypass).
  *   6. U3/U4: pending_invites is gone and manual_notifications is server-only —
  *      even the superadmin cannot read them from a client.
+ *   7. boutiqueSecrets (Payzah vendor private keys) is server-only for every
+ *      principal — superadmin and the boutique's own owner included.
  *   8. Every discount code belongs to a boutique: a code with no (or an empty)
  *      boutiqueId can't be stored by anyone, and a code's boutiqueId can't be
  *      changed after creation (no re-pointing a code at another boutique).
@@ -85,6 +87,7 @@ const dispute = { customerUid: "customer1", status: "open" };
 const gOrder = { customerUid: "customer1", status: "paid", total: 20 };
 const slotPayment = { boutiqueId: "b1", amountFils: 21000 };
 const banner = { imageUrl: "https://x/y.jpg", isActive: true };
+const secret = { payzahVendorKey: "vk_test_secret" };
 const code = {
   code: "SAVE10", type: "percentage", value: 10, isActive: true,
   usageCount: 0, usageLimit: null, boutiqueId: "b1",
@@ -215,6 +218,18 @@ const cases = [
     { auth: SUPER, path: DOC("manual_notifications/mn1"), method: "create", resource: { data: { title: "x" } } }, null, superMock("super1")),
   testCase("super reads pending_invites (removed → catch-all deny)", "DENY",
     { auth: SUPER, path: DOC("pending_invites/pi1"), method: "get" }, { data: { email: "x@y.com" } }, superMock("super1")),
+
+  // ══ 7. boutiqueSecrets — Payzah vendor keys, server-only for EVERYONE ══════
+  testCase("super reads boutiqueSecrets (server-only)", "DENY",
+    { auth: SUPER, path: DOC("boutiqueSecrets/b1"), method: "get" }, { data: secret }, superMock("super1")),
+  testCase("super writes boutiqueSecrets (server-only; use the callable)", "DENY",
+    { auth: SUPER, path: DOC("boutiqueSecrets/b1"), method: "create", resource: { data: secret } }, null, superMock("super1")),
+  testCase("owner reads their OWN boutique's secrets", "DENY",
+    { auth: OWNER, path: DOC("boutiqueSecrets/b1"), method: "get" }, { data: secret }, ownerMock("owner1", "b1")),
+  testCase("owner overwrites their OWN boutique's vendor key", "DENY",
+    { auth: OWNER, path: DOC("boutiqueSecrets/b1"), method: "update", resource: { data: secret } }, { data: secret }, ownerMock("owner1", "b1")),
+  testCase("signed-out client lists boutiqueSecrets", "DENY",
+    { path: DOC("boutiqueSecrets/b1"), method: "list" }, { data: secret }),
 
   // ══ 8. Discount codes always belong to a boutique ══════════════════════════
   testCase("super creates a code with NO boutiqueId (platform code, removed)", "DENY",

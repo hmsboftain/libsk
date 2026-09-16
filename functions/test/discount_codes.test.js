@@ -17,6 +17,7 @@ const {
   discountOnSubtotal,
   discountForOrder,
 } = require("../discount_codes");
+const { resolveVendorSplit } = require("../payzah_commission");
 
 const item = (boutiqueId, price, quantity = 1) => ({ boutiqueId, price, quantity });
 const codeA10pct = { boutiqueId: "A", type: "percentage", value: 10 };
@@ -101,6 +102,41 @@ test("the discount never exceeds the subtotal, for any code, so the total never 
   }
 });
 
+// A payment attempt exactly as createOrder writes one, from the same inputs.
+function attemptFor(items, code, deliveryCost) {
+  const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const discountAmount = code ? discountForOrder(code, items) : 0;
+  return {
+    boutiqueIds: [...new Set(items.map((i) => i.boutiqueId))],
+    subtotal, discountAmount, deliveryCost,
+    amount: subtotal + deliveryCost - discountAmount,
+  };
+}
+const splitDb = (pct = 15) => ({
+  collection: (name) => ({ doc: () => ({ get: async () => ({
+    exists: true,
+    data: () => (name === "boutiqueSecrets" ? { payzahVendorKey: "vk" } : { commissionPercent: pct }),
+  }) }) }),
+});
+
+test("end to end: an oversized code leaves the full delivery fee on LIBSK's side", async () => {
+  // 10.000 of items, a 50.000 flat code (capped to 10.000), 2.000 delivery.
+  const attempt = attemptFor([item("A", 10)], { boutiqueId: "A", type: "flat", value: 50 }, 2);
+  assert.equal(attempt.discountAmount, 10);
+  assert.equal(attempt.amount, 2); // the customer still pays the whole delivery fee
+  const split = await resolveVendorSplit(splitDb(), attempt, "1");
+  assert.equal(split.deliveryFils, 2000);   // delivery untouched by the discount
+  assert.equal(split.baseFils, 0);          // the discount consumed the items only
+  assert.equal(split.commissionFils, 1850); // 0 - 0.150 fee + 2.000 delivery
+});
+
+test("end to end: delivery is identical with and without a discount code", async () => {
+  const items = [item("A", 7.5, 2)];
+  const plain = await resolveVendorSplit(splitDb(), attemptFor(items, null, 2.5), "1");
+  const discounted = await resolveVendorSplit(splitDb(), attemptFor(items, codeA10pct, 2.5), "1");
+  assert.equal(discounted.deliveryFils, plain.deliveryFils);
+  assert.equal(discounted.deliveryFils, 2500);
+});
 
 // ── regression: exactly the pre-refactor arithmetic ──────────────────────────
 
@@ -147,4 +183,16 @@ test("normal discounted orders: identical to the pre-refactor createOrder, to th
     }
   }
   assert.equal(checked, 7 * 8);
+});
+
+test("normal discounted order through the vendor split matches the formula exactly", async () => {
+  // 2 x 7.500 items, 10% boutique code, 2.000 delivery, 15%, K-Net.
+  const attempt = attemptFor([item("A", 7.5, 2)], codeA10pct, 2);
+  assert.equal(attempt.discountAmount, 1.5);
+  assert.equal(attempt.amount, 15.5);
+  const split = await resolveVendorSplit(splitDb(15), attempt, "1");
+  // base = 15.000 - 1.500 = 13.500; LIBSK = 2.025 - 0.150 + 2.000; boutique = 13.500 x 0.85
+  assert.equal(split.baseFils, 13500);
+  assert.equal(split.commissionFils, 3875);
+  assert.equal(15500 - split.feeFils - split.commissionFils, 11475);
 });

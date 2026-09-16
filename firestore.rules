@@ -327,6 +327,22 @@ service cloud.firestore {
       }
     }
 
+    match /boutiqueSecrets/{boutiqueId} {
+      // Payment credentials: payzahVendorKey is the boutique's Payzah vendor
+      // PRIVATE KEY — whoever holds it can create payments that settle to that
+      // boutique's Payzah account. It lives here, not on boutiques/{boutiqueId},
+      // because that document is readable by every client (storefronts, search,
+      // the owner app), and rules can only gate whole documents, never single
+      // fields. A credential on it would reach every device that loads the shop.
+      //
+      // Deny-all, unconditionally — superadmin included. Only Cloud Functions
+      // touch it (admin SDK bypasses rules): initializePayzahPayment and the
+      // status checks read the key; setBoutiquePayzahVendorKey writes it.
+      // Covered by the catch-all deny below too; explicit here so it can't be
+      // loosened by accident.
+      allow read, write: if false;
+    }
+
     match /boutique_owners/{ownerId} {
       allow read: if isOwner(ownerId) || isSuperAdmin();
       allow create, update, delete: if isSuperAdmin();
