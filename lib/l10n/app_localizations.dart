@@ -5774,7 +5774,7 @@ abstract class AppLocalizations {
   /// No description provided for @commissionPercentHint.
   ///
   /// In en, this message translates to:
-  /// **'LIBSK commission rate, e.g. 12 or 15'**
+  /// **'Founding Partner (12%) or Standard (15%) — set manually per boutique.'**
   String get commissionPercentHint;
 
   /// No description provided for @commissionPercentSaved.
@@ -5782,6 +5782,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Commission rate saved'**
   String get commissionPercentSaved;
+
+  /// No description provided for @commissionPercentInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a commission rate between 0 and 100'**
+  String get commissionPercentInvalid;
+
+  /// No description provided for @payzahVendorKeyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Payzah vendor key'**
+  String get payzahVendorKeyLabel;
+
+  /// No description provided for @payzahVendorKeyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste from the Payzah dashboard'**
+  String get payzahVendorKeyHint;
+
+  /// No description provided for @payzahVendorKeyOnFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Key on file ending {last4} — leave blank to keep it'**
+  String payzahVendorKeyOnFile(String last4);
+
+  /// No description provided for @payzahVendorKeyMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'No vendor key on file — this boutique can\'t take payments'**
+  String get payzahVendorKeyMissing;
+
+  /// No description provided for @payzahVendorKeySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Vendor key saved'**
+  String get payzahVendorKeySaved;
+
+  /// No description provided for @payzahVendorKeySaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings saved, but the vendor key wasn\'t — try again'**
+  String get payzahVendorKeySaveFailed;
 
   /// No description provided for @deliveryTrackingTitle.
   ///

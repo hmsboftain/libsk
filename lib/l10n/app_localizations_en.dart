@@ -3013,10 +3013,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commissionPercentLabel => 'Commission %';
 
   @override
-  String get commissionPercentHint => 'LIBSK commission rate, e.g. 12 or 15';
+  String get commissionPercentHint => 'Founding Partner (12%) or Standard (15%) — set manually per boutique.';
 
   @override
   String get commissionPercentSaved => 'Commission rate saved';
+
+  @override
+  String get commissionPercentInvalid => 'Enter a commission rate between 0 and 100';
+
+  @override
+  String get payzahVendorKeyLabel => 'Payzah vendor key';
+
+  @override
+  String get payzahVendorKeyHint => 'Paste from the Payzah dashboard';
+
+  @override
+  String payzahVendorKeyOnFile(String last4) {
+    return 'Key on file ending $last4 — leave blank to keep it';
+  }
+
+  @override
+  String get payzahVendorKeyMissing => 'No vendor key on file — this boutique can\'t take payments';
+
+  @override
+  String get payzahVendorKeySaved => 'Vendor key saved';
+
+  @override
+  String get payzahVendorKeySaveFailed => 'Settings saved, but the vendor key wasn\'t — try again';
 
   @override
   String get deliveryTrackingTitle => 'Delivery tracking';

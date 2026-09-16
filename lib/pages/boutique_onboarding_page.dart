@@ -151,13 +151,15 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
               'foundingPartner': true,
               'promoCreditPending': true,
             },
-            // Payzah multivendor commission config. Sent on every payment init
-            // for this boutique's orders (see functions/payzah_commission.js).
-            // A single default — set/adjust each boutique's rate later from the
-            // superadmin "All Boutiques" screen; keep these in sync with
-            // DEFAULT_COMMISSION in functions/payzah_commission.js.
+            // Payzah commission config (see functions/payzah_commission.js).
+            // commissionPercent is the rate the Payzah vendor split charges on
+            // this boutique's orders; commissionType/commissionFixed are read
+            // only by the legacy merchant-key rollback path. Defaults to the
+            // STANDARD 15% — the Founding Partner 12% rate is only ever set by
+            // hand from the superadmin "All Boutiques" screen, never here.
+            // Keep in sync with DEFAULT_COMMISSION in payzah_commission.js.
             'commissionType': 2, // percentage
-            'commissionPercent': 12,
+            'commissionPercent': 15,
             'commissionFixed': 0,
             'createdAt': FieldValue.serverTimestamp(),
           });

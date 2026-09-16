@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
 import '../widgets/error_state_widget.dart';
@@ -26,8 +27,10 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
   }
 
   // Superadmin-only boutique settings edited inline (no separate page): the
-  // Wasal branch code and the Payzah commission rate for this boutique. Both
-  // are superadmin-set only (firestore.rules blocks owners from changing them).
+  // Wasal branch code, the Payzah commission rate and the Payzah vendor key.
+  // The first two live on the boutique doc (firestore.rules blocks owners from
+  // changing them). The vendor key is a payment credential, so it lives in the
+  // deny-all boutiqueSecrets collection and is set through a callable instead.
   Future<void> _editBoutiqueSettings(
     String boutiqueId,
     String boutiqueName,
@@ -35,10 +38,21 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
     String currentCommissionPercent,
   ) async {
     final l10n = AppLocalizations.of(context)!;
+    final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
     final branchController = TextEditingController(text: currentCode);
+    // The boutique's current rate, or 15 (Standard) when none is set yet.
+    // Founding Partner (12%) vs Standard (15%) is a per-boutique decision made
+    // here by hand — the helper text says so; nothing infers it.
     final commissionController = TextEditingController(
-      text: currentCommissionPercent,
+      text: currentCommissionPercent.isEmpty ? '15' : currentCommissionPercent,
     );
+    // Write-only: the stored key never comes back to the client (only its last
+    // 4 characters), so this starts empty and blank keeps the key on file.
+    final vendorKeyController = TextEditingController();
+    final vendorKeyStatus = functions
+        .httpsCallable('getBoutiquePayzahVendorKeyStatus')
+        .call({'boutiqueId': boutiqueId})
+        .then((r) => Map<String, dynamic>.from(r.data as Map));
 
     final saved = await showDialog<bool>(
       context: context,
@@ -46,29 +60,62 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
         backgroundColor: AppColors.background,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: Text(boutiqueName, style: AppTextStyles.headingSmall),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: branchController,
-              textCapitalization: TextCapitalization.characters,
-              decoration: InputDecoration(
-                labelText: l10n.wasalBranchCode,
-                hintText: l10n.wasalBranchCodeHint,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: branchController,
+                textCapitalization: TextCapitalization.characters,
+                decoration: InputDecoration(
+                  labelText: l10n.wasalBranchCode,
+                  hintText: l10n.wasalBranchCodeHint,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: commissionController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+              const SizedBox(height: 12),
+              TextField(
+                controller: commissionController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: l10n.commissionPercentLabel,
+                  helperText: l10n.commissionPercentHint,
+                  helperMaxLines: 2,
+                ),
               ),
-              decoration: InputDecoration(
-                labelText: l10n.commissionPercentLabel,
-                hintText: l10n.commissionPercentHint,
+              const SizedBox(height: 12),
+              TextField(
+                controller: vendorKeyController,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: InputDecoration(
+                  labelText: l10n.payzahVendorKeyLabel,
+                  hintText: l10n.payzahVendorKeyHint,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              FutureBuilder<Map<String, dynamic>>(
+                future: vendorKeyStatus,
+                builder: (_, snap) {
+                  if (!snap.hasData) return const SizedBox.shrink();
+                  final isSet = snap.data!['isSet'] == true;
+                  return Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      isSet
+                          ? l10n.payzahVendorKeyOnFile(
+                              '${snap.data!['last4'] ?? ''}',
+                            )
+                          : l10n.payzahVendorKeyMissing,
+                      style: AppTextStyles.bodySmall,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -104,35 +151,59 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
       if (parsed == null || parsed < 0 || parsed > 100) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.commissionPercentHint)),
+          SnackBar(content: Text(l10n.commissionPercentInvalid)),
         );
         return;
       }
       update['commissionPercent'] = parsed;
     }
+    final vendorKey = vendorKeyController.text.trim();
 
     try {
       await FirebaseFirestore.instance
           .collection('boutiques')
           .doc(boutiqueId)
           .update(update);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            update.containsKey('commissionPercent')
-                ? l10n.commissionPercentSaved
-                : l10n.wasalBranchCodeSaved,
-          ),
-          duration: const Duration(seconds: 2),
-        ),
-      );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.somethingWentWrong)));
+      return;
     }
+
+    // Separate step, reported separately: the boutique doc is already saved,
+    // so a key failure must not read as "nothing saved".
+    var vendorKeySaved = false;
+    if (vendorKey.isNotEmpty) {
+      try {
+        await functions.httpsCallable('setBoutiquePayzahVendorKey').call({
+          'boutiqueId': boutiqueId,
+          'vendorKey': vendorKey,
+        });
+        vendorKeySaved = true;
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.payzahVendorKeySaveFailed)),
+        );
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          vendorKeySaved
+              ? l10n.payzahVendorKeySaved
+              : update.containsKey('commissionPercent')
+              ? l10n.commissionPercentSaved
+              : l10n.wasalBranchCodeSaved,
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -197,8 +268,9 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
 
                       // Long-press: set the boutique's Wasal branch code
                       // (created in the Wasal merchant dashboard first;
-                      // deliveries can't be dispatched without one) and its
-                      // Payzah commission rate.
+                      // deliveries can't be dispatched without one), its
+                      // Payzah commission rate and its Payzah vendor key
+                      // (checkout is blocked for the boutique without one).
                       final commissionPercent =
                           data['commissionPercent'];
                       return GestureDetector(

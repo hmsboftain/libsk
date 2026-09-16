@@ -3017,10 +3017,33 @@ class AppLocalizationsAr extends AppLocalizations {
   String get commissionPercentLabel => 'نسبة العمولة ٪';
 
   @override
-  String get commissionPercentHint => 'نسبة عمولة لبسك، مثال: ١٢ أو ١٥';
+  String get commissionPercentHint => 'شريك مؤسس (١٢٪) أو قياسي (١٥٪) — تُحدَّد يدويًا لكل متجر.';
 
   @override
   String get commissionPercentSaved => 'تم حفظ نسبة العمولة';
+
+  @override
+  String get commissionPercentInvalid => 'أدخل نسبة عمولة بين ٠ و١٠٠';
+
+  @override
+  String get payzahVendorKeyLabel => 'مفتاح البائع في Payzah';
+
+  @override
+  String get payzahVendorKeyHint => 'الصقه من لوحة تحكم Payzah';
+
+  @override
+  String payzahVendorKeyOnFile(String last4) {
+    return 'المفتاح المحفوظ ينتهي بـ $last4 — اتركه فارغًا للإبقاء عليه';
+  }
+
+  @override
+  String get payzahVendorKeyMissing => 'لا يوجد مفتاح بائع — لا يمكن لهذا المتجر استقبال المدفوعات';
+
+  @override
+  String get payzahVendorKeySaved => 'تم حفظ مفتاح البائع';
+
+  @override
+  String get payzahVendorKeySaveFailed => 'تم حفظ الإعدادات لكن لم يُحفظ مفتاح البائع — حاول مرة أخرى';
 
   @override
   String get deliveryTrackingTitle => 'تتبع التوصيل';
