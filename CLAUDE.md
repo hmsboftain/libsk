@@ -190,6 +190,16 @@ Upgrade the current made-to-order toggle to a full pre-order system.
 
 ---
 
+## iOS Build Config — iPhone-Only (Permanent)
+**iPhone-only by design — Apple does not allow removing iPad support once a submitted build includes it. Do not add '2' to `TARGETED_DEVICE_FAMILY` without explicit confirmation from Hussain that this is a deliberate, one-way decision.**
+- `TARGETED_DEVICE_FAMILY = "1"` is set in the three project-level configs (Debug / Release / Profile) in `ios/Runner.xcodeproj/project.pbxproj`; the Runner and RunnerTests target configs inherit it. Never set it to `"1,2"` or `"2"` anywhere — pbxproj, xcconfig, or Podfile `post_install`.
+- `ios/Runner/Info.plist` must have no `~ipad` keys (e.g. `UISupportedInterfaceOrientations~ipad`) and no `UIDeviceFamily` containing 2.
+- Xcode drops custom comments when it re-saves `project.pbxproj`, so the warning comments there can silently disappear — this section is the durable record.
+- Check before any iOS build or build-config commit (every line must print `1`):
+  `for c in Debug Release Profile; do xcodebuild -project ios/Runner.xcodeproj -target Runner -configuration $c -showBuildSettings | grep ' TARGETED_DEVICE_FAMILY '; done`
+
+---
+
 ## Key Contacts
 - Founder/Developer: Hussain
 - Marketing/Brand: Retaj (wife) — manages Glamour brand, active on TikTok, Instagram, Snapchat, YouTube

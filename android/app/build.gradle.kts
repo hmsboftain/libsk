@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -7,6 +9,14 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Release signing credentials live in android/key.properties, which is untracked
+// (see android/.gitignore) so the upload keystore's passwords never get committed.
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
 android {
@@ -39,11 +49,26 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            // Values come from key.properties (loaded above). If that file is
+            // absent, storeFile stays null and a release build FAILS LOUDLY rather
+            // than silently falling back to the debug key (the bug Play flagged).
+            keyAlias = keystoreProperties["keyAlias"] as String?
+            keyPassword = keystoreProperties["keyPassword"] as String?
+            storeFile = (keystoreProperties["storeFile"] as String?)?.let { file(it) }
+            storePassword = keystoreProperties["storePassword"] as String?
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Sign release builds with the real upload keystore, not debug.
+            signingConfig = signingConfigs.getByName("release")
+            // NOTE: R8 minify + resource shrinking are enabled automatically by the
+            // Flutter Gradle plugin for release builds, and it also auto-includes
+            // this module's proguard-rules.pro (see FlutterPlugin.kt). No explicit
+            // isMinifyEnabled/proguardFiles wiring is needed here.
         }
     }
 }

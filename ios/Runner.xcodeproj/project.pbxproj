@@ -504,7 +504,8 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				/* iPhone-only by design — Apple does not allow removing iPad support once a submitted build includes it. Do not add '2' here without explicit confirmation this is a deliberate, one-way decision. */
+				TARGETED_DEVICE_FAMILY = "1";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Profile;
@@ -635,7 +636,8 @@
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				/* iPhone-only by design — Apple does not allow removing iPad support once a submitted build includes it. Do not add '2' here without explicit confirmation this is a deliberate, one-way decision. */
+				TARGETED_DEVICE_FAMILY = "1";
 			};
 			name = Debug;
 		};
@@ -688,7 +690,8 @@
 				SUPPORTED_PLATFORMS = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				TARGETED_DEVICE_FAMILY = "1,2";
+				/* iPhone-only by design — Apple does not allow removing iPad support once a submitted build includes it. Do not add '2' here without explicit confirmation this is a deliberate, one-way decision. */
+				TARGETED_DEVICE_FAMILY = "1";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
