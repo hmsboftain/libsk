@@ -25,13 +25,20 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
     _boutiquesStream = FirestoreService.getAllBoutiquesStream();
   }
 
-  Future<void> _editWasalBranchCode(
+  // Superadmin-only boutique settings edited inline (no separate page): the
+  // Wasal branch code and the Payzah commission rate for this boutique. Both
+  // are superadmin-set only (firestore.rules blocks owners from changing them).
+  Future<void> _editBoutiqueSettings(
     String boutiqueId,
     String boutiqueName,
     String currentCode,
+    String currentCommissionPercent,
   ) async {
     final l10n = AppLocalizations.of(context)!;
-    final controller = TextEditingController(text: currentCode);
+    final branchController = TextEditingController(text: currentCode);
+    final commissionController = TextEditingController(
+      text: currentCommissionPercent,
+    );
 
     final saved = await showDialog<bool>(
       context: context,
@@ -39,13 +46,29 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
         backgroundColor: AppColors.background,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         title: Text(boutiqueName, style: AppTextStyles.headingSmall),
-        content: TextField(
-          controller: controller,
-          textCapitalization: TextCapitalization.characters,
-          decoration: InputDecoration(
-            labelText: l10n.wasalBranchCode,
-            hintText: l10n.wasalBranchCodeHint,
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: branchController,
+              textCapitalization: TextCapitalization.characters,
+              decoration: InputDecoration(
+                labelText: l10n.wasalBranchCode,
+                hintText: l10n.wasalBranchCodeHint,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: commissionController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: l10n.commissionPercentLabel,
+                hintText: l10n.commissionPercentHint,
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -69,15 +92,38 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
     );
 
     if (saved != true) return;
+
+    final update = <String, dynamic>{
+      'wasalBranchCode': branchController.text.trim(),
+    };
+    // Commission is optional to touch: only write it when a value is entered,
+    // and reject anything outside 0–100 rather than storing a bad rate.
+    final commissionText = commissionController.text.trim();
+    if (commissionText.isNotEmpty) {
+      final parsed = num.tryParse(commissionText);
+      if (parsed == null || parsed < 0 || parsed > 100) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.commissionPercentHint)),
+        );
+        return;
+      }
+      update['commissionPercent'] = parsed;
+    }
+
     try {
       await FirebaseFirestore.instance
           .collection('boutiques')
           .doc(boutiqueId)
-          .update({'wasalBranchCode': controller.text.trim()});
+          .update(update);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(l10n.wasalBranchCodeSaved),
+          content: Text(
+            update.containsKey('commissionPercent')
+                ? l10n.commissionPercentSaved
+                : l10n.wasalBranchCodeSaved,
+          ),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -150,14 +196,19 @@ class _AdminBoutiquesPageState extends State<AdminBoutiquesPage> {
                           data['name']?.toString() ?? l10n.boutique;
 
                       // Long-press: set the boutique's Wasal branch code
-                      // (created in the Wasal merchant dashboard first).
-                      // Deliveries can't be dispatched for a boutique
-                      // without one.
+                      // (created in the Wasal merchant dashboard first;
+                      // deliveries can't be dispatched without one) and its
+                      // Payzah commission rate.
+                      final commissionPercent =
+                          data['commissionPercent'];
                       return GestureDetector(
-                        onLongPress: () => _editWasalBranchCode(
+                        onLongPress: () => _editBoutiqueSettings(
                           boutiqueId,
                           boutiqueName,
                           data['wasalBranchCode']?.toString() ?? '',
+                          commissionPercent == null
+                              ? ''
+                              : commissionPercent.toString(),
                         ),
                         child: BoutiquesCard(
                           imageUrl: imageUrl,

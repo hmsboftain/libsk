@@ -5765,6 +5765,24 @@ abstract class AppLocalizations {
   /// **'Branch code saved'**
   String get wasalBranchCodeSaved;
 
+  /// No description provided for @commissionPercentLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Commission %'**
+  String get commissionPercentLabel;
+
+  /// No description provided for @commissionPercentHint.
+  ///
+  /// In en, this message translates to:
+  /// **'LIBSK commission rate, e.g. 12 or 15'**
+  String get commissionPercentHint;
+
+  /// No description provided for @commissionPercentSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Commission rate saved'**
+  String get commissionPercentSaved;
+
   /// No description provided for @deliveryTrackingTitle.
   ///
   /// In en, this message translates to:

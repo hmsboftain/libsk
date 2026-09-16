@@ -284,6 +284,32 @@ function overallDeliveryStatus(wasalStatuses) {
   return null;
 }
 
+/**
+ * True when a saved delivery address is inside Wasal's coverage — Kuwait.
+ *
+ * LIBSK stores two address shapes (see FirestoreService.addAddress /
+ * addInternationalAddress): the Kuwait form (`type:"kuwait"`, governorate/block
+ * structure) whose governorates come from the Wasal area list, so it is Kuwait
+ * by construction; and the international form (`type:"international"`) which is
+ * the ONLY way to save a non-Kuwait address and always stamps a non-KW
+ * `countryCode`. A legacy address with no `type` is treated as Kuwait. Any
+ * explicit country/countryCode present must be Kuwait.
+ *
+ * Pure and I/O-free: this is the authoritative country gate. The live Wasal
+ * area match (resolveZoneFee) is a separate, network-dependent cross-check the
+ * caller applies only when Wasal is enabled and the address carries area IDs.
+ */
+function isKuwaitAddress(address) {
+  if (!address || typeof address !== "object") return false;
+  const type = String(address.type || "kuwait").trim().toLowerCase();
+  if (type === "international") return false;
+  const country = String(address.countryCode || address.country || "")
+    .trim()
+    .toUpperCase();
+  if (country && country !== "KW" && country !== "KUWAIT") return false;
+  return true;
+}
+
 module.exports = {
   WASAL_BASE_URL,
   MERCHANT_PREFIX,
@@ -298,5 +324,6 @@ module.exports = {
   matchBlockId,
   findMatchingAddress,
   resolveZoneFee,
+  isKuwaitAddress,
   overallDeliveryStatus,
 };

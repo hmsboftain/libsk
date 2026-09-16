@@ -70,7 +70,6 @@ export const company = {
   tiktok: "https://www.tiktok.com/@libskapp",
 };
 
-/** Kuwaiti Dinar is a 3-decimal (fils) currency: 7.5 -> "7.500 KWD". */
-export function formatKwd(amount) {
-  return `${Number(amount || 0).toFixed(3)} KWD`;
-}
+// Kuwaiti Dinar is a 3-decimal (fils) currency: 7.5 -> "7.500 KWD". Lives in
+// ../format_kwd.js (CommonJS) so index.js's HTML emails use this same formatter.
+export { formatKwd } from "../format_kwd.js";

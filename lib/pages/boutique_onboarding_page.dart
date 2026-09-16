@@ -151,6 +151,14 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
               'foundingPartner': true,
               'promoCreditPending': true,
             },
+            // Payzah multivendor commission config. Sent on every payment init
+            // for this boutique's orders (see functions/payzah_commission.js).
+            // A single default — set/adjust each boutique's rate later from the
+            // superadmin "All Boutiques" screen; keep these in sync with
+            // DEFAULT_COMMISSION in functions/payzah_commission.js.
+            'commissionType': 2, // percentage
+            'commissionPercent': 12,
+            'commissionFixed': 0,
             'createdAt': FieldValue.serverTimestamp(),
           });
 

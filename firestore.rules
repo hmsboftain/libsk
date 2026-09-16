@@ -112,10 +112,10 @@ service cloud.firestore {
              d.isActive    is bool &&
              d.usageCount  is int && d.usageCount >= 0 &&
              (d.usageLimit == null || (d.usageLimit is int && d.usageLimit > 0)) &&
-             // Boutique-owned codes carry a boutiqueId (the create rule binds it
-             // to the owner's own boutique). Platform-wide codes created by
-             // admins may omit it.
-             (!('boutiqueId' in d) || d.boutiqueId is string);
+             // EVERY code belongs to exactly one boutique — boutiqueId is
+             // required (there are no platform-wide codes). createOrder and
+             // validateDiscountCode also reject a code without one.
+             d.boutiqueId is string && d.boutiqueId.size() > 0;
     }
 
     // Shape guard for guest cart writes — only the fields the app actually
@@ -260,10 +260,13 @@ service cloud.firestore {
         // writes them from a Cloud Function (admin SDK bypasses rules).
         // wasalBranchCode routes driver pickups for this boutique —
         // superadmin-set only, so an owner can't point deliveries at another branch.
+        // commissionType/Percent/Fixed are the Payzah commission rate for this
+        // boutique — superadmin-set only, so an owner can't lower their own rate.
         (isSuperAdmin() ||
           !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['isVisibleOnHome', 'homeExpiresAt', 'homeOrder',
-                     'wasalBranchCode'])) &&
+                     'wasalBranchCode',
+                     'commissionType', 'commissionPercent', 'commissionFixed'])) &&
         // Owner-managed storefront visibility toggle: a boutique is hidden by
         // default at onboarding and the owner flips it visible once setup (logo/
         // banner/items) is done. This is the ONE ranking-adjacent flag an owner
@@ -351,9 +354,11 @@ service cloud.firestore {
       // usageCount is incremented only by Cloud Functions (admin SDK bypasses
       // rules); clients may toggle isActive etc. but never tamper with the
       // redemption counter.
+      // boutiqueId is fixed at creation: without this, an owner could re-point
+      // their own code at ANOTHER boutique, whose orders it would then discount.
       allow update: if (isBoutiqueOwnerOf(resource.data.boutiqueId) || isSuperAdmin()) &&
         isValidDiscountCode() &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['usageCount']);
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['usageCount', 'boutiqueId']);
       allow delete: if isBoutiqueOwnerOf(resource.data.boutiqueId) || isSuperAdmin();
     }
 

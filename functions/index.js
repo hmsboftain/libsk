@@ -64,6 +64,14 @@ const wasalApiKey = defineSecret("WASAL_API_KEY");
 const wasalWebhookSecret = defineSecret("WASAL_WEBHOOK_SECRET");
 const wasalEnabled = defineString("WASAL_ENABLED", {default: "false"});
 
+// Payzah multivendor commission fields (snake_case mapping + fallback) and the
+// internal gateway-fee / net-commission bookkeeping math. Pure, unit-tested in
+// test/payzah_commission.test.js.
+const {
+  buildPayzahCommissionFields,
+  calculateNetCommission,
+} = require("./payzah_commission");
+
 admin.initializeApp();
 
 const db = admin.firestore();
@@ -78,6 +86,14 @@ const db = admin.firestore();
 setGlobalOptions({maxInstances: 10, cpu: "gcf_gen1"});
 
 const {algoliasearch} = require("algoliasearch");
+// Discount-code scope + amount — the one rule createOrder and
+// validateDiscountCode share. Pure, unit-tested in test/discount_codes.test.js.
+const {
+  DiscountScopeError,
+  codeFitsBoutiques,
+  discountOnSubtotal,
+  discountForOrder,
+} = require("./discount_codes");
 
 const PRODUCTS_INDEX = "products";
 const BOUTIQUES_INDEX = "boutiques";
@@ -323,6 +339,21 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
   const customerName  = userData.fullName  || request.auth.token.name  || "User";
   const customerEmail = userData.email     || request.auth.token.email || "";
 
+  // ── Delivery coverage: Kuwait only ────────────────────────────────────────
+  // Every LIBSK order is fulfilled through Wasal, which currently delivers
+  // inside Kuwait only. Reject an out-of-Kuwait (or missing) delivery address
+  // HERE — before the order doc is written and before any Payzah charge is
+  // attempted (fail fast). wasal.isKuwaitAddress is the authoritative country
+  // gate (pure); the live Wasal area match is cross-checked further below once
+  // the fee lookup has run. Message is surfaced verbatim to the customer via
+  // FirebaseFunctionsException.message.
+  const OUT_OF_KUWAIT_MSG =
+    "We're not yet able to deliver to this address. " +
+    "LIBSK currently delivers within Kuwait only.";
+  if (!wasal.isKuwaitAddress(addressData)) {
+    throw new HttpsError("failed-precondition", OUT_OF_KUWAIT_MSG);
+  }
+
   const now        = new Date();
   const dateString = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
 
@@ -352,18 +383,30 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
   // I/O inside a transaction would repeat on retries). null → legacy flat fee.
   // Fee lookup failures must never block checkout, hence the broad catch.
   let wasalAreaFee = null;
-  if (wasalEnabled.value() === "true" &&
-      addressData &&
-      addressData.wasalGovernorateId &&
-      addressData.wasalNeighborhoodId) {
+  let wasalLookupSucceeded = false;
+  const addressHasWasalIds = !!(
+    addressData &&
+    addressData.wasalGovernorateId &&
+    addressData.wasalNeighborhoodId
+  );
+  if (wasalEnabled.value() === "true" && addressHasWasalIds) {
     try {
       wasalAreaFee = await getWasalAreaFee(
         addressData.wasalGovernorateId,
         addressData.wasalNeighborhoodId,
       );
+      wasalLookupSucceeded = true;
     } catch (err) {
       logger.warn("Wasal fee lookup failed — using flat delivery fee", err);
     }
+  }
+  // Wasal area cross-check. A lookup that SUCCEEDED but matched no Kuwait zone
+  // (fee === null with no thrown error) means the address's area IDs fall
+  // outside Wasal coverage — reject before the order is written or charged. A
+  // lookup that THREW (network/disabled) leaves wasalLookupSucceeded false and
+  // never blocks checkout, matching the flat-fee fallback principle above.
+  if (addressHasWasalIds && wasalLookupSucceeded && wasalAreaFee === null) {
+    throw new HttpsError("failed-precondition", OUT_OF_KUWAIT_MSG);
   }
   const wasalPickupCount = Math.max(1, Object.keys(boutiqueMap).length);
 
@@ -503,29 +546,21 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
           throw new HttpsError("failed-precondition", "You have already used this discount code.");
         }
       }
-      // Boutique-owned codes apply only to that boutique's items (others stay
-      // full price); platform-wide codes (no boutiqueId, created by super
-      // admins) apply to the whole cart.
-      const codeBoutiqueId = String(codeData.boutiqueId || "");
-      const discountableSubtotal = codeBoutiqueId
-        ? verifiedItems
-            .filter((i) => i.boutiqueId === codeBoutiqueId)
-            .reduce((sum, i) => sum + i.price * i.quantity, 0)
-        : verifiedSubtotal;
-      if (discountableSubtotal <= 0) {
-        throw new HttpsError("failed-precondition",
-          "This discount code is not valid for the items in your cart");
+      // A code is usable only on an order made entirely of its own boutique's
+      // items — anything else (including a code with no boutiqueId) is REJECTED
+      // here, never silently discounted to nothing. The discount comes off the
+      // item subtotal only and is capped at it.
+      try {
+        discountAmount = discountForOrder(codeData, verifiedItems);
+      } catch (err) {
+        if (err instanceof DiscountScopeError) {
+          throw new HttpsError("failed-precondition", err.message);
+        }
+        throw err;
       }
-      const codeValue = Number(codeData.value) || 0;
-      if (codeData.type === "percentage") {
-        discountAmount = parseFloat(((discountableSubtotal * codeValue) / 100).toFixed(3));
-      } else {
-        discountAmount = Math.min(codeValue, discountableSubtotal);
-      }
-      // The discount can never exceed the in-boutique (discountable) subtotal.
-      discountAmount = Math.min(discountAmount, discountableSubtotal);
     }
-    // Clamp incoming discountAmount to server-verified value
+    // Invariant, restated where the total is built: the discount never exceeds
+    // the item subtotal, so it can never reach the delivery fee below.
     discountAmount = Math.max(0, Math.min(discountAmount, verifiedSubtotal));
 
     // Area-based Wasal fee (per boutique pickup) when available; otherwise the
@@ -541,6 +576,19 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
     // reporting can sum it directly instead of recomputing at read time.
     const commissionAmount = parseFloat((verifiedSubtotal * 0.15).toFixed(3));
 
+    // Internal bookkeeping: the Payzah gateway fee for this transaction and
+    // LIBSK's net commission after it. NOT sent to Payzah, and it never touches
+    // the boutique payout (which stays verifiedSubtotal - commissionAmount).
+    // Commission is on GMV (verifiedSubtotal); the gateway fee is on the FULL
+    // amount charged (total, incl. delivery) — Payzah levies its fee on that.
+    // Rate 15 mirrors the 0.15 used for commissionAmount above — keep in sync
+    // (and move both to the per-boutique rate together if that changes).
+    const orderPaymentType = paymentMethod === "KNET" ? "1"
+      : paymentMethod === "Apple Pay" ? "3" : "2";
+    const { gatewayFee, netCommission } = calculateNetCommission(
+      verifiedSubtotal, total, 15, orderPaymentType,
+    );
+
     const orderBase = {
       orderNumber,
       date: dateString,
@@ -548,6 +596,8 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
       total,
       deliveryCost,
       commissionAmount,
+      gatewayFee,
+      netCommission,
       status: initialOrderStatus,
       customerUid: uid,
       customerName,
@@ -1273,6 +1323,49 @@ exports.initializePayzahPayment = onCall(
     const projectId = process.env.GCLOUD_PROJECT;
     const redirectUrl = `https://us-central1-${projectId}.cloudfunctions.net/payzahRedirect`;
 
+    // ── Multivendor commission fields ────────────────────────────────────
+    // Checkout is single-boutique (the client enforces one boutique per cart —
+    // CartConflictGuard.ensureSingleBoutiqueCart), so the attempt carries
+    // exactly one boutiqueId. Map that boutique's commission config onto
+    // Payzah's snake_case commission_* fields. Any missing/invalid field falls
+    // back to the default inside buildPayzahCommissionFields — a commission
+    // lookup must NEVER break a checkout. See payzah_commission.js for the
+    // (still-unconfirmed-with-Payzah) real-split vs metadata caveat.
+    const attemptBoutiqueIds = Array.isArray(attempt.boutiqueIds) ? attempt.boutiqueIds : [];
+    const commissionBoutiqueId = attemptBoutiqueIds[0] || null;
+    if (attemptBoutiqueIds.length > 1) {
+      // Not expected under the one-boutique-per-cart guard; the first boutique
+      // is used. Logged so a future multi-boutique cart can't silently bill the
+      // whole order at a single boutique's rate without anyone noticing.
+      logger.warn("Payzah init: attempt spans multiple boutiques; using the first for commission", {
+        attemptId, boutiqueIds: attemptBoutiqueIds,
+      });
+    }
+
+    let commissionResult = buildPayzahCommissionFields(null); // default if no boutique
+    if (commissionBoutiqueId) {
+      try {
+        const boutiqueSnap = await db.collection("boutiques").doc(commissionBoutiqueId).get();
+        commissionResult = buildPayzahCommissionFields(boutiqueSnap.exists ? boutiqueSnap.data() : null);
+        if (!boutiqueSnap.exists) {
+          logger.warn("Payzah init: boutique doc not found; using default commission", {
+            attemptId, boutiqueId: commissionBoutiqueId,
+          });
+        } else if (commissionResult.usedFallback) {
+          logger.warn("Payzah init: boutique missing commission fields; using defaults for those", {
+            attemptId, boutiqueId: commissionBoutiqueId, missingFields: commissionResult.missingFields,
+          });
+        }
+      } catch (err) {
+        logger.warn("Payzah init: commission lookup failed; using default commission", {
+          attemptId, boutiqueId: commissionBoutiqueId, error: String(err),
+        });
+        commissionResult = buildPayzahCommissionFields(null);
+      }
+    } else {
+      logger.warn("Payzah init: attempt has no boutiqueId; using default commission", { attemptId });
+    }
+
     const paymentType = attempt.payzahPaymentType || "2";
     const payload = {
       trackid: String(attempt.trackid),
@@ -1288,6 +1381,9 @@ exports.initializePayzahPayment = onCall(
       customer_name: String(userData.fullName || request.auth.token.name || ""),
       customer_email: String(userData.email || request.auth.token.email || ""),
       customer_phone: customerPhone,
+      // Multivendor commission split (commission_type / commission_percent /
+      // commission_fixed) for this boutique — numbers, per Payzah's field spec.
+      ...commissionResult.fields,
       // kfast_id (Numeric, max 8) appears in the docs' request field table but
       // is never explained anywhere — deliberately omitted until Payzah
       // support confirms its purpose.
@@ -1523,16 +1619,27 @@ exports.validateDiscountCode = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Invalid code.");
   }
 
+  // Every code belongs to one boutique, and code text is unique only WITHIN a
+  // boutique (two boutiques may both run "SAVE10"), so the lookup is scoped to
+  // the cart's boutique. Checkout is single-boutique; a cart that isn't can't
+  // use any code.
+  const cartBoutiqueIds = Array.isArray(boutiqueIds) ? [...new Set(boutiqueIds.map(String))] : [];
+  if (cartBoutiqueIds.length !== 1) {
+    throw new HttpsError("failed-precondition",
+      "This discount code is not valid for the items in your cart");
+  }
+
   const snap = await db.collection("discount_codes")
     .where("code", "==", code.toUpperCase().trim())
+    .where("boutiqueId", "==", cartBoutiqueIds[0])
     .where("isActive", "==", true)
     .limit(1)
     .get();
 
-  // Anti-enumeration: nonexistent, expired, and usage-exhausted codes all return
-  // the IDENTICAL error (same code + message) so a caller can't tell a real-but-
-  // unusable code from a fake one. "Already used" and "wrong boutique" below stay
-  // specific on purpose — high-value UX, and only reachable for live codes.
+  // Anti-enumeration: nonexistent, expired, usage-exhausted and other-boutique
+  // codes all return the IDENTICAL error (same code + message) so a caller
+  // can't tell a real-but-unusable code from a fake one. "Already used" below
+  // stays specific on purpose — high-value UX, only reachable for live codes.
   if (snap.empty) {
     throw new HttpsError("not-found", "This discount code isn't valid.");
   }
@@ -1560,27 +1667,18 @@ exports.validateDiscountCode = onCall(async (request) => {
     }
   }
 
-  // Boutique-owned codes only apply if that boutique has items in the current
-  // cart. Platform-wide codes (no boutiqueId) skip the membership check.
-  const cartBoutiqueIds = Array.isArray(boutiqueIds)
-    ? boutiqueIds.map((b) => String(b))
-    : [];
-  const codeBoutiqueId = String(docData.boutiqueId || "");
-  if (codeBoutiqueId && !cartBoutiqueIds.includes(codeBoutiqueId)) {
+  // Same scope rule createOrder enforces (the query above already scoped the
+  // lookup; this also rejects a stray doc with no boutiqueId). Rejecting here,
+  // at apply time, means a code never shows a discount the order would refuse.
+  // (Preview only — createOrder re-checks against the real items.)
+  if (!codeFitsBoutiques(docData, cartBoutiqueIds)) {
     throw new HttpsError("failed-precondition",
       "This discount code is not valid for the items in your cart");
   }
 
   const type = docData.type;
   const value = Number(docData.value) || 0;
-  const sub = Number(subtotal) || 0;
-
-  let discountAmount = 0;
-  if (type === "percentage") {
-    discountAmount = parseFloat(((sub * value) / 100).toFixed(3));
-  } else {
-    discountAmount = Math.min(value, sub);
-  }
+  const discountAmount = discountOnSubtotal(docData, Number(subtotal) || 0);
 
   return {
     codeId: docId,
@@ -1818,6 +1916,9 @@ exports.notifyWasalDeliveryStatus = onDocumentUpdated(
 // ================= EMAIL NOTIFICATIONS (RESEND) =================
 
 const { Resend } = require("resend");
+// Every KWD amount in email goes through this (3 decimals: "1.250 KWD") — the
+// same formatter the React Email templates use.
+const { formatKwd } = require("./format_kwd");
 
 function getResend() {
   return new Resend(resendApiKey.value());
@@ -1864,14 +1965,15 @@ function orderEmailHtml({ title, orderNumber, date, customerName, items, subtota
   //   • item.size    — client-supplied cart value (not re-verified server-side)
   // Everything else is intentionally left raw because it cannot carry markup:
   // orderNumber and date are built server-side, deliveryMethod is validated
-  // against a fixed allowlist in createOrder, and quantities/prices/totals are
-  // numbers. Not escaping them keeps the escaped (dangerous) fields easy to spot.
+  // against a fixed allowlist in createOrder, quantities are numbers, and every
+  // amount is formatKwd output (digits + " KWD"). Not escaping them keeps the
+  // escaped (dangerous) fields easy to spot.
   const rows = items.map(item => `
     <tr>
       <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;">${escapeHtml(item.title)}</td>
       <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:center;">${escapeHtml(item.size || "—")}</td>
       <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:center;">${item.quantity}</td>
-      <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:right;">${item.price.toFixed(0)} KWD</td>
+      <td style="padding:10px 0;border-bottom:1px solid #E8E4DF;font-family:Georgia,serif;font-size:14px;color:#2C2925;text-align:right;">${formatKwd(item.price)}</td>
     </tr>
   `).join("");
 
@@ -1910,16 +2012,16 @@ function orderEmailHtml({ title, orderNumber, date, customerName, items, subtota
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
             <tr>
               <td style="font-family:Arial,sans-serif;font-size:13px;color:#8E877D;padding:4px 0;">Subtotal</td>
-              <td style="font-family:Arial,sans-serif;font-size:13px;color:#8E877D;padding:4px 0;text-align:right;">${subtotal.toFixed(0)} KWD</td>
+              <td style="font-family:Arial,sans-serif;font-size:13px;color:#8E877D;padding:4px 0;text-align:right;">${formatKwd(subtotal)}</td>
             </tr>
             <tr>
               <td style="font-family:Arial,sans-serif;font-size:13px;color:#8E877D;padding:4px 0;">${deliveryMethod}</td>
-              <td style="font-family:Arial,sans-serif;font-size:13px;color:#8E877D;padding:4px 0;text-align:right;">${deliveryCost.toFixed(0)} KWD</td>
+              <td style="font-family:Arial,sans-serif;font-size:13px;color:#8E877D;padding:4px 0;text-align:right;">${formatKwd(deliveryCost)}</td>
             </tr>
             <tr><td colspan="2" style="border-top:1px solid #DDD8D1;padding-top:10px;"></td></tr>
             <tr>
               <td style="font-family:Georgia,serif;font-size:15px;color:#2C2925;font-weight:bold;padding:4px 0;">Total</td>
-              <td style="font-family:Georgia,serif;font-size:15px;color:#2C2925;font-weight:bold;padding:4px 0;text-align:right;">${total.toFixed(0)} KWD</td>
+              <td style="font-family:Georgia,serif;font-size:15px;color:#2C2925;font-weight:bold;padding:4px 0;text-align:right;">${formatKwd(total)}</td>
             </tr>
           </table>
         </td></tr>
