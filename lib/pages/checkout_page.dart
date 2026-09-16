@@ -81,13 +81,17 @@ double checkoutDiscount({
 
 class _CheckoutPageState extends State<CheckoutPage> {
   // ── Delivery / payment ─────────────────────────────────────────────────────
-  String deliveryMethod = 'Standard Delivery';
+  // The one delivery method. Made to Order isn't a method — it's a timing note
+  // (_hasMtoItems), and createOrder derives it from the product docs itself.
+  final String deliveryMethod = 'Standard Delivery';
   String paymentMethod = 'Card';
-  // 0 until a real fee is known — a resolved Wasal area fee, or 0 for MTO.
-  // There is deliberately no flat legacy fallback on the client.
+  // 0 until a real fee is known — the resolved Wasal area fee, for every cart
+  // (Made to Order included). There is deliberately no flat legacy fallback on
+  // the client.
   double deliveryCost = 0;
 
   // ── Made-to-order (auto-detected) ──────────────────────────────────────────
+  // Timing messaging only: never changes the delivery method or fee.
   bool _hasMtoItems = false;
   String _longestMtoTimeframe = '';
 
@@ -137,8 +141,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _addressesStream = FirestoreService.getSavedAddressesStream();
 
     final isKuwait = CurrencyService.instance.selectedCountryCode == 'KW';
-    deliveryMethod = 'Standard Delivery';
-    // deliveryCost stays 0 until a real Wasal fee resolves (or MTO forces 0).
+    // deliveryCost stays 0 until a real Wasal fee resolves.
     // KNET is the default rail for Kuwait customers; cards elsewhere.
     paymentMethod = isKuwait ? 'KNET' : 'Card';
   }
@@ -212,7 +215,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             } else {
               _wasalFeeError = false;
               _wasalAreaFee = fee;
-              if (deliveryMethod != 'Made to Order') deliveryCost = fee;
+              deliveryCost = fee;
             }
           });
         });
@@ -225,8 +228,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     List<QueryDocumentSnapshot<Map<String, dynamic>>> addressDocs,
   ) {
     if (addressDocs.isEmpty) return _DeliveryFeeState.noAddress;
-    // MTO ships free (deliveryCost 0) and needs no area quote.
-    if (_hasMtoItems) return _DeliveryFeeState.resolved;
+    // No Made to Order exemption: MTO carts are quoted and charged like any other.
     final data = addressDocs.first.data();
     final gov = data['wasalGovernorateId']?.toString() ?? '';
     final nb = data['wasalNeighborhoodId']?.toString() ?? '';
@@ -286,6 +288,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   // ── Auto-detect MTO from cart items ────────────────────────────────────────
   // Called on every rebuild. Reads product docs to get the longest timeframe.
+  // Only drives the timing note — the delivery method and fee are the same for
+  // every cart.
 
   void _autoDetectMto(List<CartItem> cartItems) {
     final hasMto = cartItems.any((i) => i.madeToOrder);
@@ -293,20 +297,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     if (hasMto != _hasMtoItems) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        setState(() {
-          _hasMtoItems = hasMto;
-          if (hasMto) {
-            // Force delivery method to MTO, free delivery
-            deliveryMethod = 'Made to Order';
-            deliveryCost = 0;
-          } else if (deliveryMethod == 'Made to Order') {
-            // MTO items removed — reset to the sole delivery method.
-            deliveryMethod = 'Standard Delivery';
-            // Restore the resolved area fee if we have one; otherwise 0 and the
-            // delivery-fee state machine re-blocks checkout until it resolves.
-            deliveryCost = _wasalAreaFee ?? 0;
-          }
-        });
+        setState(() => _hasMtoItems = hasMto);
 
         // Fetch longest timeframe from products
         if (hasMto) _fetchLongestTimeframe(cartItems);
@@ -696,7 +687,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   .map((doc) => CartItem.fromFirestore(doc.id, doc.data()))
                   .toList();
 
-              // Auto-detect MTO — sets delivery method automatically
+              // Auto-detect MTO — drives the delivery timing note only
               _autoDetectMto(cartItems);
 
               double subtotal = 0;
@@ -978,18 +969,33 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   // ── Delivery method row ─────────────────────────────────────────────────────
 
+  // The delivery fee (the same states for every cart) and, when the cart holds
+  // Made to Order items, a timing note under it. Made to Order only changes
+  // when the order ships — it never replaces or waives the delivery fee.
   Widget _deliveryRow(_DeliveryFeeState state) {
-    final l10n = AppLocalizations.of(context)!;
+    final feeRow = _deliveryFeeRow(state);
+    if (!_hasMtoItems) return feeRow;
 
-    if (_hasMtoItems) {
-      // Non-interactive — MTO forces a free, timeframe-based delivery.
-      return _compactRow(
-        title: l10n.madeToOrder,
-        value: _longestMtoTimeframe.isNotEmpty
-            ? _longestMtoTimeframe
-            : l10n.madeToOrderSubtitle,
-      );
-    }
+    final l10n = AppLocalizations.of(context)!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        feeRow,
+        const SizedBox(height: 6),
+        Text(
+          _longestMtoTimeframe.isNotEmpty
+              ? '${l10n.madeToOrder} · $_longestMtoTimeframe'
+              : l10n.madeToOrder,
+          style: AppTextStyles.bodySmall.copyWith(
+            color: AppColors.secondaryText,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _deliveryFeeRow(_DeliveryFeeState state) {
+    final l10n = AppLocalizations.of(context)!;
 
     switch (state) {
       // No delivery address yet → the fee isn't known (createOrder and the
@@ -1071,7 +1077,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           const SizedBox(height: 8),
           _buildTotalRow(
             l10n.delivery,
-            _hasMtoItems ? l10n.madeToOrder : _fmt(deliveryCost),
+            _fmt(deliveryCost),
           ),
           if (_discountFor(cartItems) > 0) ...[
             const SizedBox(height: 8),
@@ -1274,8 +1280,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              // Live only once a real delivery fee has resolved (or MTO): no
-              // flat fallback is ever charged.
+              // Live only once a real delivery fee has resolved — Made to Order
+              // carts included: no flat fallback is ever charged.
               onPressed: (isPlacingOrder || !canPlaceOrder)
                   ? null
                   : () => _placeOrder(
