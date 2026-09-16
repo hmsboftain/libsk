@@ -4,8 +4,9 @@
 // Node's built-in runner, no deps. These exercise the REAL module
 // initializePayzahPayment calls, so a green run means: the fee-absorbed vendor
 // split (formula, vendor-key lookup, no-fallback failures, exact request body),
-// the legacy merchant-key commission mapping and its checkout-safe fallback, and
-// the internal gateway-fee bookkeeping all hold.
+// the switched-off merchant-key flow sending exactly the pre-split request, the
+// (currently unsent) commission config mapping, and the internal gateway-fee
+// bookkeeping all hold.
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
@@ -23,7 +24,7 @@ const {
   resolveVendorSplit,
   PAYZAH_AUTH_VENDOR,
   PAYZAH_AUTH_MERCHANT,
-  payzahAuthModeForInit,
+  resolvePayzahInitAuth,
   payzahStatusSigningKey,
   buildPayzahInitPayload,
   PAYZAH_FEE_SCHEDULE,
@@ -623,15 +624,15 @@ test("promo-booking body (no commission fields) carries no commission_* keys at 
 // found"). So the key a status check uses must equal the key init used, on
 // every path.
 
-// initializePayzahPayment's key choice, step for step: the shared decision,
-// then the vendor lookup (resolveVendorSplit) or LIBSK's merchant key. Returns
-// the key init signs with and the mode it records on the attempt.
+// initializePayzahPayment's key choice (the real resolvePayzahInitAuth).
+// Returns the mode, the key init signs with, and `stored`: the attempt as it is
+// stored afterwards, i.e. with whatever init writes before the gateway call.
+// Status checks run against `stored`, as they do in production.
 async function initSigning(db, attempt, vendorSplitEnabled) {
-  const mode = payzahAuthModeForInit(attempt, vendorSplitEnabled);
-  const key = mode === PAYZAH_AUTH_VENDOR
-    ? (await resolveVendorSplit(db, attempt, "1")).privateKey
-    : MERCHANT_KEY;
-  return { mode, key };
+  const auth = await resolvePayzahInitAuth(db, attempt, {
+    vendorSplitEnabled, merchantKey: MERCHANT_KEY, paymentType: "1",
+  });
+  return { mode: auth.mode, key: auth.privateKey, stored: { ...attempt, ...(auth.attemptFields || {}) } };
 }
 const promoAttempt = (overrides = {}) => ({
   kind: "promo_booking", boutiqueId: "b1", trackid: "LIBSKP1", amount: 21, payzahPaymentType: "1",
@@ -643,7 +644,8 @@ test("vendor-split order: the status check signs with the SAME vendor key that i
   const init = await initSigning(db, orderAttempt(), true);
   assert.equal(init.mode, PAYZAH_AUTH_VENDOR);
   assert.equal(init.key, VENDOR_KEY);
-  const statusKey = await payzahStatusSigningKey(db, { ...orderAttempt(), payzahAuthMode: init.mode }, MERCHANT_KEY);
+  assert.equal(init.stored.payzahAuthMode, PAYZAH_AUTH_VENDOR); // recorded before the gateway call
+  const statusKey = await payzahStatusSigningKey(db, init.stored, MERCHANT_KEY);
   assert.equal(statusKey, init.key);
   assert.notEqual(statusKey, MERCHANT_KEY); // the merchant key can't see a vendor payment
 });
@@ -663,19 +665,22 @@ test("promo booking: merchant key at init AND at status — even with the split 
     const init = await initSigning(db, promoAttempt(), splitOn);
     assert.equal(init.mode, PAYZAH_AUTH_MERCHANT);
     assert.equal(init.key, MERCHANT_KEY);
-    const statusKey = await payzahStatusSigningKey(db, { ...promoAttempt(), payzahAuthMode: init.mode }, MERCHANT_KEY);
+    assert.deepEqual(init.stored, promoAttempt()); // nothing written on the attempt
+    const statusKey = await payzahStatusSigningKey(db, init.stored, MERCHANT_KEY);
     assert.equal(statusKey, init.key);
   }
+  assert.deepEqual(db.reads, []); // the boutique's vendor key is never even read
 });
 
-test("rollback order (split off): merchant key at init AND at status", async () => {
+test("split-off order: merchant key at init AND at status, nothing read or written", async () => {
   const db = configuredDb();
   const init = await initSigning(db, orderAttempt(), false);
   assert.equal(init.mode, PAYZAH_AUTH_MERCHANT);
-  const statusKey = await payzahStatusSigningKey(db, { ...orderAttempt(), payzahAuthMode: init.mode }, MERCHANT_KEY);
+  assert.deepEqual(init.stored, orderAttempt()); // the attempt doc is left exactly as createOrder wrote it
+  const statusKey = await payzahStatusSigningKey(db, init.stored, MERCHANT_KEY);
   assert.equal(statusKey, MERCHANT_KEY);
   assert.equal(statusKey, init.key);
-  assert.deepEqual(db.reads.filter((r) => r.startsWith("boutiqueSecrets")), []); // no vendor lookup at all
+  assert.deepEqual(db.reads, []); // no boutique or vendor-key lookup at all
 });
 
 test("every path: status key === init key (table)", async () => {
@@ -688,13 +693,13 @@ test("every path: status key === init key (table)", async () => {
   for (const c of cases) {
     const db = configuredDb();
     const init = await initSigning(db, c.attempt, c.splitOn);
-    const statusKey = await payzahStatusSigningKey(db, { ...c.attempt, payzahAuthMode: init.mode }, MERCHANT_KEY);
+    const statusKey = await payzahStatusSigningKey(db, init.stored, MERCHANT_KEY);
     assert.equal(init.key, c.want, c.label);
     assert.equal(statusKey, init.key, c.label);
   }
 });
 
-test("attempt initialized before payzahAuthMode existed: merchant (the only key those ever used)", async () => {
+test("attempt with no payzahAuthMode (pre-split, or merchant-signed): merchant", async () => {
   const db = configuredDb();
   for (const mode of [undefined, null]) {
     assert.equal(await payzahStatusSigningKey(db, { ...orderAttempt(), payzahAuthMode: mode }, MERCHANT_KEY), MERCHANT_KEY);
@@ -720,5 +725,153 @@ test("unknown payzahAuthMode: the status check refuses to guess", async () => {
     payzahStatusSigningKey(configuredDb(), { ...orderAttempt(), payzahAuthMode: "Vendor" }, MERCHANT_KEY),
     PayzahVendorSplitConfigError,
   );
+});
+
+test("split switched OFF between retries of a vendor attempt: rewritten to merchant, status follows", async () => {
+  const db = configuredDb();
+  const first = await initSigning(db, orderAttempt(), true);
+  assert.equal(first.stored.payzahAuthMode, PAYZAH_AUTH_VENDOR);
+  const retry = await initSigning(db, first.stored, false); // the customer retries the same pending attempt
+  assert.equal(retry.key, MERCHANT_KEY);
+  assert.equal(retry.stored.payzahAuthMode, PAYZAH_AUTH_MERCHANT); // not left saying "vendor"
+  assert.equal(await payzahStatusSigningKey(db, retry.stored, MERCHANT_KEY), MERCHANT_KEY);
+});
+
+test("split switched ON between retries of a merchant attempt: recorded as vendor, status follows", async () => {
+  const db = configuredDb();
+  const first = await initSigning(db, orderAttempt(), false);
+  assert.equal(first.stored.payzahAuthMode, undefined);
+  const retry = await initSigning(db, first.stored, true);
+  assert.equal(retry.stored.payzahAuthMode, PAYZAH_AUTH_VENDOR);
+  assert.equal(await payzahStatusSigningKey(db, retry.stored, MERCHANT_KEY), VENDOR_KEY);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SPLIT SWITCHED OFF = EXACTLY THE PRE-SPLIT REQUEST
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// With PAYZAH_VENDOR_SPLIT_ENABLED=false, initializePayzahPayment must send
+// Payzah exactly what it sent before the vendor split existed.
+//
+// PRE_SPLIT_BODY pins that body: what initializePayzahPayment sent as deployed
+// on 2026-09-06 (functions/index.js at 63eebf1), for payloadArgs' inputs,
+// serialised the way callPayzah sends it (JSON.stringify). JSON.stringify keeps
+// insertion order, so key order is pinned too.
+const PRE_SPLIT_BODY =
+  "{\"trackid\":\"LIBSK123\",\"amount\":\"12.000\",\"currency\":\"414\",\"payment_type\":\"1\"," +
+  "\"language\":\"ENG\",\"success_url\":\"https://example.test/payzahRedirect\"," +
+  "\"error_url\":\"https://example.test/payzahRedirect\",\"customer_name\":\"Customer\"," +
+  "\"customer_email\":\"c@example.com\",\"customer_phone\":\"\"}";
+
+// The pre-split body for any inputs, built field for field the way that code
+// built it.
+function preSplitBody(a) {
+  return {
+    trackid: String(a.trackid),
+    amount: Number(a.amount).toFixed(3),
+    currency: a.currency,
+    payment_type: a.paymentType,
+    language: a.language === "ARA" ? "ARA" : "ENG",
+    success_url: a.redirectUrl,
+    error_url: a.redirectUrl,
+    customer_name: a.customerName,
+    customer_email: a.customerEmail,
+    customer_phone: a.customerPhone,
+  };
+}
+
+// initializePayzahPayment's body: resolvePayzahInitAuth, then
+// buildPayzahInitPayload with its commission fields, chained as index.js does.
+async function initBody(db, attempt, vendorSplitEnabled, args = payloadArgs(null)) {
+  const auth = await resolvePayzahInitAuth(db, attempt, {
+    vendorSplitEnabled, merchantKey: MERCHANT_KEY, paymentType: args.paymentType,
+  });
+  return { auth, body: buildPayzahInitPayload({ ...args, commissionFields: auth.commissionFields }) };
+}
+
+test("split OFF: an order's body is byte-identical to the pre-split body", async () => {
+  const { auth, body } = await initBody(configuredDb(), orderAttempt(), false);
+  assert.equal(JSON.stringify(body), PRE_SPLIT_BODY);
+  assert.equal(JSON.stringify(preSplitBody(payloadArgs(null))), PRE_SPLIT_BODY); // the builder matches the pin
+  assert.equal(auth.privateKey, MERCHANT_KEY);
+  assert.equal(auth.commissionFields, null);
+  assert.equal(auth.attemptFields, null);
+});
+
+test("split OFF: pre-split body for every payment type, language, amount, trackid and customer", async () => {
+  let checked = 0;
+  for (const paymentType of ["1", "2", "3"]) {
+    for (const language of ["ENG", "ARA", undefined, "fr"]) {
+      for (const [trackid, amount] of [["LIBSK123", 12], [100057, 11.25], ["LIBSK9", 0.5], ["LIBSK10", 1234.5678]]) {
+        for (const [customerName, customerEmail, customerPhone] of [
+          ["Customer", "c@example.com", ""],
+          ["نورة", "", "50000000"],
+        ]) {
+          const args = {
+            ...payloadArgs(null), paymentType, language, trackid, amount, customerName, customerEmail, customerPhone,
+          };
+          const attempt = orderAttempt({ payzahPaymentType: paymentType, trackid, amount });
+          const { body } = await initBody(configuredDb(), attempt, false, args);
+          assert.equal(JSON.stringify(body), JSON.stringify(preSplitBody(args)), JSON.stringify(args));
+          checked++;
+        }
+      }
+    }
+  }
+  assert.equal(checked, 96);
+});
+
+test("split OFF: no commission fields, whatever the boutique's commission config says", async () => {
+  const boutiques = [
+    {}, // no commission fields at all (BasicsByGlamour on 2026-09-16)
+    { commissionPercent: 12 },
+    { commissionType: 2, commissionPercent: 15, commissionFixed: 0 },
+    { commissionType: 1, commissionPercent: 0, commissionFixed: 1.5 },
+  ];
+  for (const boutique of boutiques) {
+    const { body } = await initBody(configuredDb({ "boutiques/b1": boutique }), orderAttempt(), false);
+    assert.deepEqual(Object.keys(body).filter((k) => k.startsWith("commission")), [], JSON.stringify(boutique));
+    assert.equal(JSON.stringify(body), PRE_SPLIT_BODY);
+  }
+});
+
+test("split OFF: a boutique that isn't set up at all still pays, and nothing is read from Firestore", async () => {
+  const db = fakeDb({}); // no boutique doc and no vendor key
+  const { auth, body } = await initBody(db, orderAttempt(), false);
+  assert.equal(JSON.stringify(body), PRE_SPLIT_BODY);
+  assert.deepEqual(db.reads, []);
+  assert.equal(auth.attemptFields, null);
+});
+
+test("split OFF: attempts the split would refuse still go through, as they did pre-split", async () => {
+  const attempts = [
+    orderAttempt({ boutiqueIds: ["b1", "b2"] }), // multi-boutique
+    orderAttempt({ subtotal: undefined, discountAmount: undefined, deliveryCost: undefined }), // no breakdown
+    orderAttempt({ subtotal: 99 }), // breakdown doesn't add up
+    orderAttempt({ boutiqueIds: undefined }), // no boutique at all
+  ];
+  for (const attempt of attempts) {
+    const { auth, body } = await initBody(fakeDb({}), attempt, false);
+    assert.equal(auth.privateKey, MERCHANT_KEY);
+    assert.equal(JSON.stringify(body), PRE_SPLIT_BODY);
+  }
+});
+
+test("promo booking: the pre-split body with the split on or off", async () => {
+  for (const splitOn of [true, false]) {
+    const db = configuredDb();
+    const { auth, body } = await initBody(db, promoAttempt(), splitOn);
+    assert.equal(JSON.stringify(body), PRE_SPLIT_BODY);
+    assert.equal(auth.privateKey, MERCHANT_KEY);
+    assert.equal(auth.attemptFields, null);
+    assert.deepEqual(db.reads, []);
+  }
+});
+
+test("split ON differs from the pre-split body only by the three commission fields", async () => {
+  const { body } = await initBody(configuredDb(), orderAttempt(), true);
+  const { commission_type: t, commission_fixed: f, commission_percent: p, ...rest } = body;
+  assert.deepEqual([t, f, p], ["1", "3.350", "0"]);
+  assert.equal(JSON.stringify(rest), PRE_SPLIT_BODY);
 });
 

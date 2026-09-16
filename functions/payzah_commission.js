@@ -21,16 +21,18 @@ const { kwdToFils, filsToKwd } = require("./promo_credit");
 //      boutique, and LIBSK's cut is sent as a fixed commission. See the
 //      "FEE-ABSORBED VENDOR SPLIT" section below.
 //
-//   2. LEGACY SINGLE MERCHANT KEY (rollback only). Authenticated with LIBSK's
-//      merchant key, so LIBSK receives 100% and disburses boutiques manually.
-//      The commission_* fields it sends (buildPayzahCommissionFields, next
-//      section) are METADATA on the payment record — Payzah has no vendor to
-//      split with under the merchant key.
+//   2. SINGLE MERCHANT KEY (PAYZAH_VENDOR_SPLIT_ENABLED=false, and every promo
+//      booking). Authenticated with LIBSK's merchant key, so LIBSK receives 100%
+//      and disburses boutiques manually. It sends NO commission fields: the body
+//      is exactly the one LIBSK sent before the vendor split existed (see
+//      resolvePayzahInitAuth).
 
-// ================= LEGACY FLOW: COMMISSION METADATA =================
+// ================= COMMISSION CONFIG MAPPING (NOT SENT) =================
 //
-// Rollback path only (PAYZAH_VENDOR_SPLIT_ENABLED=false). Maps a boutique's
-// Firestore commission config onto the three commission_* fields:
+// NOT CALLED by initializePayzahPayment: the merchant-key flow sends no
+// commission fields. Kept (with its tests) only until a decision on removing
+// it; DEFAULT_COMMISSION below is still used by the backfill script. Maps a
+// boutique's Firestore commission config onto the three commission_* fields:
 //
 //   Firestore field (camelCase)  ->  Payzah request field (snake_case)
 //   commissionType               ->  commission_type    (1 = fixed | 2 = percentage | 3 = mixed)
@@ -316,9 +318,12 @@ async function resolveVendorSplit(db, attempt, paymentType) {
 // fallback — and a 10012 reads as "not paid yet", so signing a status check
 // with the wrong key would quietly expire a payment that was actually captured.
 //
-// So the account is decided ONCE, at initialization, recorded on the payment
-// attempt as payzahAuthMode (before the gateway is called), and every status
-// check signs with exactly that account.
+// So the account is decided ONCE, at initialization, and every status check
+// signs with exactly that account. A vendor-signed payment is recorded on the
+// attempt as payzahAuthMode "vendor" (before the gateway is called). A
+// merchant-signed one normally records nothing, which leaves the attempt
+// exactly as it was before the vendor split existed; a missing mode means
+// merchant. (For the one exception, see resolvePayzahInitAuth.)
 
 const PAYZAH_AUTH_VENDOR = "vendor";
 const PAYZAH_AUTH_MERCHANT = "merchant";
@@ -333,14 +338,57 @@ function payzahAuthModeForInit(attempt, vendorSplitEnabled) {
   return vendorSplitEnabled ? PAYZAH_AUTH_VENDOR : PAYZAH_AUTH_MERCHANT;
 }
 
+// Everything initializePayzahPayment decides about who a payment is made to,
+// in one place:
+//   mode             - PAYZAH_AUTH_VENDOR | PAYZAH_AUTH_MERCHANT
+//   privateKey       - the key that signs Initialize Payment
+//   commissionFields - the commission_* fields for the body, or null for none
+//   attemptFields    - fields to write on the attempt BEFORE the gateway call,
+//                      or null to write nothing
+//   split            - resolveVendorSplit's result (vendor only), for logging
+//
+//   * vendor   → resolveVendorSplit. Throws PayzahVendorSplitConfigError when
+//     the boutique isn't set up; never falls back to the merchant key.
+//   * merchant → LIBSK's merchant key, NO commission fields, nothing read from
+//     Firestore, and nothing written. This is exactly the request (and attempt
+//     doc) LIBSK had before the vendor split existed. It covers promo bookings
+//     (LIBSK is the payee) and every order while PAYZAH_VENDOR_SPLIT_ENABLED is
+//     "false".
+//     One exception to "nothing written": a retried attempt that already
+//     carries a mode (first initialized as vendor, retried after the split was
+//     switched off) is rewritten to "merchant". Otherwise its status checks
+//     would keep signing with the vendor key, which can't see this payment.
+async function resolvePayzahInitAuth(db, attempt, { vendorSplitEnabled, merchantKey, paymentType }) {
+  const mode = payzahAuthModeForInit(attempt, vendorSplitEnabled);
+  if (mode === PAYZAH_AUTH_VENDOR) {
+    const split = await resolveVendorSplit(db, attempt, paymentType);
+    return {
+      mode,
+      privateKey: split.privateKey,
+      commissionFields: split.fields,
+      attemptFields: { payzahAuthMode: PAYZAH_AUTH_VENDOR },
+      split,
+    };
+  }
+  const hasRecordedMode = attempt.payzahAuthMode !== undefined && attempt.payzahAuthMode !== null;
+  return {
+    mode,
+    privateKey: merchantKey,
+    commissionFields: null,
+    attemptFields: hasRecordedMode ? { payzahAuthMode: PAYZAH_AUTH_MERCHANT } : null,
+    split: null,
+  };
+}
+
 // The key a status check (get-payment-details) must be signed with: the SAME
 // account that initialized the payment, per the attempt's payzahAuthMode.
 //   * "vendor"   → that boutique's vendor key, looked up exactly as
 //     initialization does (vendorSplitBoutiqueId + getPayzahVendorKey). If it's
 //     gone, this THROWS — never the merchant key, which can't see the payment.
 //   * "merchant" → LIBSK's merchant key.
-//   * absent     → merchant. Only attempts initialized before payzahAuthMode
-//     existed lack it, and every one of those used the merchant key.
+//   * absent     → merchant. Merchant-signed attempts normally record no mode
+//     (see resolvePayzahInitAuth), and neither do attempts from before the
+//     split. Both were signed with the merchant key.
 //   * anything else → throws rather than guess.
 async function payzahStatusSigningKey(db, attempt, merchantKey) {
   const mode = attempt.payzahAuthMode;
@@ -470,6 +518,7 @@ module.exports = {
   PAYZAH_AUTH_VENDOR,
   PAYZAH_AUTH_MERCHANT,
   payzahAuthModeForInit,
+  resolvePayzahInitAuth,
   payzahStatusSigningKey,
   buildPayzahInitPayload,
   PAYZAH_FEE_SCHEDULE,

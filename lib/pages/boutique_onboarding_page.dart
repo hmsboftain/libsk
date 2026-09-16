@@ -153,8 +153,8 @@ class _BoutiqueOnboardingPageState extends State<BoutiqueOnboardingPage> {
             },
             // Payzah commission config (see functions/payzah_commission.js).
             // commissionPercent is the rate the Payzah vendor split charges on
-            // this boutique's orders; commissionType/commissionFixed are read
-            // only by the legacy merchant-key rollback path. Defaults to the
+            // this boutique's orders; commissionType/commissionFixed are not
+            // sent to Payzah by either payment flow. Defaults to the
             // STANDARD 15% — the Founding Partner 12% rate is only ever set by
             // hand from the superadmin "All Boutiques" screen, never here.
             // Keep in sync with DEFAULT_COMMISSION in payzah_commission.js.

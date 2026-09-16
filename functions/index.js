@@ -57,11 +57,13 @@ const payzahEnv = defineString("PAYZAH_ENV", {default: "test"});
 // Fee-absorbed vendor split for ORDER payments (default ON): initialize as the
 // boutique's Payzah vendor account so the settlement routes to the boutique,
 // with LIBSK's cut sent as a fixed commission (see payzah_commission.js).
-// Rollback to the single-merchant-key flow: set PAYZAH_VENDOR_SPLIT_ENABLED=false
-// in functions/.env AND functions/.env.libsk-b68f5, then redeploy. Only the exact
-// string "false" rolls back — anything else keeps the split on, so a typo can't
-// silently send every payment to LIBSK's account. Promo bookings always use the
-// merchant key regardless (LIBSK is the payee there).
+// Switch off (back to the single-merchant-key flow): set
+// PAYZAH_VENDOR_SPLIT_ENABLED=false in functions/.env AND
+// functions/.env.libsk-b68f5, then redeploy. Switched off, order payments send
+// exactly the pre-split request: merchant key, no commission fields. Only the
+// exact string "false" switches it off — anything else keeps the split on, so a
+// typo can't silently send every payment to LIBSK's account. Promo bookings
+// always use the merchant key regardless (LIBSK is the payee there).
 const payzahVendorSplitEnabled = defineString("PAYZAH_VENDOR_SPLIT_ENABLED", {default: "true"});
 // Wasal delivery integration. API key is a managed secret (pk_test_ in
 // sandbox, pk_live_ in production — same endpoints, no code changes). The
@@ -73,18 +75,15 @@ const wasalApiKey = defineSecret("WASAL_API_KEY");
 const wasalWebhookSecret = defineSecret("WASAL_WEBHOOK_SECRET");
 const wasalEnabled = defineString("WASAL_ENABLED", {default: "false"});
 
-// Payzah multivendor commission: the fee-absorbed vendor split (default), the
-// legacy merchant-key commission metadata (rollback), the Initialize Payment
-// body, and the internal gateway-fee / net-commission bookkeeping math.
-// Unit-tested in test/payzah_commission.test.js.
+// Payzah multivendor commission: which account signs a payment (the
+// fee-absorbed vendor split, or the merchant key with no commission fields),
+// the Initialize Payment body, and the internal gateway-fee / net-commission
+// bookkeeping math. Unit-tested in test/payzah_commission.test.js.
 const {
-  buildPayzahCommissionFields,
   calculateNetCommission,
   BOUTIQUE_SECRETS_COLLECTION,
   PayzahVendorSplitConfigError,
-  resolveVendorSplit,
-  PAYZAH_AUTH_VENDOR,
-  payzahAuthModeForInit,
+  resolvePayzahInitAuth,
   payzahStatusSigningKey,
   buildPayzahInitPayload,
 } = require("./payzah_commission");
@@ -1301,51 +1300,6 @@ exports.reconcilePayzahPayments = onSchedule(
 // the payment_attempts doc the server wrote inside its price-verification
 // transaction — the client supplies only the attempt id, never a price.
 
-// ROLLBACK ONLY (PAYZAH_VENDOR_SPLIT_ENABLED=false): the commission fields the
-// single-merchant-key flow sends for an order payment. Logic unchanged from
-// that flow — it maps the boutique's commission config onto Payzah's
-// snake_case commission_* fields and never throws (a commission lookup must
-// never break a checkout). Under the merchant key these fields are METADATA:
-// LIBSK receives 100% and there is no vendor to split with.
-async function legacyPayzahCommissionFields(attempt, attemptId) {
-  const attemptBoutiqueIds = Array.isArray(attempt.boutiqueIds) ? attempt.boutiqueIds : [];
-  const commissionBoutiqueId = attemptBoutiqueIds[0] || null;
-  if (attemptBoutiqueIds.length > 1) {
-    // Not expected under the one-boutique-per-cart guard; the first boutique
-    // is used. Logged so a future multi-boutique cart can't silently bill the
-    // whole order at a single boutique's rate without anyone noticing.
-    logger.warn("Payzah init: attempt spans multiple boutiques; using the first for commission", {
-      attemptId, boutiqueIds: attemptBoutiqueIds,
-    });
-  }
-
-  let commissionResult = buildPayzahCommissionFields(null); // default if no boutique
-  if (commissionBoutiqueId) {
-    try {
-      const boutiqueSnap = await db.collection("boutiques").doc(commissionBoutiqueId).get();
-      commissionResult = buildPayzahCommissionFields(boutiqueSnap.exists ? boutiqueSnap.data() : null);
-      if (!boutiqueSnap.exists) {
-        logger.warn("Payzah init: boutique doc not found; using default commission", {
-          attemptId, boutiqueId: commissionBoutiqueId,
-        });
-      } else if (commissionResult.usedFallback) {
-        logger.warn("Payzah init: boutique missing commission fields; using defaults for those", {
-          attemptId, boutiqueId: commissionBoutiqueId, missingFields: commissionResult.missingFields,
-        });
-      }
-    } catch (err) {
-      logger.warn("Payzah init: commission lookup failed; using default commission", {
-        attemptId, boutiqueId: commissionBoutiqueId, error: String(err),
-      });
-      commissionResult = buildPayzahCommissionFields(null);
-    }
-  } else {
-    logger.warn("Payzah init: attempt has no boutiqueId; using default commission", { attemptId });
-  }
-
-  return commissionResult.fields;
-}
-
 exports.initializePayzahPayment = onCall(
   { secrets: [payzahPrivateKey] },
   async (request) => {
@@ -1413,30 +1367,36 @@ exports.initializePayzahPayment = onCall(
     //     fee-absorbed fixed commission. A boutique that isn't set up fails
     //     HERE, loudly — never a silent fallback to the merchant key, which
     //     would settle 100% to LIBSK with no sign anything was wrong.
-    //   * order, split off (rollback) → merchant key + legacy metadata.
+    //   * order, split off (PAYZAH_VENDOR_SPLIT_ENABLED=false) → merchant key and
+    //     no commission fields: byte-for-byte the pre-split request.
+    // All of it is decided in resolvePayzahInitAuth (payzah_commission.js).
+    //
+    // The Payzah dashboard ALSO has each vendor's Debit and Credit commission
+    // tabs set to that boutique's plain rate (12% / 15%), configured by hand as
+    // a safety net for a vendor request that ever arrives WITHOUT commission
+    // fields. The commission_* fields sent for a vendor split override it — so
+    // the dashboard showing a percentage while this code sends a fixed amount
+    // is expected, not a mismatch.
     const paymentType = attempt.payzahPaymentType || "2";
-    const authMode = payzahAuthModeForInit(attempt, payzahVendorSplitEnabled.value() !== "false");
     let payzahAuth;
-    if (authMode === PAYZAH_AUTH_VENDOR) {
-      // The Payzah dashboard ALSO has each vendor's Debit and Credit commission
-      // tabs set to that boutique's plain rate (12% / 15%), configured by hand
-      // as a safety net for a request that ever arrives WITHOUT commission
-      // fields. The commission_* fields sent below override it — so the
-      // dashboard showing a percentage while this code sends a fixed amount is
-      // expected, not a mismatch.
-      let split;
-      try {
-        split = await resolveVendorSplit(db, attempt, paymentType);
-      } catch (err) {
-        if (err instanceof PayzahVendorSplitConfigError) {
-          logger.error("Payzah init BLOCKED: boutique not set up for the vendor split; NOT falling back to the merchant key", {
-            attemptId, boutiqueIds: attempt.boutiqueIds || [], reason: err.message,
-          });
-          throw new HttpsError("failed-precondition", "This boutique can't accept payments right now. Please try again later.");
-        }
-        logger.error("Payzah init: vendor split lookup failed", { attemptId, error: String(err) });
-        throw new HttpsError("unavailable", "Could not start the payment. Please try again.");
+    try {
+      payzahAuth = await resolvePayzahInitAuth(db, attempt, {
+        vendorSplitEnabled: payzahVendorSplitEnabled.value() !== "false",
+        merchantKey: payzahPrivateKey.value(),
+        paymentType,
+      });
+    } catch (err) {
+      if (err instanceof PayzahVendorSplitConfigError) {
+        logger.error("Payzah init BLOCKED: boutique not set up for the vendor split; NOT falling back to the merchant key", {
+          attemptId, boutiqueIds: attempt.boutiqueIds || [], reason: err.message,
+        });
+        throw new HttpsError("failed-precondition", "This boutique can't accept payments right now. Please try again later.");
       }
+      logger.error("Payzah init: vendor split lookup failed", { attemptId, error: String(err) });
+      throw new HttpsError("unavailable", "Could not start the payment. Please try again.");
+    }
+    const split = payzahAuth.split;
+    if (split) {
       logger.info("Payzah init: vendor split", {
         attemptId,
         boutiqueId: split.boutiqueId,
@@ -1448,17 +1408,6 @@ exports.initializePayzahPayment = onCall(
         feeFils: split.feeFils,
         commissionFils: split.commissionFils,
       });
-      payzahAuth = { mode: authMode, privateKey: split.privateKey, commissionFields: split.fields };
-    } else {
-      payzahAuth = {
-        mode: authMode,
-        privateKey: payzahPrivateKey.value(),
-        // Promo bookings carry no commission fields (LIBSK is the payee);
-        // rollback-mode orders carry the legacy metadata.
-        commissionFields: attempt.kind === "promo_booking"
-          ? null
-          : await legacyPayzahCommissionFields(attempt, attemptId),
-      };
     }
 
     const payload = buildPayzahInitPayload({
@@ -1479,10 +1428,14 @@ exports.initializePayzahPayment = onCall(
     // Written only after the call, a failed write following a successful init
     // would leave a vendor payment with no mode — looked up with the merchant
     // key, answered "no record", and quietly expired despite being captured.
-    await attemptRef.update({
-      payzahAuthMode: payzahAuth.mode,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    // A merchant payment normally writes nothing here (no mode = merchant),
+    // which keeps the switched-off flow identical to the pre-split one.
+    if (payzahAuth.attemptFields) {
+      await attemptRef.update({
+        ...payzahAuth.attemptFields,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
     let response;
     try {
