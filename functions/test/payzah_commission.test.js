@@ -266,7 +266,7 @@ test("identity across a grid: boutique nets base x (1 - rate); amount = boutique
 });
 
 test("floor at zero: base x rate + delivery at or below the fee sends 0, never a negative", () => {
-  // Made to Order (no delivery) small orders are the only realistic case.
+  // Only reachable with a zero delivery fee (a free Wasal zone): every other order, Made to Order included, pays delivery.
   assert.equal(computeVendorSplitCommissionFils({ baseFils: 1000, deliveryFils: 0, feeFils: 150, commissionPercent: 15 }), 0); // exactly the fee
   assert.equal(computeVendorSplitCommissionFils({ baseFils: 1250, deliveryFils: 0, feeFils: 150, commissionPercent: 12 }), 0); // exactly the fee
   assert.equal(computeVendorSplitCommissionFils({ baseFils: 500, deliveryFils: 0, feeFils: 150, commissionPercent: 15 }), 0);
@@ -274,7 +274,7 @@ test("floor at zero: base x rate + delivery at or below the fee sends 0, never a
 });
 
 test("floor at zero: the boutique still bears the fee LIBSK's zero cut can't cover", () => {
-  // 0.500 KWD Made to Order at 15% by K-Net: fair share 0.425, boutique nets 0.350.
+  // 0.500 KWD order with no delivery fee at 15% by K-Net: fair share 0.425, boutique nets 0.350.
   const r = settle({ subtotalFils: 500, discountFils: 0, deliveryFils: 0, pct: 15, paymentType: "1" });
   assert.equal(r.commissionFils, 0);
   assert.equal(r.vendorNetFils, 350);
@@ -361,7 +361,7 @@ test("resolveVendorSplit: discount and the boutique's own 12% rate", async () =>
   assert.equal(split.fields.commission_fixed, "3.254");
 });
 
-test("resolveVendorSplit: Made to Order floor case still resolves, commission_fixed 0.000", async () => {
+test("resolveVendorSplit: zero-delivery floor case still resolves, commission_fixed 0.000", async () => {
   const attempt = orderAttempt({ subtotal: 0.5, deliveryCost: 0, amount: 0.5 });
   const split = await resolveVendorSplit(configuredDb(), attempt, "1");
   assert.equal(split.commissionFils, 0);

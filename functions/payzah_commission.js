@@ -84,12 +84,12 @@ const DEFAULT_COMMISSION = Object.freeze({
 // base * (1 - rate).
 //
 // THE FLOOR AT ZERO IS DELIBERATE, NOT A BUG. When base * rate + delivery is
-// at or below the gateway fee — in practice a small Made to Order (no delivery)
-// order — LIBSK takes ZERO rather than send Payzah a negative commission.
+// at or below the gateway fee — in practice only a tiny order in a free Wasal
+// zone (0 delivery) — LIBSK takes ZERO, never a negative commission to Payzah.
 // LIBSK nets nothing on those orders — accepted behaviour. Note what zero does
 // NOT do: Payzah deducts its fee from the vendor's settlement, and a zero
 // commission can't refund any of it, so the boutique still bears
-// (fee - base * rate - delivery). E.g. a 0.500 KWD Made to Order order at 15%
+// (fee - base * rate - delivery). E.g. a 0.500 KWD zero-delivery order at 15%
 // by K-Net: LIBSK takes 0, the boutique nets 0.350 instead of its 0.425 share.
 //
 // All money here is INTEGER FILS (1 KWD = 1000 fils), converted to a 3-dp KWD

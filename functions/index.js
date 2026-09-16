@@ -282,7 +282,10 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
   const uid             = request.auth.uid;
   const data            = request.data || {};
   const items           = data.items;
-  const deliveryMethod  = data.deliveryMethod  || "";
+  // The client's delivery method is only ever validated. What the order docs
+  // store — and whether the order is Made to Order — is derived from the
+  // product docs inside the transaction (wasal.resolveOrderDelivery).
+  const requestedDeliveryMethod = data.deliveryMethod || "";
   const paymentMethod   = data.paymentMethod   || "";
   const paymentIntentId = data.paymentIntentId || "";
   const discountCodeId  = data.discountCodeId  || null;
@@ -304,7 +307,7 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
   const allowedDeliveryMethods = ["Standard Delivery", "Made to Order"];
   const allowedPaymentMethods  = ["Card", "KNET", "Apple Pay"];
 
-  if (!allowedDeliveryMethods.includes(deliveryMethod)) {
+  if (!allowedDeliveryMethods.includes(requestedDeliveryMethod)) {
     throw new HttpsError("invalid-argument", "Invalid delivery method.");
   }
   if (!allowedPaymentMethods.includes(paymentMethod)) {
@@ -580,11 +583,26 @@ exports.createOrder = onCall({ secrets: [wasalApiKey] }, async (request) => {
     discountAmount = Math.max(0, Math.min(discountAmount, verifiedSubtotal));
 
     // Area-based Wasal fee (per boutique pickup) when available; otherwise the
-    // legacy flat fee. Made to Order keeps free delivery, unchanged.
-    const deliveryCost = deliveryMethod === "Made to Order" ? 0
-      : wasalAreaFee !== null
-        ? parseFloat((wasalAreaFee * wasalPickupCount).toFixed(3))
-        : 3;
+    // legacy flat fee — one rule for EVERY order. Made to Order only changes
+    // when an item ships, never what delivery costs; and whether the order is
+    // Made to Order comes from the product docs read above, never the client (a
+    // false claim is rejected). The `deliveryMethod` every order doc below
+    // stores is this server-derived label, not the request's.
+    let delivery;
+    try {
+      delivery = wasal.resolveOrderDelivery({
+        products: Object.values(productInfo).map((p) => p.data),
+        requestedMethod: requestedDeliveryMethod,
+        wasalAreaFee,
+        pickupCount: wasalPickupCount,
+      });
+    } catch (err) {
+      if (err instanceof wasal.DeliveryMethodError) {
+        throw new HttpsError("failed-precondition", err.message);
+      }
+      throw err;
+    }
+    const { deliveryMethod, deliveryCost } = delivery;
     const total = verifiedSubtotal + deliveryCost - discountAmount;
 
     // Flat 15% LIBSK commission on GMV — computed from the order subtotal,

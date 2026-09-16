@@ -310,6 +310,65 @@ function isKuwaitAddress(address) {
   return true;
 }
 
+// The delivery methods an order can carry. There is ONE way to deliver
+// (Standard Delivery, through Wasal); "Made to Order" labels an order holding
+// an item produced after purchase — it changes WHEN the order ships, never
+// whether delivery is charged or what it costs.
+const DELIVERY_STANDARD = "Standard Delivery";
+const DELIVERY_MADE_TO_ORDER = "Made to Order";
+
+// Legacy flat delivery fee (KWD), charged when no Wasal area price resolved
+// (Wasal disabled, a fee lookup that threw, or an address without area IDs).
+const FLAT_DELIVERY_FEE = 3;
+
+/** The client claimed a delivery method the order's products don't support. */
+class DeliveryMethodError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "DeliveryMethodError";
+  }
+}
+
+/**
+ * An order's delivery, resolved from server-read product data.
+ *
+ *   products        - the product docs createOrder read for the cart's lines
+ *   requestedMethod - the client's deliveryMethod: validated, never trusted
+ *   wasalAreaFee    - the Wasal area fee for the delivery address, or null
+ *                     when none resolved
+ *   pickupCount     - boutiques in the order (one Wasal pickup each)
+ *
+ * Returns { madeToOrder, deliveryMethod, deliveryCost }:
+ *   madeToOrder    - true iff a product doc has madeToOrder === true (derived
+ *                    from the products, never from the client's label)
+ *   deliveryMethod - the label the order docs store: DELIVERY_MADE_TO_ORDER
+ *                    when madeToOrder, else DELIVERY_STANDARD
+ *   deliveryCost   - the area fee once per pickup (rounded to fils), or the
+ *                    flat fee when no area price resolved. One rule for every
+ *                    order — madeToOrder never changes it.
+ *
+ * Throws DeliveryMethodError when the client claims Made to Order for a cart
+ * with no made-to-order product: like prices, the label is the server's call.
+ */
+function resolveOrderDelivery({ products, requestedMethod, wasalAreaFee, pickupCount }) {
+  const madeToOrder = (products || []).some((p) => !!p && p.madeToOrder === true);
+  if (requestedMethod === DELIVERY_MADE_TO_ORDER && !madeToOrder) {
+    throw new DeliveryMethodError(
+      "An item in your cart is no longer made to order. " +
+      "Please remove it and add it again.",
+    );
+  }
+  const hasAreaFee = typeof wasalAreaFee === "number" && Number.isFinite(wasalAreaFee);
+  const deliveryCost = hasAreaFee
+    ? parseFloat((wasalAreaFee * pickupCount).toFixed(3))
+    : FLAT_DELIVERY_FEE;
+  return {
+    madeToOrder,
+    deliveryMethod: madeToOrder ? DELIVERY_MADE_TO_ORDER : DELIVERY_STANDARD,
+    deliveryCost,
+  };
+}
+
 module.exports = {
   WASAL_BASE_URL,
   MERCHANT_PREFIX,
@@ -326,4 +385,9 @@ module.exports = {
   resolveZoneFee,
   isKuwaitAddress,
   overallDeliveryStatus,
+  DELIVERY_STANDARD,
+  DELIVERY_MADE_TO_ORDER,
+  FLAT_DELIVERY_FEE,
+  DeliveryMethodError,
+  resolveOrderDelivery,
 };
