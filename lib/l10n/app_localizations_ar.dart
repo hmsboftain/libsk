@@ -2396,6 +2396,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get categoryAccessories => 'إكسسوارات';
 
   @override
+  String get categoryMakeup => 'مكياج';
+
+  @override
+  String get categorySkincare => 'العناية بالبشرة';
+
+  @override
   String get addPromoCode => 'إضافة رمز ترويجي';
 
   @override

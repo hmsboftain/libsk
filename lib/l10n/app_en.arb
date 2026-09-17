@@ -813,6 +813,8 @@
   "showStockCountSubtitle": "Customers see how many units are left on product pages.",
   "categorySwimwear": "Swimwear",
   "categoryAccessories": "Accessories",
+  "categoryMakeup": "Makeup",
+  "categorySkincare": "Skincare",
   "addPromoCode": "Add promo code",
   "promoCode": "Promo code",
   "enterPromoCode": "Enter code",

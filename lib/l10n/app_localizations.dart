@@ -4637,6 +4637,18 @@ abstract class AppLocalizations {
   /// **'Accessories'**
   String get categoryAccessories;
 
+  /// No description provided for @categoryMakeup.
+  ///
+  /// In en, this message translates to:
+  /// **'Makeup'**
+  String get categoryMakeup;
+
+  /// No description provided for @categorySkincare.
+  ///
+  /// In en, this message translates to:
+  /// **'Skincare'**
+  String get categorySkincare;
+
   /// No description provided for @addPromoCode.
   ///
   /// In en, this message translates to:

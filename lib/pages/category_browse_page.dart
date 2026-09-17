@@ -12,6 +12,10 @@ String _labelForCategory(String? key, String label, AppLocalizations l10n) {
       return l10n.categorySwimwear;
     case 'Accessories':
       return l10n.categoryAccessories;
+    case 'Makeup':
+      return l10n.categoryMakeup;
+    case 'Skincare':
+      return l10n.categorySkincare;
     default:
       return label;
   }
@@ -33,9 +37,11 @@ class CategoryBrowsePage extends StatelessWidget {
     {'label': 'Gowns', 'key': 'Gowns'},
     {'label': 'Jackets', 'key': 'Jackets'},
     {'label': 'Jumpsuits', 'key': 'Jumpsuits'},
+    {'label': 'Makeup', 'key': 'Makeup'},
     {'label': 'Office Attire', 'key': 'Office Attire'},
     {'label': 'Pants', 'key': 'Pants'},
     {'label': 'Shoes', 'key': 'Shoes'},
+    {'label': 'Skincare', 'key': 'Skincare'},
     {'label': 'Skirts', 'key': 'Skirts'},
     {'label': 'Swimwear', 'key': 'Swimwear'},
     {'label': 'Tops', 'key': 'Tops'},

@@ -2396,6 +2396,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get categoryAccessories => 'Accessories';
 
   @override
+  String get categoryMakeup => 'Makeup';
+
+  @override
+  String get categorySkincare => 'Skincare';
+
+  @override
   String get addPromoCode => 'Add promo code';
 
   @override
