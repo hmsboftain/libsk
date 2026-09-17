@@ -23,6 +23,9 @@
  *   8. Every discount code belongs to a boutique: a code with no (or an empty)
  *      boutiqueId can't be stored by anyone, and a code's boutiqueId can't be
  *      changed after creation (no re-pointing a code at another boutique).
+ *   9. Boutique onboarding: the superadmin can create a boutique with the
+ *      commission fields the onboarding screen writes; no one else can create
+ *      a boutique, and an owner can't change their own commission rate.
  *
  * Usage:
  *   TOK=$(gcloud auth print-access-token) node scripts/verify_superadmin_rules.js
@@ -95,6 +98,14 @@ const code = {
 // The same code with its boutiqueId stripped — a platform-wide code, which no
 // longer exists.
 const { boutiqueId: _unusedBoutiqueId, ...codeNoBoutique } = code;
+// Exactly what boutique_onboarding_page.dart writes on create (1.0.1),
+// createdAt aside (a server timestamp; the create rule doesn't inspect it).
+const onboardedBoutique = {
+  name: "Boutique Nine", description: "New boutique", ownerUid: "owner9",
+  isActive: true, isVisible: false,
+  commissionType: 2, commissionPercent: 15, commissionFixed: 0,
+};
+const onboardedFoundingPartner = { ...onboardedBoutique, foundingPartner: true, promoCreditPending: true };
 
 const cases = [
   // ══ 1. Read all users ══════════════════════════════════════════════════
@@ -256,6 +267,32 @@ const cases = [
   testCase("super strips a code's boutiqueId (turning it platform-wide)", "DENY",
     { auth: SUPER, path: DOC("discount_codes/dc3"), method: "update", resource: { data: codeNoBoutique } },
     { data: code }, [...noOwner("super1"), ...superMock("super1")]),
+
+  // ══ 9. Boutique onboarding writes the commission fields ════════════════════
+  // boutique_onboarding_page.dart (a superadmin-only screen) creates the
+  // boutique straight from the client, commission fields included. Only a
+  // superadmin can create a boutique at all; owners can't change their rate.
+  testCase("super creates a boutique with the onboarding payload (commission fields included)", "ALLOW",
+    { auth: SUPER, path: DOC("boutiques/b9"), method: "create", resource: { data: onboardedBoutique } },
+    null, superMock("super1")),
+  testCase("super creates a Founding Partner boutique with the onboarding payload", "ALLOW",
+    { auth: SUPER, path: DOC("boutiques/b9"), method: "create", resource: { data: onboardedFoundingPartner } },
+    null, superMock("super1")),
+  testCase("approved owner creates another boutique", "DENY",
+    { auth: OWNER, path: DOC("boutiques/b9"), method: "create", resource: { data: onboardedBoutique } },
+    null, [...ownerMock("owner1", "b1"), ...noAdmin("owner1")]),
+  testCase("signed-in customer creates a boutique", "DENY",
+    { auth: CUSTOMER, path: DOC("boutiques/b9"), method: "create", resource: { data: onboardedBoutique } },
+    null, [...noOwner("customer1"), ...noAdmin("customer1")]),
+  testCase("owner edits their OWN boutique's description (control for the next case)", "ALLOW",
+    { auth: OWNER, path: DOC("boutiques/b1"), method: "update", resource: { data: { ...onboardedBoutique, description: "New" } } },
+    { data: onboardedBoutique }, [...ownerMock("owner1", "b1"), ...noAdmin("owner1")]),
+  testCase("owner lowers their OWN commissionPercent", "DENY",
+    { auth: OWNER, path: DOC("boutiques/b1"), method: "update", resource: { data: { ...onboardedBoutique, commissionPercent: 12 } } },
+    { data: onboardedBoutique }, [...ownerMock("owner1", "b1"), ...noAdmin("owner1")]),
+  testCase("super sets a boutique's commissionPercent", "ALLOW",
+    { auth: SUPER, path: DOC("boutiques/b1"), method: "update", resource: { data: { ...onboardedBoutique, commissionPercent: 12 } } },
+    { data: onboardedBoutique }, [...noOwner("super1"), ...superMock("super1")]),
 ];
 
 const body = {
