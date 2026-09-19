@@ -5687,6 +5687,36 @@ abstract class AppLocalizations {
   /// **'Could not request a driver. Please try again.'**
   String get deliveryDispatchFailed;
 
+  /// No description provided for @printLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Print Label'**
+  String get printLabel;
+
+  /// No description provided for @labelNotAvailableYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No courier label yet. Request a driver first.'**
+  String get labelNotAvailableYet;
+
+  /// No description provided for @labelAuthFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'You are not authorised to print this label.'**
+  String get labelAuthFailed;
+
+  /// No description provided for @labelNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'The courier has no label for this delivery.'**
+  String get labelNotFound;
+
+  /// No description provided for @labelFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the label. Check your connection and try again.'**
+  String get labelFailed;
+
   /// No description provided for @deliverySelectAreaHint.
   ///
   /// In en, this message translates to:

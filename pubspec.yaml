@@ -47,6 +47,11 @@ dependencies:
   # google_maps_flutter upgrade path if delivery volume grows.
   flutter_map: ^8.0.0
   latlong2: ">=0.9.1 <0.11.0"
+  # Boutique-owner courier label printing. Takes the PDF bytes our
+  # getWasalShippingLabel callable returns straight to the platform print
+  # sheet (AirPrint / Android print service) or share sheet — no temp file,
+  # and no PDF ever touches disk. See _PrintLabelButton in owner_orders_page.
+  printing: ^5.14.2
 
 dev_dependencies:
   flutter_test:

@@ -70,6 +70,52 @@ async function wasalRequest(apiKey, method, path, { body, query } = {}) {
   return json.data;
 }
 
+/**
+ * Perform a Wasal API request whose success response is BINARY, not the usual
+ * { success, data } JSON envelope — currently only the shipping-label PDF.
+ *
+ * Errors still come back as the normal JSON envelope, so a non-2xx is parsed
+ * the same way wasalRequest() does and raised as a WasalError carrying the
+ * HTTP status and Wasal code (401 / 404 ORDER_NOT_FOUND). A 2xx that is NOT a
+ * PDF is treated as an error too: Wasal has been seen to answer with a JSON
+ * envelope (or an HTML login page) under a 200 when a key is wrong, and
+ * handing those bytes to a printer would render garbage.
+ */
+async function wasalRequestBinary(apiKey, method, path, { query } = {}) {
+  const url = new URL(WASAL_BASE_URL + MERCHANT_PREFIX + path);
+  if (query) {
+    for (const [k, v] of Object.entries(query)) {
+      if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
+    }
+  }
+  const res = await fetch(url, {
+    method,
+    headers: {
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      Accept: "application/pdf",
+    },
+  });
+
+  if (!res.ok) {
+    let json = null;
+    try { json = await res.json(); } catch (_) { /* non-JSON error body */ }
+    throw new WasalError(
+      (json && json.message) || `Wasal request failed (HTTP ${res.status})`,
+      { status: res.status, code: json && json.code, errors: json && json.errors },
+    );
+  }
+
+  const contentType = String(res.headers.get("content-type") || "");
+  const bytes = Buffer.from(await res.arrayBuffer());
+  if (!isPdfBytes(bytes)) {
+    throw new WasalError(
+      `Wasal returned ${contentType || "an unknown content type"} instead of a PDF`,
+      { status: res.status, code: "NOT_A_PDF" },
+    );
+  }
+  return { bytes, contentType: contentType || "application/pdf" };
+}
+
 // ── Client factory ────────────────────────────────────────────────────────────
 
 /** Build a Wasal client bound to one API key. */
@@ -107,6 +153,11 @@ function createWasalClient(apiKey) {
     getOrder: (orderId) => wasalRequest(apiKey, "GET", `/order/${orderId}`),
     cancelOrder: (orderId) => wasalRequest(apiKey, "PUT", `/order/${orderId}/cancel`),
     getOrderHistory: (orderId) => wasalRequest(apiKey, "GET", `/order/${orderId}/history`),
+    // Shipping label PDF (raw bytes, NOT the JSON envelope) — the driver scans
+    // it at pickup/delivery. Keyed by Wasal's internal order _id, the same id
+    // markReadyForPickup persists as wasalOrderId.
+    getOrderLabel: (orderId) =>
+      wasalRequestBinary(apiKey, "GET", `/order/${orderId}/label`),
     // Public order tracking (NO key): live status + agent location + agentPhone,
     // keyed by the human-readable orderNumber (e.g. "MAIN-000123"). The endpoint
     // deliberately exposes only non-sensitive fields — status, agentLocation
@@ -129,6 +180,16 @@ function createWasalClient(apiKey) {
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
+
+/**
+ * True when a buffer actually starts with the PDF magic number ("%PDF-").
+ * Used to reject a 200 response that carries a JSON error envelope or an HTML
+ * page instead of the shipping label.
+ */
+function isPdfBytes(bytes) {
+  if (!bytes || typeof bytes.length !== "number" || bytes.length < 5) return false;
+  return Buffer.from(bytes.subarray(0, 5)).toString("latin1") === "%PDF-";
+}
 
 /**
  * Verify an X-Wasal-Signature header ("sha256=<hex>") against the raw request
@@ -317,7 +378,9 @@ module.exports = {
   WASAL_TERMINAL_STATUSES,
   WasalError,
   wasalRequest,
+  wasalRequestBinary,
   createWasalClient,
+  isPdfBytes,
   verifyWebhookSignature,
   mapWasalToLibskStatus,
   normalizeKuwaitPhone,

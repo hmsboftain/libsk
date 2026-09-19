@@ -14,6 +14,7 @@ const {
   findMatchingAddress,
   resolveZoneFee,
   overallDeliveryStatus,
+  isPdfBytes,
   WASAL_TERMINAL_STATUSES,
 } = require("../wasal");
 
@@ -184,4 +185,25 @@ test("Delivered only when every delivery is delivered", () => {
 test("terminal statuses cover the documented set", () => {
   assert.deepEqual([...WASAL_TERMINAL_STATUSES].sort(),
     ["cancelled", "delivered", "failed", "returned"]);
+});
+
+// ── isPdfBytes ────────────────────────────────────────────────────────────────
+
+test("accepts a real PDF header", () => {
+  assert.equal(isPdfBytes(Buffer.from("%PDF-1.7\n%\xE2\xE3\xCF\xD3")), true);
+});
+
+test("rejects a JSON error envelope served under a 200", () => {
+  assert.equal(isPdfBytes(Buffer.from('{"success":false,"code":"ORDER_NOT_FOUND"}')), false);
+});
+
+test("rejects an HTML login page served under a 200", () => {
+  assert.equal(isPdfBytes(Buffer.from("<!DOCTYPE html><html><body>Sign in")), false);
+});
+
+test("rejects empty, short and missing buffers", () => {
+  assert.equal(isPdfBytes(Buffer.alloc(0)), false);
+  assert.equal(isPdfBytes(Buffer.from("%PDF")), false); // 4 bytes — no version dash
+  assert.equal(isPdfBytes(null), false);
+  assert.equal(isPdfBytes(undefined), false);
 });

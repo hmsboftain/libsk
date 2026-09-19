@@ -4,6 +4,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../core/utils/image_sizing.dart';
 import 'package:flutter/material.dart';
 import 'package:libsk/l10n/app_localizations.dart';
+import 'package:printing/printing.dart';
 import '../widgets/error_state_widget.dart';
 import '../navigation/app_header.dart';
 import '../services/firestore_service.dart';
@@ -20,6 +21,14 @@ String _fmt(double kwd) {
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
+
+/// Courier states a delivery can be re-requested from: the previous delivery
+/// ended WITHOUT delivering, so re-dispatch issues a fresh Wasal order — and
+/// the old shipping label is dead. Gates both the "Ready for Pickup" and
+/// "Print Label" buttons so the two can never disagree about which label is
+/// live. The server enforces the same rule authoritatively in
+/// markReadyForPickup (WASAL_TERMINAL_STATUSES minus `delivered`).
+const _redispatchableWasalStatuses = ['cancelled', 'failed', 'returned'];
 
 /// Human-readable courier (Wasal) status, distinct from the LIBSK order
 /// status — this is where the driver physically is with the package.
@@ -243,6 +252,45 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
     }
   }
 
+  /// "Print Label": fetch this sub-order's Wasal shipping label through the
+  /// getWasalShippingLabel Cloud Function (which holds the merchant key) and
+  /// hand the PDF to the platform print sheet, where the owner can print it on
+  /// a label printer or share/save it. The bytes never touch disk.
+  Future<void> _printLabel(String boutiqueOrderId) async {
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      final label = await WasalService.instance.getShippingLabel(
+        boutiqueOrderId: boutiqueOrderId,
+      );
+      if (!mounted) return;
+      await Printing.layoutPdf(
+        onLayout: (_) => label.bytes,
+        name: label.filename,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      // The server distinguishes the cases the owner can act on from the ones
+      // they can't; anything else (including a dead network, which surfaces as
+      // `unavailable`/`internal`) falls through to the generic retry message.
+      final message = switch (e.code) {
+        'failed-precondition' => l10n.labelNotAvailableYet,
+        'not-found' => l10n.labelNotFound,
+        'permission-denied' || 'unauthenticated' => l10n.labelAuthFailed,
+        _ => l10n.labelFailed,
+      };
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (_) {
+      // Network failure before the call is framed, a malformed payload, or the
+      // platform print sheet refusing to open.
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.labelFailed)));
+    }
+  }
+
   Widget _buildFilterChips() {
     final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
@@ -376,6 +424,7 @@ class _OwnerOrdersPageState extends State<OwnerOrdersPage> {
                 doc: docs[index],
                 onStatusUpdate: _updateOrderStatus,
                 onDispatchDelivery: _dispatchDelivery,
+                onPrintLabel: _printLabel,
               ),
             ),
           ),
@@ -466,11 +515,13 @@ class _OrderCard extends StatelessWidget {
   })
   onStatusUpdate;
   final Future<void> Function(String boutiqueOrderId) onDispatchDelivery;
+  final Future<void> Function(String boutiqueOrderId) onPrintLabel;
 
   const _OrderCard({
     required this.doc,
     required this.onStatusUpdate,
     required this.onDispatchDelivery,
+    required this.onPrintLabel,
   });
 
   Future<void> _cancelOrder(
@@ -570,10 +621,18 @@ class _OrderCard extends StatelessWidget {
     // previous one ended without delivering (cancelled / failed / returned) —
     // the server enforces the same rule authoritatively.
     final wasalStatus = data['wasalStatus']?.toString() ?? '';
+    final wasalOrderId = data['wasalOrderId']?.toString() ?? '';
     final canDispatch =
         status.toLowerCase() == 'confirmed' &&
         (wasalStatus.isEmpty ||
-            const ['cancelled', 'failed', 'returned'].contains(wasalStatus));
+            _redispatchableWasalStatuses.contains(wasalStatus));
+    // The label exists only once a delivery has been dispatched, and only for
+    // the delivery that is still live — after a cancelled/failed/returned one
+    // the printed barcode is dead and re-dispatch will issue a new label, so
+    // this is deliberately the exact complement of canDispatch.
+    final canPrintLabel =
+        wasalOrderId.isNotEmpty &&
+        !_redispatchableWasalStatuses.contains(wasalStatus);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -715,6 +774,18 @@ class _OrderCard extends StatelessWidget {
               onDispatch: () => onDispatchDelivery(boutiqueOrderId),
             ),
           ],
+          if (canPrintLabel) ...[
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 12),
+            // Secondary action next to dispatch: the delivery already exists,
+            // this just reprints the driver's scannable sheet. Disables itself
+            // while the fetch + print sheet are in flight.
+            _PrintLabelButton(
+              label: l10n.printLabel,
+              onPrint: () => onPrintLabel(boutiqueOrderId),
+            ),
+          ],
         ],
       ),
     );
@@ -775,6 +846,65 @@ class _ReadyForPickupButtonState extends State<_ReadyForPickupButton> {
                 ),
               )
             : Text(widget.label, style: AppTextStyles.button),
+      ),
+    );
+  }
+}
+
+// ── "Print Label" button ──────────────────────────────────────────────────────
+// Mirrors _ReadyForPickupButton's in-flight guard: fetching the PDF is a
+// network round trip and the platform print sheet takes a moment to appear, so
+// the button must not be re-tappable in between. Outlined rather than filled —
+// the delivery is already dispatched; this is the secondary action.
+
+class _PrintLabelButton extends StatefulWidget {
+  final String label;
+  final Future<void> Function() onPrint;
+
+  const _PrintLabelButton({required this.label, required this.onPrint});
+
+  @override
+  State<_PrintLabelButton> createState() => _PrintLabelButtonState();
+}
+
+class _PrintLabelButtonState extends State<_PrintLabelButton> {
+  bool _printing = false;
+
+  Future<void> _onPressed() async {
+    if (_printing) return;
+    setState(() => _printing = true);
+    try {
+      await widget.onPrint();
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: _printing ? null : _onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.deepAccent,
+          disabledForegroundColor: AppColors.deepAccent,
+          side: const BorderSide(color: AppColors.deepAccent, width: 0.5),
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+        child: _printing
+            ? const SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.deepAccent,
+                  ),
+                ),
+              )
+            : Text(widget.label, style: AppTextStyles.labelLarge),
       ),
     );
   }

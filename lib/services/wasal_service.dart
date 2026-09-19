@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:cloud_functions/cloud_functions.dart';
 
 /// A Wasal delivery area (governorate or neighborhood), bilingual.
@@ -30,6 +33,8 @@ class WasalGovernorate extends WasalArea {
 /// - `getWasalAreas` — cached governorate→neighborhood tree for address forms
 /// - `getWasalDeliveryFee` — live area fee quote for checkout
 /// - `markReadyForPickup` — boutique owner dispatches a delivery
+/// - `getWasalShippingLabel` — boutique owner fetches a courier label PDF
+/// - `getWasalTracking` — customer live delivery tracking
 class WasalService {
   final FirebaseFunctions _functions;
 
@@ -104,6 +109,26 @@ class WasalService {
     return result.data['wasalOrderNumber']?.toString() ?? '';
   }
 
+  /// Boutique owner: the Wasal shipping label for a dispatched sub-order —
+  /// the PDF the driver scans at pickup and delivery.
+  ///
+  /// The server holds the merchant key and fetches the PDF from Wasal, so
+  /// nothing about the courier account reaches the app; the bytes arrive
+  /// base64-encoded in the callable response. Throws
+  /// [FirebaseFunctionsException] so callers can tell the cases apart:
+  /// `failed-precondition` (no delivery dispatched yet — nothing to label),
+  /// `not-found` (order or label gone), `permission-denied`/`unauthenticated`
+  /// (not this boutique's order), `unavailable` (Wasal or the network).
+  Future<WasalShippingLabel> getShippingLabel({
+    required String boutiqueOrderId,
+  }) async {
+    final callable = _functions.httpsCallable('getWasalShippingLabel');
+    final result = await callable.call<Map<String, dynamic>>({
+      'boutiqueOrderId': boutiqueOrderId,
+    });
+    return WasalShippingLabel.fromMap(result.data);
+  }
+
   /// Customer live tracking for one of their own orders — the delivery
   /// timeline (statusHistory) plus the driver's latest location. The server
   /// verifies the caller owns [orderId] and fetches everything from Wasal with
@@ -122,6 +147,37 @@ class WasalService {
     return raw
         .map((d) => WasalDeliveryTracking.fromMap(Map<String, dynamic>.from(d as Map)))
         .toList();
+  }
+}
+
+/// A courier shipping label, from the `getWasalShippingLabel` callable.
+///
+/// [bytes] are the decoded PDF — handed straight to the platform print/share
+/// sheet, never written to disk.
+class WasalShippingLabel {
+  final Uint8List bytes;
+  final String wasalOrderNumber;
+  final String orderNumber;
+
+  const WasalShippingLabel({
+    required this.bytes,
+    required this.wasalOrderNumber,
+    required this.orderNumber,
+  });
+
+  /// Filename the print/share sheet offers, preferring the courier's own
+  /// order number so a printed sheet can be matched back to the delivery.
+  String get filename {
+    final ref = wasalOrderNumber.isNotEmpty ? wasalOrderNumber : orderNumber;
+    return ref.isNotEmpty ? 'wasal-label-$ref.pdf' : 'wasal-label.pdf';
+  }
+
+  factory WasalShippingLabel.fromMap(Map<String, dynamic> data) {
+    return WasalShippingLabel(
+      bytes: base64Decode(data['pdfBase64']?.toString() ?? ''),
+      wasalOrderNumber: data['wasalOrderNumber']?.toString() ?? '',
+      orderNumber: data['orderNumber']?.toString() ?? '',
+    );
   }
 }
 

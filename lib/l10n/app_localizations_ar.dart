@@ -2975,6 +2975,21 @@ class AppLocalizationsAr extends AppLocalizations {
   String get deliveryDispatchFailed => 'تعذّر طلب المندوب. حاول مرة أخرى.';
 
   @override
+  String get printLabel => 'طباعة الملصق';
+
+  @override
+  String get labelNotAvailableYet => 'لا يوجد ملصق للمندوب بعد. اطلب مندوبًا أولًا.';
+
+  @override
+  String get labelAuthFailed => 'لا تملك صلاحية طباعة هذا الملصق.';
+
+  @override
+  String get labelNotFound => 'لا يوجد ملصق لهذه الشحنة لدى المندوب.';
+
+  @override
+  String get labelFailed => 'تعذّر تحميل الملصق. تحقق من اتصالك وحاول مرة أخرى.';
+
+  @override
   String get deliverySelectAreaHint => 'أضف منطقتك إلى عنوان التوصيل للحصول على سعر التوصيل الدقيق.';
 
   @override

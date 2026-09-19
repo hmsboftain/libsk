@@ -2971,6 +2971,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deliveryDispatchFailed => 'Could not request a driver. Please try again.';
 
   @override
+  String get printLabel => 'Print Label';
+
+  @override
+  String get labelNotAvailableYet => 'No courier label yet. Request a driver first.';
+
+  @override
+  String get labelAuthFailed => 'You are not authorised to print this label.';
+
+  @override
+  String get labelNotFound => 'The courier has no label for this delivery.';
+
+  @override
+  String get labelFailed => 'Could not load the label. Check your connection and try again.';
+
+  @override
   String get deliverySelectAreaHint => 'Add your area to your delivery address to get exact delivery pricing.';
 
   @override

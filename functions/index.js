@@ -5541,6 +5541,108 @@ exports.markReadyForPickup = onCall({ secrets: [wasalApiKey] }, async (request) 
   }
 });
 
+// ── getWasalShippingLabel — boutique owner prints the courier label ──────────
+//
+// The label is the PDF the Wasal driver scans at pickup and delivery. Wasal
+// serves it from GET /order/{wasalOrderId}/label as raw PDF bytes (not the JSON
+// envelope), authenticated with the merchant key — so the fetch must happen
+// here: the key never reaches the app.
+//
+// Ownership is enforced BY CONSTRUCTION, the same way getWasalTracking does it
+// for customers: requireApprovedOwner resolves the caller's OWN boutiqueId and
+// we only ever read boutiques/{thatId}/orders/{boutiqueOrderId}, so an owner
+// cannot fetch a label for another boutique's order whatever id they send.
+//
+// Transport note: this is a callable returning base64, not a byte-streaming
+// onRequest endpoint. Every authenticated boutique-owner operation in this
+// codebase is a callable (markReadyForPickup, updateOrderStatus,
+// getWasalTracking) — the single onRequest is the unauthenticated, signature-
+// verified wasalWebhook — so an onRequest here would mean hand-rolling ID-token
+// verification and CORS that nothing else in the project does. A shipping label
+// is tens of KB against a 10MB callable response limit, so base64's 4/3
+// inflation is not a constraint; the guard below rejects anything unexpectedly
+// large rather than letting the callable fail opaquely.
+const WASAL_LABEL_MAX_BYTES = 5 * 1024 * 1024;
+
+exports.getWasalShippingLabel = onCall({ secrets: [wasalApiKey] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+  const uid = request.auth.uid;
+  // Owners reprint labels (jammed printer, lost sheet), so this is generous —
+  // but still bounded against the shared 600-req / 15-min Wasal key.
+  const rateOk = await checkRateLimit(`wasal_label_${uid}`, 120, 3600);
+  if (!rateOk) {
+    throw new HttpsError("resource-exhausted", "Too many requests. Please try again later.");
+  }
+  if (wasalEnabled.value() !== "true") {
+    throw new HttpsError("failed-precondition", "Delivery dispatch is not enabled yet.");
+  }
+
+  const boutiqueOrderId = request.data?.boutiqueOrderId;
+  if (typeof boutiqueOrderId !== "string" || !boutiqueOrderId || boutiqueOrderId.length > 200) {
+    throw new HttpsError("invalid-argument", "A valid boutiqueOrderId is required.");
+  }
+
+  const boutiqueId = await requireApprovedOwner(uid);
+  const orderSnap = await db.collection("boutiques").doc(boutiqueId)
+    .collection("orders").doc(boutiqueOrderId).get();
+  if (!orderSnap.exists) {
+    throw new HttpsError("not-found", "Order not found for this boutique.");
+  }
+  const orderData = orderSnap.data() || {};
+
+  // No delivery dispatched yet — there is nothing for Wasal to label. This is
+  // the common case the UI shows as "request a driver first", so it stays a
+  // failed-precondition and never reaches the Wasal API.
+  const wasalOrderId = String(orderData.wasalOrderId || "");
+  if (!wasalOrderId) {
+    throw new HttpsError("failed-precondition",
+      "This order has not been dispatched to the courier yet.");
+  }
+
+  const client = wasal.createWasalClient(wasalApiKey.value());
+  try {
+    const { bytes, contentType } = await client.getOrderLabel(wasalOrderId);
+    if (bytes.length > WASAL_LABEL_MAX_BYTES) {
+      logger.error("Wasal label unexpectedly large — refusing to return it",
+        { wasalOrderId, bytes: bytes.length });
+      throw new HttpsError("internal", "The courier label could not be prepared.");
+    }
+    return {
+      pdfBase64: bytes.toString("base64"),
+      contentType,
+      wasalOrderNumber: String(orderData.wasalOrderNumber || ""),
+      orderNumber: String(orderData.orderNumber || ""),
+    };
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    if (error instanceof wasal.WasalError) {
+      // 404 / ORDER_NOT_FOUND — Wasal has no such order. Either the delivery
+      // was purged on their side or our stored id is stale; either way the
+      // owner needs to re-dispatch, not retry.
+      if (error.status === 404 || error.code === "ORDER_NOT_FOUND") {
+        logger.warn("Wasal has no label for this delivery",
+          { boutiqueOrderId, wasalOrderId, code: error.code });
+        throw new HttpsError("not-found", "The courier has no label for this delivery.");
+      }
+      // 401 — OUR merchant key is bad or missing. This is a LIBSK configuration
+      // fault, not something the owner did, so it is logged loudly and reported
+      // as an internal error rather than leaking key state to the app.
+      if (error.status === 401) {
+        logger.error("Wasal rejected the merchant key while fetching a label — "
+          + "check the WASAL_API_KEY secret version", { wasalOrderId });
+        throw new HttpsError("internal", "The courier label could not be prepared.");
+      }
+      logger.error("getWasalShippingLabel: Wasal request failed",
+        { wasalOrderId, status: error.status, code: error.code, err: error.message });
+      throw new HttpsError("unavailable", "Could not load the courier label. Please try again.");
+    }
+    logger.error("getWasalShippingLabel failed", error);
+    throw new HttpsError("internal", "Could not load the courier label. Please try again.");
+  }
+});
+
 // Apply one Wasal delivery status to the boutique sub-order and fan it out to
 // the customer + global order. The SINGLE write path shared by wasalWebhook and
 // reconcileWasalDeliveries, so advance/notify logic lives in one place.
